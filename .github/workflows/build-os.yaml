@@ -1,0 +1,48 @@
+name: os-container
+
+on:
+  push:
+    branches:
+      - '*'
+  pull_request:
+
+env:
+  IMAGE_NAME: os-builder
+  IMAGE_NAME_DEV: dev/os-builder
+  workingPATH: .
+
+jobs:
+  gitversion:
+    runs-on: ubuntu-latest
+    outputs:
+      MajorMinorPatch: ${{ steps.gitversion.outputs.MajorMinorPatch }}
+      Release: ${{ steps.gitversion.outputs.BuildMetaData }}
+    steps:
+      - name: Install GitVersion
+        uses: gittools/actions/gitversion/setup@v0.9.15
+        with:
+          versionSpec: '5.x'
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Determine Version
+        id: gitversion
+        uses: gittools/actions/gitversion/execute@v0.9.15
+        with:
+          useConfigFile: true
+          
+  build:
+    runs-on: ubuntu-latest
+    needs: gitversion
+    steps:
+      - name: checkout source
+        uses: actions/checkout@v3.3.0
+        with:
+          submodules: true
+      - name: build docker artifact
+        run: |
+          image_name="${{ env.IMAGE_NAME }}:${{ needs.gitversion.outputs.MajorMinorPatch }}"
+          docker build -f ./os/Dockerfile -t $image_name .
+          docker save $image_name | gzip > image.tar.gz
+          
