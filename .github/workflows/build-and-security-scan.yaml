@@ -6,7 +6,7 @@ on:
     paths:
       - 'os/**'
   pull_request:
-    branches: ['main', 'develop']
+    branches: ['main']
     paths:
       - 'os/**'
   schedule:
@@ -144,7 +144,7 @@ jobs:
             type=semver,pattern={{version}},value=${{ needs.gitversion.outputs.SemVer }}
             type=semver,pattern={{major}}.{{minor}},value=${{ needs.gitversion.outputs.SemVer }}
             type=semver,pattern={{major}},value=${{ needs.gitversion.outputs.SemVer }}
-            type=sha,prefix={{branch}}-,suffix=-{{date 'X'}}
+            type=sha,prefix=sha-
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build container image
