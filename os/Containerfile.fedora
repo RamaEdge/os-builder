@@ -66,8 +66,9 @@ RUN mkdir -p /etc/containers/systemd /etc/microshift /etc/otelcol /etc/microshif
     # Enable base services (excluding microshift until service file is copied)
     systemctl enable sshd chronyd systemd-resolved podman.socket crio && \
     systemctl enable bootc-fetch-apply-updates.timer && \
-    # Configure firewall
-    firewall-offline-cmd --add-service=ssh --add-port=6443/tcp --add-port=8080/tcp \
+    # Configure firewall - separate commands for services and ports
+    firewall-offline-cmd --add-service=ssh && \
+    firewall-offline-cmd --add-port=6443/tcp --add-port=8080/tcp \
         --add-port=10250/tcp --add-port=4317/tcp --add-port=4318/tcp
 
 # Copy configuration files
