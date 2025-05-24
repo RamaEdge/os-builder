@@ -5,10 +5,6 @@ on:
     # Check for dependency updates weekly on Mondays
     - cron: '0 6 * * 1'
   workflow_dispatch:
-  push:
-    paths:
-      - 'os/Containerfile.fedora'
-      - '.github/dependabot.yml'
 
 jobs:
   check-base-image:
@@ -41,7 +37,7 @@ jobs:
           echo "Current digest: ${DIGEST}"
 
       - name: Scan base image for vulnerabilities
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@v0.30.0
         with:
           image-ref: ${{ steps.base-image.outputs.base-image }}
           format: 'sarif'
