@@ -84,6 +84,12 @@ RUN chmod +x /usr/local/bin/*.sh 2>/dev/null || true && \
     systemctl enable edge-setup.service microshift-kubeconfig-setup.service \
         observability-deploy.service 2>/dev/null || true && \
     restorecon -R /etc /usr/local/bin 2>/dev/null || true && \
+    # Create non-root user for container security compliance
+    useradd -r -s /sbin/nologin -d /var/empty -c "Container user" containeruser && \
     bootc container lint
+
+# Switch to non-root user for container security compliance
+# Note: This is for container image security; bootc will use system users when booted
+USER containeruser
 
 CMD ["/bin/bash"] 
