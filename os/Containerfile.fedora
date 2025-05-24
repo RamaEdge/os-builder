@@ -63,8 +63,8 @@ RUN dnf install -y openssh-server sudo podman cri-o kubernetes-client NetworkMan
 # Configure services and directories
 RUN mkdir -p /etc/containers/systemd /etc/microshift /etc/otelcol /etc/microshift/manifests \
         /var/lib/microshift /var/log/microshift /var/hpvolumes && \
-    # Enable services
-    systemctl enable sshd chronyd systemd-resolved podman.socket crio microshift && \
+    # Enable base services (excluding microshift until service file is copied)
+    systemctl enable sshd chronyd systemd-resolved podman.socket crio && \
     systemctl enable bootc-fetch-apply-updates.timer && \
     # Configure firewall
     firewall-offline-cmd --add-service=ssh --add-port=6443/tcp --add-port=8080/tcp \
@@ -79,8 +79,11 @@ COPY scripts/ /usr/local/bin/
 COPY systemd/ /usr/lib/systemd/system/
 COPY kickstart*.ks /
 
-# Set permissions and enable custom services
+# Set permissions and enable all services (including microshift now that service file exists)
 RUN chmod +x /usr/local/bin/*.sh 2>/dev/null || true && \
+    # Enable MicroShift service now that the service file is copied
+    systemctl enable microshift && \
+    # Enable custom services
     systemctl enable edge-setup.service microshift-kubeconfig-setup.service \
         observability-deploy.service 2>/dev/null || true && \
     restorecon -R /etc /usr/local/bin 2>/dev/null || true && \

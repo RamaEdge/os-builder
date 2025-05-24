@@ -5,9 +5,13 @@ This directory contains the configuration and build scripts for creating a Fedor
 ## Overview
 
 This bootc (boot container) image is based on Fedora and provides:
+
 - Immutable OS updates via container images
 - Container runtime (Podman) pre-installed
-- MicroShift Kubernetes for edge workloads
+- **MicroShift Kubernetes built from source** for edge workloads
+- **Offline Container Support**: Pre-loaded MicroShift container images for air-gapped deployments
+- **Supply Chain Security**: SHA digest-based immutable container references
+- **Observability Stack**: OpenTelemetry Collector for metrics, logs, and traces
 - SSH access with security hardening
 - Automatic updates capability
 - Edge-specific optimizations
@@ -16,17 +20,21 @@ This bootc (boot container) image is based on Fedora and provides:
 
 ```
 os/
-├── Containerfile.fedora       # Main Containerfile for Fedora bootc image
+├── Containerfile.fedora       # Multi-stage Containerfile for Fedora bootc image
 ├── build.sh                   # Build script with error handling
-├── Makefile                   # Make targets for easy building
+├── Makefile                   # Make targets for building and ISO creation
 ├── configs/
-│   └── containers/
-│       ├── containers.conf    # Container runtime configuration
-│       └── registries.conf    # Container registries configuration
+│   ├── containers/            # Container runtime configuration
+│   ├── microshift/            # MicroShift configuration
+│   └── otelcol/               # OpenTelemetry Collector configuration
+├── manifests/
+│   └── observability-stack.yaml # Kubernetes observability manifests
 ├── scripts/
-│   └── edge-setup.sh         # Edge-specific setup script
-├── systemd/
-│   └── edge-setup.service    # Systemd service for edge setup
+│   ├── edge-setup.sh         # Edge-specific setup script
+│   └── create-custom-iso.sh  # Interactive ISO configuration creator
+├── systemd/                   # Systemd service files
+├── config-examples/           # ISO configuration examples
+├── kickstart*.ks             # Interactive installation Kickstart files
 └── README.md                 # This file
 ```
 
@@ -98,14 +106,19 @@ podman build -t localhost/fedora-edge-os:latest -f Containerfile.fedora .
 The image includes essential packages for edge computing:
 
 - **System Tools**: openssh-server, sudo, systemd-resolved, chrony
-- **Container Runtime**: podman, buildah, skopeo, cri-o
-- **Kubernetes**: microshift, kubernetes-client (kubectl)
-- **Observability**: otel-collector (OpenTelemetry Collector)
+- **Container Runtime**: podman, cri-o
+- **Kubernetes**: MicroShift (built from source), kubernetes-client (kubectl)
+- **Observability**: OpenTelemetry Collector (otelcol)
 - **Networking**: NetworkManager, firewalld
-- **Monitoring**: htop, iotop, tcpdump
-- **Development**: git, curl, wget, vim-enhanced
-- **Hardware Support**: open-vm-tools
 - **Security**: policycoreutils-python-utils
+
+### Security Features
+
+- **Multi-stage Build**: Build dependencies isolated from runtime image
+- **Non-root Container User**: containeruser (UID-based) for container security compliance
+- **Supply Chain Security**: Immutable SHA digest references
+- **Pre-loaded Container Images**: MicroShift images available offline
+- **Security Hardening**: Setuid binary removal, minimal attack surface
 
 ### Default User
 
@@ -138,13 +151,14 @@ sudo podman run --rm -it --privileged \
 ### Supported Output Formats
 
 - `qcow2` - QEMU disk image
-- `vmdk` - VMware disk image  
+- `vmdk` - VMware disk image
 - `raw` - Raw disk image
 - `iso` - ISO installer image
 
 ### Cloud Deployment
 
 The generated disk images can be deployed to:
+
 - VMware vSphere
 - KVM/QEMU
 - OpenStack
@@ -155,23 +169,61 @@ The generated disk images can be deployed to:
 ### Automatic Updates
 
 The image is configured for automatic updates:
+
 - `bootc-fetch-apply-updates.timer` enabled for OS updates
 - `podman-auto-update.timer` enabled for container updates
 
-### Security Hardening
+### Offline Container Support
 
-- SSH key-only authentication
-- Firewall pre-configured
-- SELinux enabled
-- Root login disabled
-- Minimal package set
+The image includes pre-loaded MicroShift container images for offline deployment:
 
-### Edge Optimizations
+```bash
+# Container images are pre-loaded to /usr/share/containers/storage
+# Container storage is configured with additionalImageStores for offline access
 
-- Reduced log retention
-- Container runtime optimized for edge
-- Time synchronization configured
-- Hostname auto-generation
+# Check pre-loaded images
+podman images --storage-driver=overlay --root=/usr/share/containers/storage
+
+# Images are automatically available when MicroShift starts
+```
+
+### Observability and Monitoring
+
+The system includes OpenTelemetry Collector for comprehensive observability:
+
+```bash
+# Check OpenTelemetry Collector status (host-level)
+sudo systemctl status otel-collector
+
+# View OpenTelemetry Collector logs
+sudo journalctl -u otel-collector -f
+
+# Check cluster observability components (after MicroShift is enabled)
+kubectl get all -n observability
+
+# OpenTelemetry metrics endpoint
+curl http://localhost:4317  # OTLP gRPC
+curl http://localhost:4318  # OTLP HTTP
+```
+
+**Observability Architecture:**
+
+- **Host Level**: OpenTelemetry Collector collecting system metrics, logs, and traces
+- **Cluster Level**: OpenTelemetry Collector in Kubernetes for cluster metrics and logs
+- **Integration**: Host collector can forward data to cluster collector
+
+### System Updates
+
+```bash
+# Check current image
+sudo bootc status
+
+# Update to latest image
+sudo bootc upgrade
+
+# Rollback if needed
+sudo bootc rollback
+```
 
 ## Usage Examples
 
@@ -227,52 +279,6 @@ kubectl get deployments,services
 kubectl get pods -n observability
 ```
 
-### Observability and Monitoring
-
-The system includes a comprehensive observability stack with OpenTelemetry:
-
-```bash
-# Check OpenTelemetry Collector status (host-level)
-sudo systemctl status otel-collector
-
-# View OpenTelemetry Collector logs
-sudo journalctl -u otel-collector -f
-
-# Check cluster observability components
-kubectl get all -n observability
-
-# Access Jaeger UI for distributed tracing
-# Open browser to: http://localhost:30686
-
-# View OpenTelemetry metrics
-curl http://localhost:30464/metrics
-
-# View host-level Prometheus metrics
-curl http://localhost:9090/metrics
-
-# Check MicroShift metrics collection
-kubectl logs -n observability deployment/otel-collector
-```
-
-**Observability Architecture:**
-- **Host Level**: OpenTelemetry Collector collecting system metrics, logs, and traces
-- **Cluster Level**: OpenTelemetry Collector in Kubernetes for cluster metrics
-- **Jaeger**: Distributed tracing UI and storage
-- **Integration**: Host collector forwards data to cluster collector via NodePort
-
-### System Updates
-
-```bash
-# Check current image
-sudo bootc status
-
-# Update to latest image
-sudo bootc upgrade
-
-# Rollback if needed
-sudo bootc rollback
-```
-
 ## Customization
 
 ### Adding Packages
@@ -316,6 +322,7 @@ podman run --rm -it localhost/fedora-edge-os:latest /bin/bash
 ### Verification
 
 The built image includes `bootc container lint` which validates:
+
 - Bootc compatibility
 - Required labels
 - System configuration
@@ -325,17 +332,20 @@ The built image includes `bootc container lint` which validates:
 ### Build Issues
 
 1. **Permission denied**: Ensure build script is executable
+
    ```bash
    chmod +x build.sh
    ```
 
 2. **Out of space**: Clean up old images
+
    ```bash
    make clean
    podman system prune -a
    ```
 
 3. **Network issues**: Check container registry access
+
    ```bash
    podman pull quay.io/fedora/fedora-bootc:42
    ```
@@ -376,7 +386,11 @@ podman push myregistry.com/fedora-edge-os:latest
 
 ## Security Considerations
 
-- Default user has sudo access - consider restricting in production
+- **Container User**: Uses non-root containeruser for container security compliance
+- **Supply Chain**: SHA digest-based immutable references prevent tampering
+- **Offline Support**: Pre-loaded images reduce dependency on external registries
+- **Minimal Attack Surface**: Only essential packages and services included
+- **Security Hardening**: Setuid binaries removed, proper file permissions set
 - SSH keys should be managed via cloud-init or other secure methods
 - Regular updates should be tested before deployment
 - Consider implementing image signing for production deployments
@@ -396,6 +410,7 @@ This project follows the same license as the main repository.
 ## Support
 
 For issues related to:
+
 - **bootc**: Visit [bootc-dev/bootc](https://github.com/bootc-dev/bootc)
 - **Fedora bootc**: Visit [Fedora bootc documentation](https://docs.fedoraproject.org/en-US/bootc/)
 - **This configuration**: Open an issue in this repository 

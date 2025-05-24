@@ -9,10 +9,10 @@ This directory contains GitHub Actions workflows for building, testing, and secu
 **Main workflow for building and securing the container image.**
 
 **Triggers:**
-- Push to `main`, `develop`, or `add-initial-os-build` branches
-- Pull requests to `main` or `develop`
+- Push to `main` branch with changes to `os/**`
+- Pull requests to `main` branch with changes to `os/**`
 - Weekly scheduled runs (Mondays at 2 AM UTC)
-- Manual dispatch
+- Manual dispatch with ISO configuration options
 
 **Features:**
 - ✅ GitVersion-based semantic versioning
@@ -20,39 +20,26 @@ This directory contains GitHub Actions workflows for building, testing, and secu
 - ✅ Comprehensive Trivy security scanning
 - ✅ SARIF upload to GitHub Advanced Security
 - ✅ SBOM (Software Bill of Materials) generation
-- ✅ Container image publishing to GitHub Container Registry
+- ✅ Container image publishing to GitHub Container Registry with SHA digests
+- ✅ **Supply Chain Security**: Immutable SHA digest references for tamper-proof deployments
+- ✅ **ISO Building**: Automated ISO creation with multiple configurations
 - ✅ Automated testing on pull requests
 
 **Jobs:**
 1. **GitVersion**: Determines semantic version
 2. **Security Scan Files**: Scans filesystem and configuration files
-3. **Build and Scan**: Builds container image and scans for vulnerabilities
+3. **Build and Scan**: Builds container image, scans for vulnerabilities, and pushes with SHA digest
 4. **Test Container**: Runs functional tests on pull requests
-5. **Security Summary**: Generates comprehensive security report
+5. **Build ISO**: Creates bootable ISOs with minimal, user, advanced, and interactive configurations
+6. **Security Summary**: Generates comprehensive security report
 
-### 2. Security Scan (`security-scan.yaml`)
+**ISO Configurations Built:**
+- `minimal` - Basic pre-configured user account
+- `user` - Full pre-configured user and network settings
+- `advanced` - Guided installation with filesystem selection
+- `interactive` - Comprehensive interactive installation wizard
 
-**Dedicated security scanning workflow for continuous monitoring.**
-
-**Triggers:**
-- Push to `main` or `develop` branches
-- Daily scheduled runs (3 AM UTC)
-- Manual dispatch with customizable options
-
-**Features:**
-- ✅ Filesystem vulnerability scanning
-- ✅ Configuration security analysis
-- ✅ Container image vulnerability assessment
-- ✅ Trivy database caching for performance
-- ✅ Multiple output formats (SARIF, JSON, Table)
-- ✅ Customizable severity levels
-- ✅ Detailed security reporting
-
-**Manual Options:**
-- Scan type: all, filesystem, config, container
-- Severity level: CRITICAL, HIGH, MEDIUM, LOW
-
-### 3. Dependency Security Monitoring (`dependency-update.yaml`)
+### 2. Dependency Security Monitoring (`dependency-update.yaml`)
 
 **Weekly security review of dependencies and base images.**
 
@@ -66,6 +53,7 @@ This directory contains GitHub Actions workflows for building, testing, and secu
 - ✅ Package analysis and inventory
 - ✅ Security advisory generation
 - ✅ Automated reporting
+- ✅ Multi-architecture support
 
 ## 🔒 Security Integration
 
@@ -78,7 +66,6 @@ All workflows upload security scan results to GitHub Advanced Security:
   - `filesystem-scan`: File and dependency vulnerabilities
   - `configuration-scan`: Infrastructure as Code security issues
   - `container-image-scan`: Container vulnerabilities
-  - `base-image-scan`: Base image vulnerabilities
 
 ### Viewing Security Results
 
@@ -93,32 +80,34 @@ All workflows upload security scan results to GitHub Advanced Security:
 - `trivy-fs-results.sarif` - Filesystem scan results
 - `trivy-config-results.sarif` - Configuration scan results
 - `trivy-image-results.sarif` - Container image scan results
-- `trivy-*-report.json` - Detailed JSON reports
-- `security-report.md` - Human-readable security summary
+- `sbom.spdx.json` - Software Bill of Materials
 
 ### Build Artifacts
-- `sbom.spdx.json` - Software Bill of Materials
-- `package-analysis` - Installed package inventory
+- `fedora-edge-os-iso-*` - Bootable ISO files (minimal, user, advanced, interactive)
+- Container images with SHA digest references for supply chain security
+
+### Dependency Monitoring Artifacts
 - `security-advisory.md` - Weekly security review
+- Package analysis reports
 
 ## 🛠️ Manual Workflow Execution
 
-### Trigger Security Scan
+### Trigger Build and Security Scan
 
 ```bash
 # Via GitHub CLI
-gh workflow run security-scan.yaml
+gh workflow run build-and-security-scan.yaml
 
-# With custom options
-gh workflow run security-scan.yaml \
-  -f scan_type=container \
-  -f severity=CRITICAL
+# With custom ISO configuration
+gh workflow run build-and-security-scan.yaml \
+  -f iso_config=interactive \
+  -f build_iso=true
 ```
 
-### Trigger Build and Scan
+### Trigger Dependency Monitoring
 
 ```bash
-gh workflow run build-and-security-scan.yaml
+gh workflow run dependency-update.yaml
 ```
 
 ### View Workflow Status
@@ -130,7 +119,7 @@ gh run list
 # View specific run
 gh run view <run-id>
 
-# Download artifacts
+# Download artifacts (ISOs, SBOM, security reports)
 gh run download <run-id>
 ```
 
@@ -140,7 +129,7 @@ gh run download <run-id>
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `IMAGE_NAME` | Container image name | `fedora-edge-os` |
+| `IMAGE_NAME` | Container image name | `ramaedge-os` |
 | `REGISTRY` | Container registry | `ghcr.io` |
 | `WORKING_PATH` | Build context path | `./os` |
 
@@ -166,12 +155,17 @@ Enable the following in repository settings:
 
 | Workflow | Schedule | Purpose |
 |----------|----------|---------|
-| Build & Security Scan | Weekly (Mon 2 AM) | CI/CD pipeline with security |
-| Security Scan | Daily (3 AM) | Continuous monitoring |
+| Build & Security Scan | Weekly (Mon 2 AM) | CI/CD pipeline with security and ISO building |
 | Dependency Monitoring | Weekly (Mon 6 AM) | Dependency security review |
 | Dependabot | Weekly (Various days) | Automated dependency updates |
 
 ## 🚨 Security Best Practices
+
+### Supply Chain Security
+
+- **SHA Digests**: All container images use immutable SHA digest references
+- **Tamper Protection**: Cannot modify images after security scanning
+- **ISO Security**: ISOs built from exact same scanned container image
 
 ### Immediate Action Required
 

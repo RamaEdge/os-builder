@@ -351,6 +351,7 @@ Groups: wheel
 Network: Static IP with company DNS
 Filesystem: Advanced layout (50GB minimum)
 SSH Key: Required for secure access
+```
 
 ### Development Environment
 
