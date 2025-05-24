@@ -127,9 +127,12 @@ build_image() {
     cd "$(dirname "$0")"
     
     # Get additional version information for labels
-    local build_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
-    local git_commit=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
-    local git_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+    local build_date
+    build_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+    local git_commit
+    git_commit=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
+    local git_branch
+    git_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
     local git_repo_url=""
     
     # Try to get the remote repository URL
@@ -141,48 +144,48 @@ build_image() {
         elif [[ "$git_repo_url" =~ git@github\.com:(.+) ]]; then
             git_repo_url="https://github.com/${BASH_REMATCH[1]}"
         fi
+    else
+        git_repo_url="unknown"
     fi
+    
+    # Common build arguments and labels
+    local COMMON_BUILD_ARGS=(
+        --tag "${IMAGE_NAME}:${IMAGE_TAG}"
+        --file "${CONTAINERFILE}"
+        --force-rm
+        --build-arg "MICROSHIFT_VERSION=${MICROSHIFT_VERSION}"
+        --build-arg "MICROSHIFT_REPO=${MICROSHIFT_REPO}"
+    )
+    
+    local COMMON_LABELS=(
+        --label "org.opencontainers.image.version=${IMAGE_TAG}"
+        --label "org.opencontainers.image.created=${build_date}"
+        --label "org.opencontainers.image.revision=${git_commit}"
+        --label "org.opencontainers.image.source=${git_repo_url}"
+        --label "org.opencontainers.image.branch=${git_branch}"
+        --label "microshift.version=${MICROSHIFT_VERSION}"
+        --label "microshift.source=${MICROSHIFT_REPO}"
+    )
     
     # Build arguments based on container runtime
     if [[ "$CONTAINER_RUNTIME" == "docker" ]]; then
         BUILD_ARGS=(
-            --tag "${IMAGE_NAME}:${IMAGE_TAG}"
-            --file "${CONTAINERFILE}"
-            --force-rm
-            --build-arg "MICROSHIFT_VERSION=${MICROSHIFT_VERSION}"
-            --build-arg "MICROSHIFT_REPO=${MICROSHIFT_REPO}"
-            --label "org.opencontainers.image.version=${IMAGE_TAG}"
-            --label "org.opencontainers.image.created=${build_date}"
-            --label "org.opencontainers.image.revision=${git_commit}"
-            --label "org.opencontainers.image.source=${git_repo_url}"
-            --label "org.opencontainers.image.branch=${git_branch}"
-            --label "microshift.version=${MICROSHIFT_VERSION}"
-            --label "microshift.source=${MICROSHIFT_REPO}"
+            "${COMMON_BUILD_ARGS[@]}"
+            "${COMMON_LABELS[@]}"
             .
         )
     else
         BUILD_ARGS=(
-            --tag "${IMAGE_NAME}:${IMAGE_TAG}"
-            --file "${CONTAINERFILE}"
+            "${COMMON_BUILD_ARGS[@]}"
             --layers
-            --force-rm
-            --build-arg "MICROSHIFT_VERSION=${MICROSHIFT_VERSION}"
-            --build-arg "MICROSHIFT_REPO=${MICROSHIFT_REPO}"
-            --label "org.opencontainers.image.version=${IMAGE_TAG}"
-            --label "org.opencontainers.image.created=${build_date}"
-            --label "org.opencontainers.image.revision=${git_commit}"
-            --label "org.opencontainers.image.source=${git_repo_url}"
-            --label "org.opencontainers.image.branch=${git_branch}"
-            --label "microshift.version=${MICROSHIFT_VERSION}"
-            --label "microshift.source=${MICROSHIFT_REPO}"
+            "${COMMON_LABELS[@]}"
             .
         )
     fi
     
     # Build the image
-    "$CONTAINER_RUNTIME" build "${BUILD_ARGS[@]}"
-    
-    if [ $? -eq 0 ]; then
+    info "Running: $CONTAINER_RUNTIME build [build args]"
+    if "$CONTAINER_RUNTIME" build "${BUILD_ARGS[@]}"; then
         info "✅ Build completed successfully!"
         info "Image: ${IMAGE_NAME}:${IMAGE_TAG}"
     else

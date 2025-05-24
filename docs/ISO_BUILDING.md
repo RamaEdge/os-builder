@@ -80,10 +80,12 @@ ISOs are automatically built in GitHub Actions when:
 Four ISO variants are created:
 
 **Pre-configured ISOs (automated deployment):**
+
 - `minimal` - Basic pre-configured user account
 - `user` - Full pre-configured user and network settings
 
 **Interactive ISOs (guided installation):**
+
 - `advanced` - Guided installation with basic Kickstart prompts
 - `interactive` - Comprehensive interactive installation wizard
 
@@ -152,6 +154,7 @@ Once built, ISOs can be:
 ### Pre-configured ISOs (minimal, user)
 
 These ISOs include unattended installation capabilities and will automatically:
+
 - Install the bootc container image  
 - Create pre-configured user accounts
 - Set pre-configured hostname and DNS settings
@@ -196,6 +199,7 @@ These ISOs provide a guided installation experience:
 ### Debug Information
 
 ISO build logs are available in GitHub Actions, including:
+
 - Configuration file validation
 - bootc-image-builder output
 - ISO creation status
@@ -235,4 +239,4 @@ make build-iso CONFIG_FILE=custom-config.toml
 - [bootc-image-builder Documentation](https://github.com/osbuild/bootc-image-builder)
 - [TOML Configuration Format](https://toml.io/)
 - [SSH Key Generation Guide](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/generating-a-new-ssh-key-and-adding-it-to-the-ssh-agent)
-- [Fedora bootc Documentation](https://docs.fedoraproject.org/en-US/bootc/) 
+- [Fedora bootc Documentation](https://docs.fedoraproject.org/en-US/bootc/)

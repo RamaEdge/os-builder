@@ -163,5 +163,8 @@ RUN restorecon -Rv /etc /usr/local/bin || true
 # Final validation
 RUN bootc container lint
 
+# Set default user to non-root (security best practice)
+USER fedora
+
 # Default command (not used when booted, but useful for container inspection)
 CMD ["/bin/bash"] 

@@ -11,6 +11,7 @@ The interactive installation feature uses Kickstart technology to provide a user
 - **Filesystem Layout**: Choice of predefined layouts or custom partitioning
 
 **Two Kickstart files are available:**
+
 - `kickstart.ks` - Basic interactive installation with filesystem options (used by advanced-config.toml)
 - `kickstart-interactive.ks` - Comprehensive interactive installation with full user/network configuration (used by interactive-config.toml)
 
@@ -29,6 +30,7 @@ make build-iso CONFIG_FILE=config-examples/interactive-config.toml
 ### What Gets Built
 
 The interactive ISO includes:
+
 - Fedora bootc container image with all edge OS components
 - Interactive Kickstart configuration
 - Installation wizard that runs during boot
@@ -71,6 +73,7 @@ ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC... user@example.com
 ```
 
 **Features:**
+
 - Username validation (3-32 characters, lowercase, start with letter)
 - Password confirmation (minimum 8 characters)
 - Group selection from predefined options
@@ -92,12 +95,14 @@ Select network configuration (1-3): 2
 ```
 
 #### Option 1: DHCP Configuration
-```
+
+```shell
 Enter hostname (or press Enter for 'fedora-bootc'): my-edge-device
 ```
 
 #### Option 2: Static IP Configuration
-```
+
+```shell
 Static IP Configuration:
 Enter IP address (e.g., 192.168.1.100): 192.168.1.50
 Enter netmask (e.g., 255.255.255.0): 255.255.255.0
@@ -108,6 +113,7 @@ Enter hostname: edge-device-01
 ```
 
 **Features:**
+
 - IP address validation
 - Automatic format checking for all network parameters
 - Optional secondary DNS server
@@ -159,7 +165,7 @@ Enter your choice (1-5): 3
 
 ### 5. Configuration Review
 
-```
+```shell
 =========================================
 INSTALLATION CONFIGURATION SUMMARY
 =========================================
@@ -188,6 +194,7 @@ Proceed with installation? (y/n): y
 ### 6. Installation Process
 
 The installation proceeds automatically with your configured settings:
+
 - Disk partitioning
 - Base system installation
 - Container image deployment
@@ -202,7 +209,7 @@ After installation completes, the system will:
 1. **Reboot automatically** with your custom configuration
 2. **Display welcome message** with system information:
 
-```
+```shell
 =========================================================
 Welcome to Fedora bootc Edge OS
 =========================================================
@@ -246,7 +253,7 @@ The interactive installer includes comprehensive validation:
 ### Error Handling
 
 If invalid input is provided:
-```
+```shell
 Invalid IP address format.
 Enter IP address (e.g., 192.168.1.100): 
 ```
@@ -276,6 +283,7 @@ Installation cancelled.
 ### Debug Information
 
 During installation, detailed logs are available:
+
 - Press `Ctrl+Alt+F2` to access a debug console
 - Check `/tmp/anaconda.log` for installation details
 - Network configuration logs in `/tmp/network-*`
@@ -318,6 +326,7 @@ To add new filesystem layout options:
 - **Users**: Limit sudo access to necessary users only
 
 The interactive installer automatically:
+
 - Locks the root account
 - Enables SELinux in enforcing mode
 - Configures firewall with SSH access
@@ -326,7 +335,8 @@ The interactive installer automatically:
 ## Examples
 
 ### Home Lab Setup
-```
+
+```shell
 Username: homelab
 Groups: wheel docker
 Network: DHCP with hostname "homelab-edge"
@@ -334,19 +344,20 @@ Filesystem: Standard layout (30GB minimum)
 ```
 
 ### Production Edge Device
-```
+
+```shell
 Username: operator
 Groups: wheel
 Network: Static IP with company DNS
 Filesystem: Advanced layout (50GB minimum)
 SSH Key: Required for secure access
-```
 
 ### Development Environment
-```
+
+```shell
 Username: developer
 Groups: wheel docker podman systemd-journal
 Network: DHCP or static as needed
 Filesystem: Developer layout (80GB minimum)
 SSH Key: For remote development access
-``` 
+```

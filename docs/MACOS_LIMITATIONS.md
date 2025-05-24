@@ -75,12 +75,14 @@ git push
 ### 3. Use a Linux Environment
 
 #### Option A: Linux VM
+
 - Use UTM, Parallels, VMware, or VirtualBox
 - Install Fedora/Ubuntu in the VM
 - Clone the repository inside the VM
 - Run `make disk-image` in the Linux environment
 
 #### Option B: Docker with Linux Container
+
 ```bash
 # Run a Linux container for building
 docker run -it --privileged \
@@ -130,6 +132,7 @@ make disk-image
 ### Docker Desktop Settings
 
 Even with these solutions, you may need to enable:
+
 1. **Settings → Features in Development → Use containerd for pulling and storing images**
 2. **Settings → Advanced → Allow privileged containers**
 
@@ -157,12 +160,14 @@ podman system reset
 For the best experience on macOS:
 
 1. **Development**: Use Docker Desktop for quick container builds and testing
+
    ```bash
    make build  # Uses Docker Desktop
    make test   # Tests container functionality
    ```
 
 2. **Disk Images**: Use Podman for image creation
+
    ```bash
    brew install podman
    podman machine init && podman machine start
@@ -170,6 +175,7 @@ For the best experience on macOS:
    ```
 
 3. **Production Builds**: Use GitHub Actions for automated, consistent builds
+
    ```bash
    git push  # Triggers automated builds
    ```
@@ -193,4 +199,4 @@ make disk-image CONTAINER_RUNTIME=podman
 git push  # Automated builds will create disk images
 ```
 
-This approach gives you the best of both worlds: fast development with Docker Desktop and full functionality with Podman or GitHub Actions. 
+This approach gives you the best of both worlds: fast development with Docker Desktop and full functionality with Podman or GitHub Actions.
