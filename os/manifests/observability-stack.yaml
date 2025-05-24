@@ -1,5 +1,5 @@
-# Complete observability stack for MicroShift edge deployments
-# This includes OpenTelemetry Collector, Jaeger for tracing, and basic monitoring
+# Simplified observability stack for MicroShift edge deployments
+# Only includes OpenTelemetry Collector for metrics, traces, and logs collection
 
 ---
 apiVersion: v1
@@ -57,27 +57,29 @@ data:
         spike_limit_mib: 64
         
     exporters:
-      # Jaeger exporter for traces
-      jaeger:
-        endpoint: jaeger-collector.observability.svc.cluster.local:14250
-        tls:
-          insecure: true
-          
       # Prometheus exporter for metrics
       prometheus:
         endpoint: "0.0.0.0:9464"
         namespace: "microshift"
         
-      # Logging for debugging
+      # Logging for debugging and traces/logs output
       logging:
         loglevel: info
+        
+      # File exporter for traces (can be used for external processing)
+      file/traces:
+        path: /tmp/traces.json
+        
+      # File exporter for logs (can be used for external processing)  
+      file/logs:
+        path: /tmp/logs.json
         
     service:
       pipelines:
         traces:
           receivers: [otlp]
           processors: [memory_limiter, resource, batch]
-          exporters: [jaeger, logging]
+          exporters: [logging, file/traces]
           
         metrics:
           receivers: [otlp, k8s_cluster, kubeletstats]
@@ -87,7 +89,7 @@ data:
         logs:
           receivers: [otlp]
           processors: [memory_limiter, resource, batch]
-          exporters: [logging]
+          exporters: [logging, file/logs]
           
       telemetry:
         logs:
@@ -138,12 +140,16 @@ spec:
         volumeMounts:
         - name: config
           mountPath: /etc/otel-collector-config
+        - name: tmp-traces
+          mountPath: /tmp
         securityContext:
           runAsNonRoot: true
           runAsUser: 10001
           runAsGroup: 10001
           readOnlyRootFilesystem: true
           allowPrivilegeEscalation: false
+          seccompProfile:
+            type: RuntimeDefault
           capabilities:
             drop:
             - ALL
@@ -158,6 +164,8 @@ spec:
       - name: config
         configMap:
           name: otel-collector-config
+      - name: tmp-traces
+        emptyDir: {}
 
 ---
 # OpenTelemetry Collector Service
@@ -183,6 +191,10 @@ spec:
     port: 9464
     targetPort: 9464
     nodePort: 30464
+  - name: metrics
+    port: 8888
+    targetPort: 8888
+    nodePort: 30888
   selector:
     app: otel-collector
 
@@ -226,95 +238,4 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: otel-collector
-  namespace: observability
-
----
-# Jaeger All-in-One Deployment
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: jaeger
-  namespace: observability
-  labels:
-    app: jaeger
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: jaeger
-  template:
-    metadata:
-      labels:
-        app: jaeger
-    spec:
-      containers:
-      - name: jaeger
-        image: jaegertracing/all-in-one:latest
-        env:
-        - name: COLLECTOR_ZIPKIN_HOST_PORT
-          value: ":9411"
-        - name: COLLECTOR_OTLP_ENABLED
-          value: "true"
-        ports:
-        - containerPort: 16686  # Jaeger UI
-        - containerPort: 14250  # gRPC
-        - containerPort: 14268  # HTTP
-        - containerPort: 9411   # Zipkin
-        securityContext:
-          runAsNonRoot: true
-          runAsUser: 10001
-          runAsGroup: 10001
-          readOnlyRootFilesystem: true
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-            - ALL
-        resources:
-          requests:
-            memory: "128Mi"
-            cpu: "100m"
-          limits:
-            memory: "256Mi"
-            cpu: "200m"
-
----
-# Jaeger Service
-apiVersion: v1
-kind: Service
-metadata:
-  name: jaeger-collector
-  namespace: observability
-  labels:
-    app: jaeger
-spec:
-  ports:
-  - name: grpc
-    port: 14250
-    targetPort: 14250
-  - name: http
-    port: 14268
-    targetPort: 14268
-  - name: zipkin
-    port: 9411
-    targetPort: 9411
-  selector:
-    app: jaeger
-
----
-# Jaeger UI Service
-apiVersion: v1
-kind: Service
-metadata:
-  name: jaeger-ui
-  namespace: observability
-  labels:
-    app: jaeger
-spec:
-  type: NodePort
-  ports:
-  - name: ui
-    port: 16686
-    targetPort: 16686
-    nodePort: 30686
-  selector:
-    app: jaeger 
+  namespace: observability 

@@ -224,26 +224,31 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Podman
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y podman
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Build and test container locally
-        working-directory: ${{ env.WORKING_PATH }}
+      - name: Build image for testing (cached)
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ env.WORKING_PATH }}
+          file: ${{ env.WORKING_PATH }}/Containerfile.fedora
+          platforms: linux/amd64
+          push: false
+          tags: test-image:latest
+          cache-from: type=gha
+          outputs: type=docker
+
+      - name: Test container image
         run: |
-          # Build the image
-          podman build -t test-image:latest -f Containerfile.fedora .
-          
-          # Run basic tests
+          # Run basic tests on the exact same image that was scanned
           echo "Testing container image..."
-          podman run --rm test-image:latest /bin/bash -c "bootc status || true"
-          podman run --rm test-image:latest /bin/bash -c "systemctl --version"
-          podman run --rm test-image:latest /bin/bash -c "microshift version || echo 'MicroShift binary found'"
-          podman run --rm test-image:latest /bin/bash -c "kubectl version --client || echo 'kubectl binary found'"
-          podman run --rm test-image:latest /bin/bash -c "/usr/local/bin/otelcol --version || echo 'OpenTelemetry Collector binary not found'"
-          podman run --rm test-image:latest /bin/bash -c "ls -la /etc/otelcol/config.yaml"
-          podman run --rm test-image:latest /bin/bash -c "ls -la /etc/microshift/manifests/observability-stack.yaml"
+          docker run --rm test-image:latest /bin/bash -c "bootc status || true"
+          docker run --rm test-image:latest /bin/bash -c "systemctl --version"
+          docker run --rm test-image:latest /bin/bash -c "microshift version || echo 'MicroShift binary found'"
+          docker run --rm test-image:latest /bin/bash -c "kubectl version --client || echo 'kubectl binary found'"
+          docker run --rm test-image:latest /bin/bash -c "/usr/local/bin/otelcol --version || echo 'OpenTelemetry Collector binary not found'"
+          docker run --rm test-image:latest /bin/bash -c "ls -la /etc/otelcol/config.yaml"
+          docker run --rm test-image:latest /bin/bash -c "ls -la /etc/microshift/manifests/observability-stack.yaml"
           
           echo "All tests passed!"
 
@@ -262,9 +267,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
       - name: Log in to Container Registry
         uses: docker/login-action@v3
         with:
@@ -272,16 +274,14 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build container image for ISO creation
-        uses: docker/build-push-action@v5
-        with:
-          context: ${{ env.WORKING_PATH }}
-          file: ${{ env.WORKING_PATH }}/Containerfile.fedora
-          platforms: linux/amd64
-          push: true
-          tags: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME_DEV }}:iso-${{ needs.gitversion.outputs.Sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+      - name: Get image reference from build-and-scan job
+        id: image_ref
+        run: |
+          # Construct the image reference from the pushed image
+          # Use the same tag that was built in build-and-scan job
+          IMAGE_REF="${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:sha-${{ needs.gitversion.outputs.Sha }}"
+          echo "image_ref=${IMAGE_REF}" >> $GITHUB_OUTPUT
+          echo "Using existing image: ${IMAGE_REF}"
 
       - name: Create output directory
         run: mkdir -p ${{ github.workspace }}/iso-output
@@ -292,11 +292,12 @@ jobs:
           CONFIG_FILE="${{ env.WORKING_PATH }}/config-examples/${{ matrix.config }}-config.toml"
           
           echo "Building ISO with ${{ matrix.config }} configuration..."
+          echo "Using existing container image: ${{ steps.image_ref.outputs.image_ref }}"
           
           # Pull the latest bootc-image-builder
           docker pull quay.io/centos-bootc/bootc-image-builder:latest
           
-          # Build ISO image
+          # Build ISO image using the existing container image
           docker run \
             --rm \
             --privileged \
@@ -306,7 +307,7 @@ jobs:
             quay.io/centos-bootc/bootc-image-builder:latest \
             --type iso \
             --config /config.toml \
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME_DEV }}:iso-${{ needs.gitversion.outputs.Sha }}
+            ${{ steps.image_ref.outputs.image_ref }}
 
       - name: Upload ISO artifact
         uses: actions/upload-artifact@v4
@@ -321,7 +322,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Configuration Used:" >> $GITHUB_STEP_SUMMARY
           echo "- **Config Type**: ${{ matrix.config }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Base Image**: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME_DEV }}:iso-${{ needs.gitversion.outputs.Sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Base Image**: ${{ steps.image_ref.outputs.image_ref }} (reused from build-and-scan)" >> $GITHUB_STEP_SUMMARY
           echo "- **Build Time**: $(date)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### ISO File Details:" >> $GITHUB_STEP_SUMMARY
@@ -334,6 +335,11 @@ jobs:
             echo "- **Debug**: Listing output directory contents..." >> $GITHUB_STEP_SUMMARY
             ls -la "${{ github.workspace }}/iso-output/" || true >> $GITHUB_STEP_SUMMARY
           fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Optimization:" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image Reuse**: Used existing container image from build-and-scan job" >> $GITHUB_STEP_SUMMARY
+          echo "- **Time Saved**: No redundant container builds needed" >> $GITHUB_STEP_SUMMARY
+          echo "- **Consistency**: ISO built from exact same image that was security scanned" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### User Configuration:" >> $GITHUB_STEP_SUMMARY
           echo "The ISO includes the following user customizations from ${{ matrix.config }}-config.toml:" >> $GITHUB_STEP_SUMMARY

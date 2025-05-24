@@ -1,170 +1,89 @@
-# Multi-stage build for MicroShift from source
-# Stage 1: Build MicroShift binary in minimal environment
+# Multi-stage build for MicroShift edge OS
 ARG MICROSHIFT_VERSION=main
 ARG MICROSHIFT_REPO=https://github.com/openshift/microshift.git
 
+# Stage 1: Build MicroShift binary
 FROM golang:1.23 AS microshift-builder
-
-# Install build dependencies in the builder image
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    git \
-    make \
-    gcc \
-    libc6-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-# Set working directory
+RUN apt-get update && apt-get install -y --no-install-recommends git make gcc libc6-dev && rm -rf /var/lib/apt/lists/*
 WORKDIR /build
 
-# Clone and build MicroShift
 ARG MICROSHIFT_VERSION
 ARG MICROSHIFT_REPO
-
-RUN echo "Building MicroShift from ${MICROSHIFT_REPO} at version ${MICROSHIFT_VERSION}" && \
-    git clone --depth 1 --branch ${MICROSHIFT_VERSION} ${MICROSHIFT_REPO} . && \
+RUN git clone --depth 1 --branch ${MICROSHIFT_VERSION} ${MICROSHIFT_REPO} . && \
     make build && \
-    ls -la _output/bin/microshift && \
-    cp _output/bin/microshift ./microshift
+    cp _output/bin/microshift ./microshift && \
+    # Extract container images from MicroShift repository
+    RELEASE_FILE=$(find . -name "release-$(uname -m).json" -o -name "release-*.json" | head -1) && \
+    if [ -n "$RELEASE_FILE" ]; then \
+        cp "$RELEASE_FILE" ./release-images.json; \
+    else \
+        echo '{"images":[]}' > ./release-images.json; \
+    fi
 
 # Stage 2: Final bootc image
 FROM quay.io/fedora/fedora-bootc:42
 
-# Re-declare build arguments for use in this stage
 ARG MICROSHIFT_VERSION=main
 ARG MICROSHIFT_REPO=https://github.com/openshift/microshift.git
 
-# Set metadata labels
 LABEL org.opencontainers.image.title="Edge OS - Fedora bootc" \
-      org.opencontainers.image.description="Custom Fedora bootc image with MicroShift built from source" \
-      org.opencontainers.image.source="https://github.com/your-repo/os-builder" \
+      org.opencontainers.image.description="Fedora bootc with MicroShift for edge computing" \
       containers.bootc=1 \
-      microshift.version="${MICROSHIFT_VERSION}" \
-      microshift.source="${MICROSHIFT_REPO}"
+      microshift.version="${MICROSHIFT_VERSION}"
 
-# Update and install essential packages for edge computing
-RUN dnf install -y --skip-unavailable \
-    # Essential system tools
-    openssh-server \
-    sudo \
-    # Container runtime and tools
-    podman \
-    buildah \
-    skopeo \
-    cri-o \
-    # Kubernetes client tools
-    kubernetes-client \
-    # Networking tools
-    NetworkManager \
-    firewalld \
-    # Monitoring and debugging
-    htop \
-    iotop \
-    tcpdump \
-    # Development tools
-    git \
-    curl \
-    wget \
-    vim-enhanced \
-    # Hardware support
-    open-vm-tools \
-    # Security tools
-    policycoreutils-python-utils \
-    # System utilities
-    systemd-resolved \
-    chrony \
-    && dnf clean all
-
-# Copy MicroShift binary from builder stage
+# Install packages and copy MicroShift
 COPY --from=microshift-builder /build/microshift /usr/bin/microshift
+COPY --from=microshift-builder /build/release-images.json /usr/share/microshift/release-images.json
 RUN chmod +x /usr/bin/microshift
 
-# Install OpenTelemetry Collector
-RUN ARCH=$(uname -m) && \
-    echo "Detected architecture: $ARCH" && \
-    if [ "$ARCH" = "aarch64" ]; then ARCH="arm64"; fi && \
-    if [ "$ARCH" = "x86_64" ]; then ARCH="amd64"; fi && \
-    echo "Using OpenTelemetry architecture: $ARCH" && \
-    curl -L -o /tmp/otelcol.tar.gz \
-    "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v0.115.0/otelcol_linux_${ARCH}.tar.gz" && \
-    echo "Downloaded OpenTelemetry Collector" && \
-    tar -xzf /tmp/otelcol.tar.gz -C /tmp/ && \
-    echo "Extracted OpenTelemetry Collector" && \
-    ls -la /tmp/otelcol* && \
-    mv /tmp/otelcol /usr/local/bin/otelcol && \
-    chmod +x /usr/local/bin/otelcol && \
-    echo "OpenTelemetry Collector installed" && \
-    /usr/local/bin/otelcol --version && \
-    rm /tmp/otelcol.tar.gz || \
-    (echo "OpenTelemetry Collector installation failed - creating placeholder" && \
-     echo '#!/bin/bash' > /usr/local/bin/otelcol && \
-     echo 'echo "OpenTelemetry Collector placeholder - not available for this architecture"' >> /usr/local/bin/otelcol && \
-     chmod +x /usr/local/bin/otelcol)
+# Install essential packages, configure security, and setup container images
+RUN dnf install -y openssh-server sudo podman cri-o kubernetes-client NetworkManager \
+        firewalld policycoreutils-python-utils systemd-resolved chrony curl jq && \
+    # Security hardening
+    find /usr -type f \( -perm -4000 -o -perm -2000 \) -name chfn -o -name chsh -o -name newgrp -exec chmod u-s {} \; && \
+    # Pre-load MicroShift container images
+    mkdir -p /usr/share/microshift /usr/share/containers/storage && \
+    if [ -f "/usr/share/microshift/release-images.json" ] && [ -s "/usr/share/microshift/release-images.json" ]; then \
+        jq -r '.images[]?' /usr/share/microshift/release-images.json | while read -r image; do \
+            podman pull --root /usr/share/containers/storage "$image" 2>/dev/null || true; \
+        done; \
+    fi && \
+    # Configure offline container storage
+    mkdir -p /etc/containers/storage.conf.d && \
+    echo -e '[storage]\nadditionalImageStores = ["/usr/share/containers/storage"]' > /etc/containers/storage.conf.d/offline.conf && \
+    # Install OpenTelemetry Collector
+    ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/') && \
+    curl -sL "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v0.115.0/otelcol_linux_${ARCH}.tar.gz" | \
+    tar -xz -C /usr/local/bin/ otelcol 2>/dev/null || echo "OpenTelemetry install skipped" && \
+    chmod +x /usr/local/bin/otelcol 2>/dev/null || true && \
+    # Cleanup
+    dnf remove -y jq && dnf clean all && \
+    rm -rf /var/cache/dnf/* /tmp/* /var/tmp/* /usr/share/doc/* /usr/share/man/* /var/lib/dnf/history/*
 
-# Configure SSH service
-RUN systemctl enable sshd
+# Configure services and directories
+RUN mkdir -p /etc/containers/systemd /etc/microshift /etc/otelcol /etc/microshift/manifests \
+        /var/lib/microshift /var/log/microshift /var/hpvolumes && \
+    # Enable services
+    systemctl enable sshd chronyd systemd-resolved podman.socket crio microshift && \
+    systemctl enable bootc-fetch-apply-updates.timer && \
+    # Configure firewall
+    firewall-offline-cmd --add-service=ssh --add-port=6443/tcp --add-port=8080/tcp \
+        --add-port=10250/tcp --add-port=4317/tcp --add-port=4318/tcp
 
-# Configure firewall for SSH
-RUN firewall-offline-cmd --add-service=ssh
-
-# Configure chronyd for time synchronization
-RUN systemctl enable chronyd
-
-# Configure systemd-resolved
-RUN systemctl enable systemd-resolved
-
-# Create a default user for remote access (will be configured with SSH keys)
-RUN useradd -G wheel -m fedora && \
-    echo '%wheel ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/wheel-nopasswd
-
-# Configure container runtime
-RUN systemctl enable podman.socket crio
-
-# Configure MicroShift and OpenTelemetry (if available)
-RUN systemctl enable microshift && \
-    systemctl enable otel-collector || echo "OpenTelemetry Collector service not available"
-
-# Configure firewall for MicroShift and OpenTelemetry
-RUN firewall-offline-cmd --add-port=6443/tcp --add-port=8080/tcp --add-port=10250/tcp --add-port=10251/tcp \
-    --add-port=4317/tcp --add-port=4318/tcp --add-port=9090/tcp --add-port=8888/tcp
-
-# Set up automatic updates
-RUN systemctl enable bootc-fetch-apply-updates.timer
-
-# Create necessary directories
-RUN mkdir -p /etc/containers/systemd /usr/local/bin /etc/microshift /etc/otelcol /etc/microshift/manifests \
-    /var/lib/microshift /var/lib/microshift-config /var/log/microshift \
-    /etc/microshift/credentials /etc/microshift/resources \
-    /var/hpvolumes
-
-# Copy container configurations and scripts
+# Copy configuration files
 COPY configs/containers/ /etc/containers/
 COPY configs/microshift/ /etc/microshift/
 COPY configs/otelcol/ /etc/otelcol/
 COPY manifests/ /etc/microshift/manifests/
 COPY scripts/ /usr/local/bin/
 COPY systemd/ /usr/lib/systemd/system/
+COPY kickstart*.ks /
 
-# Copy Kickstart files for interactive installation
-COPY kickstart.ks /kickstart.ks
-COPY kickstart-interactive.ks /kickstart-interactive.ks
+# Set permissions and enable custom services
+RUN chmod +x /usr/local/bin/*.sh 2>/dev/null || true && \
+    systemctl enable edge-setup.service microshift-kubeconfig-setup.service \
+        observability-deploy.service 2>/dev/null || true && \
+    restorecon -R /etc /usr/local/bin 2>/dev/null || true && \
+    bootc container lint
 
-# Set proper permissions
-RUN chmod +x /usr/local/bin/*.sh || true
-
-# Enable the edge setup service
-RUN systemctl enable edge-setup.service
-
-# Enable MicroShift kubeconfig setup and observability deployment services
-RUN systemctl enable microshift-kubeconfig-setup.service observability-deploy.service
-
-# Configure SELinux contexts
-RUN restorecon -Rv /etc /usr/local/bin || true
-
-# Final validation
-RUN bootc container lint
-
-# Set default user to non-root (security best practice)
-USER fedora
-
-# Default command (not used when booted, but useful for container inspection)
 CMD ["/bin/bash"] 

@@ -143,6 +143,62 @@ echo ""
 %post --interpreter=/bin/bash
 #!/bin/bash
 
+# Security hardening - deployment-specific configuration
+echo "Applying security hardening..."
+
+# File permission hardening
+find /usr /etc -xdev -type f -perm -0002 -exec chmod o-w {} \; 2>/dev/null || true
+find /usr /etc -xdev -type d -perm -0002 -exec chmod o-w {} \; 2>/dev/null || true
+
+# Secure sensitive files
+chmod 600 /etc/ssh/ssh_host_*_key 2>/dev/null || true
+chmod 644 /etc/ssh/ssh_host_*_key.pub 2>/dev/null || true
+chmod 600 /etc/ssh/sshd_config 2>/dev/null || true
+chmod 644 /etc/passwd /etc/group
+chmod 640 /etc/shadow /etc/gshadow
+
+# Remove unnecessary system accounts (if they exist)
+for user in games ftp; do
+    if id "$user" &>/dev/null; then
+        userdel -r "$user" 2>/dev/null || true
+    fi
+done
+
+# Remove unnecessary groups
+for group in games; do
+    if getent group "$group" &>/dev/null; then
+        groupdel "$group" 2>/dev/null || true
+    fi
+done
+
+# Secure kernel parameters
+cat >> /etc/sysctl.d/99-security.conf << 'EOF'
+# Network security
+net.ipv4.ip_forward = 1
+net.ipv4.conf.all.send_redirects = 0
+net.ipv4.conf.default.send_redirects = 0
+net.ipv4.conf.all.accept_redirects = 0
+net.ipv4.conf.default.accept_redirects = 0
+net.ipv4.conf.all.accept_source_route = 0
+net.ipv4.conf.default.accept_source_route = 0
+net.ipv4.conf.all.log_martians = 1
+net.ipv4.conf.default.log_martians = 1
+net.ipv4.icmp_echo_ignore_broadcasts = 1
+net.ipv4.icmp_ignore_bogus_error_responses = 1
+net.ipv4.tcp_syncookies = 1
+
+# Memory protection
+kernel.dmesg_restrict = 1
+kernel.kptr_restrict = 1
+kernel.yama.ptrace_scope = 1
+EOF
+
+# Configure SSH security
+sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
+sed -i 's/#PermitRootLogin yes/PermitRootLogin no/' /etc/ssh/sshd_config
+sed -i 's/#MaxAuthTries 6/MaxAuthTries 3/' /etc/ssh/sshd_config
+echo "AllowGroups wheel" >> /etc/ssh/sshd_config
+
 # Create welcome message
 cat > /etc/motd << 'EOF'
 ==========================================
