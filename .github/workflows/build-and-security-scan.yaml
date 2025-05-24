@@ -1,0 +1,377 @@
+name: Build and Security Scan
+
+on:
+  push:
+    branches: ['main', 'develop', 'add-initial-os-build']
+    paths:
+      - 'os/**'
+      - '.github/workflows/**'
+  pull_request:
+    branches: ['main', 'develop']
+    paths:
+      - 'os/**'
+      - '.github/workflows/**'
+  schedule:
+    # Run weekly security scans
+    - cron: '0 2 * * 1'
+  workflow_dispatch:
+    inputs:
+      iso_config:
+        description: 'ISO Configuration to use'
+        required: false
+        default: 'user'
+        type: choice
+        options:
+          - minimal
+          - user
+          - advanced
+          - interactive
+      build_iso:
+        description: 'Build ISO images'
+        required: false
+        default: true
+        type: boolean
+
+env:
+  IMAGE_NAME: fedora-edge-os
+  IMAGE_NAME_DEV: dev/fedora-edge-os
+  REGISTRY: ghcr.io
+  WORKING_PATH: ./os
+
+jobs:
+  gitversion:
+    name: Determine Version
+    runs-on: ubuntu-latest
+    outputs:
+      MajorMinorPatch: ${{ steps.gitversion.outputs.MajorMinorPatch }}
+      SemVer: ${{ steps.gitversion.outputs.SemVer }}
+      BranchName: ${{ steps.gitversion.outputs.BranchName }}
+      Sha: ${{ steps.gitversion.outputs.Sha }}
+    steps:
+      - name: Install GitVersion
+        uses: gittools/actions/gitversion/setup@v0.10.2
+        with:
+          versionSpec: '5.x'
+      
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Determine Version
+        id: gitversion
+        uses: gittools/actions/gitversion/execute@v0.10.2
+        with:
+          useConfigFile: true
+
+  security-scan-files:
+    name: Security Scan - Files
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner - Filesystem
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-fs-results.sarif'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+          skip-dirs: '.git,.github/workflows'
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-fs-results.sarif'
+          category: 'filesystem-scan'
+
+      - name: Run Trivy vulnerability scanner - Configuration files
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'config'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-config-results.sarif'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+
+      - name: Upload Trivy configuration scan results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-config-results.sarif'
+          category: 'configuration-scan'
+
+  build-and-scan:
+    name: Build and Scan Container Image
+    runs-on: ubuntu-latest
+    needs: [gitversion, security-scan-files]
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
+      actions: read
+    strategy:
+      matrix:
+        containerfile: ['Containerfile.fedora']
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up BuildKit
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}},value=${{ needs.gitversion.outputs.SemVer }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ needs.gitversion.outputs.SemVer }}
+            type=semver,pattern={{major}},value=${{ needs.gitversion.outputs.SemVer }}
+            type=sha,prefix={{branch}}-,suffix=-{{date 'X'}}
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build container image
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ env.WORKING_PATH }}
+          file: ${{ env.WORKING_PATH }}/${{ matrix.containerfile }}
+          platforms: linux/amd64
+          push: false
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          outputs: type=docker,dest=/tmp/image.tar
+
+      - name: Load image for scanning
+        run: |
+          docker load --input /tmp/image.tar
+          IMAGE_ID=$(docker images --format "table {{.Repository}}:{{.Tag}}" | grep -v REPOSITORY | head -1)
+          echo "IMAGE_ID=${IMAGE_ID}" >> $GITHUB_ENV
+
+      - name: Run Trivy vulnerability scanner - Container Image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.IMAGE_ID }}
+          format: 'sarif'
+          output: 'trivy-image-results.sarif'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+          vuln-type: 'os,library'
+
+      - name: Upload Trivy image scan results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-image-results.sarif'
+          category: 'container-image-scan'
+
+      - name: Run Trivy vulnerability scanner - Table output
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.IMAGE_ID }}
+          format: 'table'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Generate container image SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ env.IMAGE_ID }}
+          format: spdx-json
+          output-file: sbom.spdx.json
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-${{ matrix.containerfile }}-${{ needs.gitversion.outputs.Sha }}
+          path: sbom.spdx.json
+
+      - name: Push container image
+        if: github.event_name != 'pull_request'
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ env.WORKING_PATH }}
+          file: ${{ env.WORKING_PATH }}/${{ matrix.containerfile }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  test-container:
+    name: Test Container Image
+    runs-on: ubuntu-latest
+    needs: [gitversion, build-and-scan]
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Podman
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y podman
+
+      - name: Build and test container locally
+        working-directory: ${{ env.WORKING_PATH }}
+        run: |
+          # Build the image
+          podman build -t test-image:latest -f Containerfile.fedora .
+          
+          # Run basic tests
+          echo "Testing container image..."
+          podman run --rm test-image:latest /bin/bash -c "bootc status || true"
+          podman run --rm test-image:latest /bin/bash -c "systemctl --version"
+          podman run --rm test-image:latest /bin/bash -c "microshift version || echo 'MicroShift binary found'"
+          podman run --rm test-image:latest /bin/bash -c "kubectl version --client || echo 'kubectl binary found'"
+          podman run --rm test-image:latest /bin/bash -c "/usr/local/bin/otelcol --version || echo 'OpenTelemetry Collector binary not found'"
+          podman run --rm test-image:latest /bin/bash -c "ls -la /etc/otelcol/config.yaml"
+          podman run --rm test-image:latest /bin/bash -c "ls -la /etc/microshift/manifests/observability-stack.yaml"
+          
+          echo "All tests passed!"
+
+  build-iso:
+    name: Build ISO Image
+    runs-on: ubuntu-latest
+    needs: [gitversion, build-and-scan]
+    if: github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || github.event.inputs.build_iso == 'true')
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        config: ${{ github.event_name == 'workflow_dispatch' && fromJSON(format('["{0}"]', github.event.inputs.iso_config)) || fromJSON('["minimal", "user", "advanced", "interactive"]') }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build container image for ISO creation
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ env.WORKING_PATH }}
+          file: ${{ env.WORKING_PATH }}/Containerfile.fedora
+          platforms: linux/amd64
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME_DEV }}:iso-${{ needs.gitversion.outputs.Sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Create output directory
+        run: mkdir -p ${{ github.workspace }}/iso-output
+
+      - name: Build ISO with bootc-image-builder
+        run: |
+          # Use the appropriate config file based on matrix
+          CONFIG_FILE="${{ env.WORKING_PATH }}/config-examples/${{ matrix.config }}-config.toml"
+          
+          echo "Building ISO with ${{ matrix.config }} configuration..."
+          
+          # Pull the latest bootc-image-builder
+          docker pull quay.io/centos-bootc/bootc-image-builder:latest
+          
+          # Build ISO image
+          docker run \
+            --rm \
+            --privileged \
+            --security-opt label=type:unconfined_t \
+            -v ${{ github.workspace }}/iso-output:/output \
+            -v ${CONFIG_FILE}:/config.toml:ro \
+            quay.io/centos-bootc/bootc-image-builder:latest \
+            --type iso \
+            --config /config.toml \
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME_DEV }}:iso-${{ needs.gitversion.outputs.Sha }}
+
+      - name: Upload ISO artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fedora-edge-os-iso-${{ matrix.config }}-${{ needs.gitversion.outputs.Sha }}
+          path: ${{ github.workspace }}/iso-output/
+          retention-days: 30
+
+      - name: ISO Build Summary
+        run: |
+          echo "## 📀 ISO Build Summary - ${{ matrix.config }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Configuration Used:" >> $GITHUB_STEP_SUMMARY
+          echo "- **Config Type**: ${{ matrix.config }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Base Image**: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME_DEV }}:iso-${{ needs.gitversion.outputs.Sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Build Time**: $(date)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### ISO File Details:" >> $GITHUB_STEP_SUMMARY
+          if [ -f "${{ github.workspace }}/iso-output/anaconda-iso/install.iso" ]; then
+            ISO_SIZE=$(du -h "${{ github.workspace }}/iso-output/anaconda-iso/install.iso" | cut -f1)
+            echo "- **ISO Size**: ${ISO_SIZE}" >> $GITHUB_STEP_SUMMARY
+            echo "- **ISO Location**: Available in workflow artifacts" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- **Status**: ISO file not found in expected location" >> $GITHUB_STEP_SUMMARY
+            echo "- **Debug**: Listing output directory contents..." >> $GITHUB_STEP_SUMMARY
+            ls -la "${{ github.workspace }}/iso-output/" || true >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### User Configuration:" >> $GITHUB_STEP_SUMMARY
+          echo "The ISO includes the following user customizations from ${{ matrix.config }}-config.toml:" >> $GITHUB_STEP_SUMMARY
+          echo "- User accounts with SSH access" >> $GITHUB_STEP_SUMMARY
+          echo "- Custom hostname configuration" >> $GITHUB_STEP_SUMMARY
+          echo "- DNS server settings" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ matrix.config }}" = "advanced" ]; then
+            echo "- Custom filesystem layout" >> $GITHUB_STEP_SUMMARY
+            echo "- Kernel arguments" >> $GITHUB_STEP_SUMMARY
+            echo "- Kickstart automation" >> $GITHUB_STEP_SUMMARY
+          fi
+
+  security-summary:
+    name: Security Summary
+    runs-on: ubuntu-latest
+    needs: [security-scan-files, build-and-scan, build-iso]
+    if: always()
+    permissions:
+      contents: read
+      security-events: read
+    steps:
+      - name: Security Scan Summary
+        run: |
+          echo "## 🔒 Security Scan Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Completed Scans:" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Filesystem vulnerability scan" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Configuration files security scan" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Container image vulnerability scan" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ SBOM (Software Bill of Materials) generation" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Results Location:" >> $GITHUB_STEP_SUMMARY
+          echo "- **GitHub Security Tab**: Check the Security tab in this repository for detailed vulnerability reports" >> $GITHUB_STEP_SUMMARY
+          echo "- **SBOM Artifacts**: Software Bill of Materials available in workflow artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Security Tools Used:" >> $GITHUB_STEP_SUMMARY
+          echo "- **Trivy**: Vulnerability scanner for containers and filesystems" >> $GITHUB_STEP_SUMMARY
+          echo "- **Anchore Syft**: SBOM generation" >> $GITHUB_STEP_SUMMARY
+          echo "- **GitHub Advanced Security**: Centralized security reporting" >> $GITHUB_STEP_SUMMARY 

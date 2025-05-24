@@ -1,0 +1,11 @@
+# Minimal Bootc Image Builder Configuration - Pre-configured
+# This is the simplest configuration with a basic user account
+# For interactive configuration, use interactive-config.toml instead
+
+[[customizations.user]]
+name = "user"
+password = "changeme"  # IMPORTANT: Change this password!
+groups = ["wheel"]
+
+# Optional: Add your SSH public key for secure access
+# key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC... your-email@example.com" 

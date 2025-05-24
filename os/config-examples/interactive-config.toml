@@ -1,0 +1,7 @@
+# Interactive Kickstart Configuration for Fedora bootc
+# This configuration uses the interactive Kickstart file for all user input
+# User accounts, network, DNS, and filesystem are configured during installation
+
+# Installer configuration - references the interactive Kickstart file
+[customizations.installer.kickstart]
+path = "/kickstart-interactive.ks" 

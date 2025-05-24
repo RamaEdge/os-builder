@@ -1,48 +1,32 @@
-name: os-container
+# This workflow is deprecated. Please use build-and-security-scan.yaml instead
+name: Legacy OS Container Build (Deprecated)
 
 on:
-  push:
-    branches:
-      - '*'
-  pull_request:
-
-env:
-  IMAGE_NAME: os-builder
-  IMAGE_NAME_DEV: dev/os-builder
-  workingPATH: .
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'This workflow is deprecated. Type "confirm" to run anyway.'
+        required: true
+        default: 'use-build-and-security-scan-instead'
 
 jobs:
-  gitversion:
+  deprecation-notice:
     runs-on: ubuntu-latest
-    outputs:
-      MajorMinorPatch: ${{ steps.gitversion.outputs.MajorMinorPatch }}
-      Release: ${{ steps.gitversion.outputs.BuildMetaData }}
     steps:
-      - name: Install GitVersion
-        uses: gittools/actions/gitversion/setup@v0.9.15
-        with:
-          versionSpec: '5.x'
-      - name: Checkout
-        uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-      - name: Determine Version
-        id: gitversion
-        uses: gittools/actions/gitversion/execute@v0.9.15
-        with:
-          useConfigFile: true
-          
-  build:
-    runs-on: ubuntu-latest
-    needs: gitversion
-    steps:
-      - name: checkout source
-        uses: actions/checkout@v3.3.0
-        with:
-          submodules: true
-      - name: build docker artifact
+      - name: Deprecation Notice
         run: |
-          image_name="${{ env.IMAGE_NAME }}:${{ needs.gitversion.outputs.MajorMinorPatch }}"
-          docker build -f ./os/Dockerfile -t $image_name .
-          docker save $image_name | gzip > image.tar.gz
+          echo "::warning::This workflow is deprecated. Please use 'build-and-security-scan.yaml' instead."
+          echo "The new workflow provides:"
+          echo "- Comprehensive security scanning with Trivy"
+          echo "- SARIF upload to GitHub Advanced Security"
+          echo "- Multi-platform builds"
+          echo "- SBOM generation"
+          echo "- Better error handling and caching"
+          echo ""
+          echo "To trigger the new workflow, go to Actions > Build and Security Scan"
+          
+          if [ "${{ github.event.inputs.confirm }}" != "confirm" ]; then
+            echo "::error::Workflow not confirmed. Please use the new workflow instead."
+            exit 1
+          fi
           

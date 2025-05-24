@@ -1,0 +1,31 @@
+[Unit]
+Description=MicroShift Kubernetes Service
+Documentation=https://microshift.io/
+Wants=crio.service
+After=crio.service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=notify
+Restart=always
+RestartSec=5s
+TimeoutStartSec=0
+LimitNOFILE=65536
+Nice=-10
+MemoryHigh=1G
+MemoryMax=1.5G
+ExecStartPre=-/bin/bash -c "if [ -f /etc/microshift/config.yaml ]; then /usr/bin/microshift validate-config --config /etc/microshift/config.yaml; fi"
+ExecStartPre=/usr/bin/microshift validate-config
+ExecStart=/usr/bin/microshift run
+ExecStopPost=/bin/bash -c "if [ $SERVICE_RESULT != success ]; then systemctl --job-mode=replace-irreversibly start microshift-cleanup.service; fi"
+KillMode=mixed
+KillSignal=SIGTERM
+FinalKillSignal=SIGKILL
+TimeoutStopSec=90
+
+# Disable memory accounting to preserve cgroup v1 compatibility
+MemoryAccounting=false
+
+[Install]
+WantedBy=multi-user.target 

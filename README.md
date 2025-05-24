@@ -1,2 +1,139 @@
 # os-builder
-This repository contains code for building an operating system that can be deployed on an edge
+
+This repository contains code for building operating systems that can be deployed on edge devices using bootc (bootable containers) technology.
+
+## Overview
+
+This project provides container-based OS builds for edge computing deployments using bootc technology, which enables:
+- Immutable OS updates via container images
+- Transactional updates with rollback capability
+- Container-native OS management
+- Edge-optimized configurations
+
+## Available OS Builds
+
+### Fedora bootc Edge OS (`os/`)
+
+A complete Fedora-based bootc container image optimized for edge deployments.
+
+**Features:**
+- Based on Fedora 42 bootc base image
+- Container runtime (Podman) pre-installed
+- **MicroShift Kubernetes built from source** for latest features and customization
+- SSH access with security hardening
+- Automatic updates capability
+- Edge-specific optimizations
+- VMware tools support
+- **ISO Building**: Create bootable ISOs with user configuration
+  - Interactive installation wizard with user prompts
+  - User account setup with SSH keys
+  - Custom hostname and DNS configuration (DHCP or static IP)
+  - Filesystem customizations with multiple layout options
+  - Automated via GitHub Actions
+
+**Quick Start:**
+```bash
+cd os/
+make build                              # Build with MicroShift main branch
+make build MICROSHIFT_VERSION=release-4.17  # Build with specific MicroShift version
+make test
+```
+
+**Documentation:** See [os/README.md](os/README.md) for detailed instructions.
+
+**MicroShift Source Build:** MicroShift is built from source for latest features. See [docs/MICROSHIFT_SOURCE_BUILD.md](docs/MICROSHIFT_SOURCE_BUILD.md) for details.
+
+**Versioning:** Container images are automatically versioned using GitVersion. See [docs/GITVERSION.md](docs/GITVERSION.md) for details.
+
+### RHEL bootc (Legacy - `os/Dockerfile`)
+
+The original RHEL-based bootc configuration with MicroShift.
+
+## Project Structure
+
+```
+os-builder/
+├── os/                          # Fedora bootc edge OS build
+│   ├── Containerfile.fedora     # Main Containerfile
+│   ├── build.sh                 # Build script
+│   ├── Makefile                 # Build automation
+│   ├── configs/                 # Configuration files
+│   ├── scripts/                 # Setup scripts
+│   ├── systemd/                 # Systemd services
+│   ├── examples/                # Example configurations
+│   └── README.md                # Detailed documentation
+├── .github/                     # GitHub workflows
+├── docs/                        # Documentation
+│   ├── GITVERSION.md            # GitVersion integration guide
+│   ├── MACOS_LIMITATIONS.md     # macOS limitations and solutions
+│   └── MICROSHIFT_SOURCE_BUILD.md # MicroShift source build guide
+├── GitVersion.yml               # Version configuration
+├── LICENSE                      # License file
+└── README.md                    # This file
+```
+
+## Getting Started
+
+1. **Clone the repository:**
+   ```bash
+   git clone <repository-url>
+   cd os-builder
+   ```
+
+2. **Build the Fedora bootc image:**
+   ```bash
+   cd os/
+   make help  # Show available commands
+   make build # Build the container image
+   ```
+
+3. **Convert to disk image (for deployment):**
+   ```bash
+   make disk-image
+   ```
+
+4. **Build ISO with user configuration:**
+   ```bash
+   make build-iso-user         # Pre-configured users (automated)
+   make build-iso-minimal      # Pre-configured minimal (automated)
+   make build-iso-advanced     # Interactive with basic prompts
+   make build-iso-interactive  # Interactive with comprehensive setup wizard
+   ```
+
+5. **Deploy to your edge infrastructure**
+
+## Requirements
+
+- Linux system (Fedora, RHEL, or compatible recommended)
+- Podman or Docker
+- At least 4GB free disk space
+- Network access to pull base images
+
+## Use Cases
+
+This OS builder is designed for:
+- **Edge Computing**: Deployments at network edge locations
+- **IoT Infrastructure**: Internet of Things device management
+- **Container Workloads**: Running containerized applications
+- **Kubernetes Edge**: Lightweight Kubernetes workloads with MicroShift
+- **Immutable Infrastructure**: Infrastructure as code deployments
+- **Development/Testing**: Local development environments
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test thoroughly
+5. Submit a pull request
+
+## License
+
+This project is licensed under the terms specified in the [LICENSE](LICENSE) file.
+
+## Support
+
+For support and documentation:
+- **Fedora bootc**: [Fedora bootc Documentation](https://docs.fedoraproject.org/en-US/bootc/)
+- **bootc project**: [bootc-dev/bootc](https://github.com/bootc-dev/bootc)
+- **Issues**: Open an issue in this repository

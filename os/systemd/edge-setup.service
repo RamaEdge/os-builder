@@ -1,0 +1,15 @@
+[Unit]
+Description=Edge deployment setup service
+After=network-online.target
+Wants=network-online.target
+Before=multi-user.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/edge-setup.sh
+RemainAfterExit=yes
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target 

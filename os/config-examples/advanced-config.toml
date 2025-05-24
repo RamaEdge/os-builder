@@ -1,0 +1,11 @@
+# Advanced Bootc Image Builder Configuration  
+# This configuration uses the basic Kickstart file for guided installation
+# User accounts, network, DNS, and filesystem are configured in Kickstart
+
+# Kernel arguments for advanced configurations
+[customizations.kernel]
+append = "selinux=permissive audit=1 crashkernel=auto"
+
+# Installer configuration - references the basic Kickstart file
+[customizations.installer.kickstart]
+path = "/kickstart.ks" 
