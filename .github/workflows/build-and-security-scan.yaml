@@ -2,7 +2,7 @@ name: Build and Security Scan
 
 on:
   push:
-    branches: ['main', 'develop', 'add-initial-os-build']
+    branches: ['main']
     paths:
       - 'os/**'
   pull_request:
