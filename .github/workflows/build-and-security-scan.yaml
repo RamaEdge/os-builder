@@ -41,31 +41,75 @@ jobs:
     name: Determine Version
     runs-on: self-hosted
     outputs:
-      MajorMinorPatch: ${{ steps.gitversion.outputs.MajorMinorPatch }}
-      SemVer: ${{ steps.gitversion.outputs.SemVer }}
-      BranchName: ${{ steps.gitversion.outputs.BranchName }}
-      Sha: ${{ steps.gitversion.outputs.Sha }}
+      MajorMinorPatch: ${{ steps.version.outputs.version }}
+      SemVer: ${{ steps.version.outputs.version }}
+      BranchName: ${{ steps.version.outputs.branch }}
+      Sha: ${{ steps.version.outputs.sha }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '8.x'
+      - name: Generate Version
+        id: version
+        run: |
+          # Get git information
+          SHA=$(git rev-parse --short HEAD)
+          BRANCH=$(git rev-parse --abbrev-ref HEAD)
           
-      - name: Install GitVersion
-        uses: gittools/actions/gitversion/setup@v3.2.1
-        with:
-          versionSpec: '5.x'
-      
-      - name: Determine Version
-        id: gitversion
-        uses: gittools/actions/gitversion/execute@v3.2.1
-        with:
-          useConfigFile: true
+          # Try to get version from latest tag
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.1.0")
+          
+          # Extract version number from tag (remove 'v' prefix if present)
+          VERSION_BASE=$(echo "$LATEST_TAG" | sed 's/^v//')
+          
+          # Count commits since last tag
+          COMMITS_SINCE_TAG=$(git rev-list --count ${LATEST_TAG}..HEAD 2>/dev/null || echo "0")
+          
+          # Generate version based on context
+          if [ "$BRANCH" = "main" ]; then
+            if [ "$COMMITS_SINCE_TAG" = "0" ]; then
+              # On main, at a tag - this is a release
+              VERSION="$VERSION_BASE"
+            else
+              # On main, ahead of tag - this is a pre-release
+              VERSION="$VERSION_BASE-dev.$COMMITS_SINCE_TAG+$SHA"
+            fi
+          elif [[ "$BRANCH" =~ ^release/.* ]]; then
+            # Release branch
+            RELEASE_VERSION=$(echo "$BRANCH" | sed 's/release\///')
+            VERSION="$RELEASE_VERSION-rc.$COMMITS_SINCE_TAG+$SHA"
+          else
+            # Feature/other branch
+            SAFE_BRANCH=$(echo "$BRANCH" | sed 's/[^a-zA-Z0-9]/-/g')
+            VERSION="$VERSION_BASE-$SAFE_BRANCH.$COMMITS_SINCE_TAG+$SHA"
+          fi
+          
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "branch=$BRANCH" >> $GITHUB_OUTPUT
+          echo "sha=$SHA" >> $GITHUB_OUTPUT
+          echo "base_version=$VERSION_BASE" >> $GITHUB_OUTPUT
+          echo "commits_since_tag=$COMMITS_SINCE_TAG" >> $GITHUB_OUTPUT
+          
+          echo "## 📋 Version Information" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Generated Version**: \`$VERSION\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch**: \`$BRANCH\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit**: \`$SHA\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Base Version**: \`$VERSION_BASE\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Commits Since Tag**: $COMMITS_SINCE_TAG" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Version Strategy:" >> $GITHUB_STEP_SUMMARY
+          if [ "$BRANCH" = "main" ] && [ "$COMMITS_SINCE_TAG" = "0" ]; then
+            echo "🏷️ **Release Version** - On main branch at tagged commit" >> $GITHUB_STEP_SUMMARY
+          elif [ "$BRANCH" = "main" ]; then
+            echo "🚧 **Development Version** - On main branch ahead of last tag" >> $GITHUB_STEP_SUMMARY
+          elif [[ "$BRANCH" =~ ^release/.* ]]; then
+            echo "🎯 **Release Candidate** - On release branch" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "🔧 **Feature Version** - On feature/development branch" >> $GITHUB_STEP_SUMMARY
+          fi
 
   security-scan-files:
     name: Security Scan - Files
