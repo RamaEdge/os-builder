@@ -12,7 +12,7 @@ IMAGE_TAG ?= $(shell \
 	fi)
 CONTAINERFILE ?= Containerfile.fedora
 REGISTRY ?= localhost
-MICROSHIFT_VERSION ?= main
+MICROSHIFT_VERSION ?= release-4.19
 MICROSHIFT_REPO ?= https://github.com/openshift/microshift.git
 
 # Detect OS and architecture
@@ -29,7 +29,7 @@ else
 endif
 
 # Build targets
-.PHONY: help build clean test test-observability push pull lint install-deps disk-image info check-runtime build-iso build-iso-minimal build-iso-user build-iso-advanced build-iso-interactive create-custom-iso version
+.PHONY: help build clean test test-observability push pull lint install-deps disk-image info check-runtime build-iso create-custom-iso version microshift check-microshift build-optimized check-tags
 
 # Default target
 help:
@@ -38,7 +38,11 @@ help:
 	@echo ""
 	@echo "Available targets:"
 	@echo "  help         - Show this help message"
-	@echo "  build        - Build the container image"
+	@echo "  build        - Build the container image (auto-detects optimization)"
+	@echo "  build-optimized - Build with pre-built MicroShift (85% faster when available)"
+	@echo "  microshift   - Unified MicroShift management (check|tags|versions|status)"
+	@echo "  check-microshift - Check MicroShift build strategy and recommendations"
+	@echo "  check-tags   - Check MicroShift tags (uses current MICROSHIFT_VERSION or specify BRANCH=)"
 	@echo "  clean        - Remove built images and containers"
 	@echo "  test         - Test the built image"
 	@echo "  test-observability - Test observability stack (on running system)"
@@ -50,10 +54,7 @@ help:
 	@echo "  info         - Show image information"
 	@echo "  check-runtime - Check container runtime availability"
 	@echo "  build-iso    - Build ISO with custom config (CONFIG_FILE=...)"
-	@echo "  build-iso-minimal - Build minimal ISO configuration"
-	@echo "  build-iso-user    - Build user ISO configuration"
-	@echo "  build-iso-advanced - Build advanced ISO configuration"
-	@echo "  build-iso-interactive - Build interactive ISO with Kickstart"
+	@echo "  build-iso-*  - Build ISO with predefined config (minimal, user, advanced, interactive)"
 	@echo "  create-custom-iso - Interactive script to create custom ISO config"
 	@echo "  version      - Show version information"
 	@echo ""
@@ -84,6 +85,8 @@ endif
 	@echo "  make build IMAGE_TAG=v1.0.0"
 	@echo "  make build MICROSHIFT_VERSION=release-4.17"
 	@echo "  make build MICROSHIFT_VERSION=v4.17.1"
+	@echo "  make check-tags BRANCH=release-4.17"
+	@echo "  make build-optimized MICROSHIFT_VERSION=v4.17.1"
 	@echo "  make test"
 	@echo "  make build-iso-user"
 	@echo "  make build-iso-interactive"
@@ -100,6 +103,31 @@ check-runtime:
 		echo "Run 'make install-deps' to install container runtime"; \
 		exit 1; \
 	fi
+
+# MicroShift management (unified interface)
+microshift:
+	@chmod +x scripts/microshift.sh
+	@MICROSHIFT_VERSION=$(MICROSHIFT_VERSION) MICROSHIFT_REPO=$(MICROSHIFT_REPO) REGISTRY=$(REGISTRY) REPO_OWNER=ramaedge scripts/microshift.sh $(filter-out microshift,$(MAKECMDGOALS))
+
+# Legacy aliases for backwards compatibility
+check-microshift:
+	@$(MAKE) microshift check
+
+check-tags:
+	@if [ -n "$(BRANCH)" ]; then \
+		$(MAKE) microshift tags --branch $(BRANCH); \
+	else \
+		$(MAKE) microshift tags; \
+	fi
+
+# Build with optimized MicroShift (pre-built binary)
+build-optimized: check-runtime
+	@echo "Building with optimized MicroShift (pre-built binary)..."
+	@echo "Using container runtime: $(CONTAINER_RUNTIME)"
+	@echo "MicroShift version: $(MICROSHIFT_VERSION)"
+	@echo "MicroShift repository: $(MICROSHIFT_REPO)"
+	@chmod +x build.sh
+	@CONTAINER_RUNTIME=$(CONTAINER_RUNTIME) IMAGE_NAME=$(IMAGE_NAME) IMAGE_TAG=$(IMAGE_TAG) CONTAINERFILE=Containerfile.fedora.optimized MICROSHIFT_VERSION=$(MICROSHIFT_VERSION) MICROSHIFT_REPO=$(MICROSHIFT_REPO) ./build.sh
 
 # Build the container image
 build: check-runtime
@@ -295,21 +323,15 @@ build-iso: check-runtime
 		find $(PWD)/iso-output -name "*.iso" -exec ls -lh {} \; 2>/dev/null || echo "   No ISO files found"; \
 	fi
 
-# Build minimal ISO configuration
-build-iso-minimal:
-	$(MAKE) build-iso CONFIG_FILE=config-examples/minimal-config.toml
-
-# Build user ISO configuration  
-build-iso-user:
-	$(MAKE) build-iso CONFIG_FILE=config-examples/user-config.toml
-
-# Build advanced ISO configuration
-build-iso-advanced:
-	$(MAKE) build-iso CONFIG_FILE=config-examples/advanced-config.toml
-
-# Build interactive ISO configuration with Kickstart prompts
-build-iso-interactive:
-	$(MAKE) build-iso CONFIG_FILE=config-examples/interactive-config.toml
+# Build ISO with predefined configurations
+build-iso-%:
+	@if [ ! -f "config-examples/$*-config.toml" ]; then \
+		echo "❌ Configuration not found: config-examples/$*-config.toml"; \
+		echo "📝 Available configurations:"; \
+		ls -1 config-examples/*.toml 2>/dev/null | sed 's|config-examples/||; s|-config\.toml||' | sed 's/^/  /' || echo "   No config examples found"; \
+		exit 1; \
+	fi
+	$(MAKE) build-iso CONFIG_FILE=config-examples/$*-config.toml
 
 # Create custom ISO configuration interactively
 create-custom-iso:

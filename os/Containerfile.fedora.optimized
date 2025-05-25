@@ -1,0 +1,87 @@
+# Optimized multi-stage build for MicroShift edge OS
+# Uses pre-built MicroShift binaries for faster builds
+ARG MICROSHIFT_VERSION=main
+ARG MICROSHIFT_REPO=https://github.com/openshift/microshift.git
+ARG MICROSHIFT_IMAGE_BASE=ghcr.io/ramaedge/microshift-builder
+
+# Stage 1: Get pre-built MicroShift binary
+FROM ${MICROSHIFT_IMAGE_BASE}:${MICROSHIFT_VERSION} AS microshift-prebuilt
+
+# Stage 2: Final bootc image
+FROM quay.io/fedora/fedora-bootc:42
+
+ARG MICROSHIFT_VERSION=main
+ARG MICROSHIFT_REPO=https://github.com/openshift/microshift.git
+
+LABEL org.opencontainers.image.title="Edge OS - Fedora bootc (Optimized)" \
+      org.opencontainers.image.description="Fedora bootc with pre-built MicroShift for edge computing" \
+      containers.bootc=1 \
+      microshift.version="${MICROSHIFT_VERSION}" \
+      microshift.optimization="pre-built-binary"
+
+# Install packages and copy pre-built MicroShift
+COPY --from=microshift-prebuilt /microshift /usr/bin/microshift
+COPY --from=microshift-prebuilt /release-images.json /usr/share/microshift/release-images.json
+RUN chmod +x /usr/bin/microshift
+
+# Install essential packages, configure security, and setup container images
+RUN dnf install -y openssh-server sudo podman cri-o kubernetes-client NetworkManager \
+        firewalld policycoreutils-python-utils systemd-resolved chrony curl jq && \
+    # Security hardening
+    find /usr -type f \( -perm -4000 -o -perm -2000 \) -name chfn -o -name chsh -o -name newgrp -exec chmod u-s {} \; && \
+    # Pre-load MicroShift container images
+    mkdir -p /usr/share/microshift /usr/share/containers/storage && \
+    if [ -f "/usr/share/microshift/release-images.json" ] && [ -s "/usr/share/microshift/release-images.json" ]; then \
+        jq -r '.images[]?' /usr/share/microshift/release-images.json | while read -r image; do \
+            podman pull --root /usr/share/containers/storage "$image" 2>/dev/null || true; \
+        done; \
+    fi && \
+    # Configure offline container storage
+    mkdir -p /etc/containers/storage.conf.d && \
+    echo -e '[storage]\nadditionalImageStores = ["/usr/share/containers/storage"]' > /etc/containers/storage.conf.d/offline.conf && \
+    # Install OpenTelemetry Collector
+    ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/') && \
+    curl -sL "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v0.126.0/otelcol_linux_${ARCH}.tar.gz" | \
+    tar -xz -C /usr/local/bin/ otelcol 2>/dev/null || echo "OpenTelemetry install skipped" && \
+    chmod +x /usr/local/bin/otelcol 2>/dev/null || true && \
+    # Cleanup
+    dnf remove -y jq && dnf clean all && \
+    rm -rf /var/cache/dnf/* /tmp/* /var/tmp/* /usr/share/doc/* /usr/share/man/* /var/lib/dnf/history/*
+
+# Configure services and directories
+RUN mkdir -p /etc/containers/systemd /etc/microshift /etc/otelcol /etc/microshift/manifests \
+        /var/lib/microshift /var/log/microshift /var/hpvolumes && \
+    # Enable base services (excluding microshift until service file is copied)
+    systemctl enable sshd chronyd systemd-resolved podman.socket crio && \
+    systemctl enable bootc-fetch-apply-updates.timer && \
+    # Configure firewall - separate commands for services and ports
+    firewall-offline-cmd --add-service=ssh && \
+    firewall-offline-cmd --add-port=6443/tcp --add-port=8080/tcp \
+        --add-port=10250/tcp --add-port=4317/tcp --add-port=4318/tcp
+
+# Copy configuration files
+COPY configs/containers/ /etc/containers/
+COPY configs/microshift/ /etc/microshift/
+COPY configs/otelcol/ /etc/otelcol/
+COPY manifests/ /etc/microshift/manifests/
+COPY scripts/ /usr/local/bin/
+COPY systemd/ /usr/lib/systemd/system/
+COPY kickstart*.ks /
+
+# Set permissions and enable all services (including microshift now that service file exists)
+RUN chmod +x /usr/local/bin/*.sh 2>/dev/null || true && \
+    # Enable MicroShift service now that the service file is copied
+    systemctl enable microshift && \
+    # Enable custom services
+    systemctl enable edge-setup.service microshift-kubeconfig-setup.service \
+        observability-deploy.service 2>/dev/null || true && \
+    restorecon -R /etc /usr/local/bin 2>/dev/null || true && \
+    # Create non-root user for container security compliance
+    useradd -r -s /sbin/nologin -d /var/empty -c "Container user" containeruser && \
+    bootc container lint
+
+# Switch to non-root user for container security compliance
+# Note: This is for container image security; bootc will use system users when booted
+USER containeruser
+
+CMD ["/bin/bash"] 
