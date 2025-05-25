@@ -1,0 +1,24 @@
+# Bootc Image Builder Configuration - Pre-configured Users
+# This configuration provides pre-configured user accounts for automated deployment
+# For interactive configuration, use interactive-config.toml instead
+
+[[customizations.user]]
+name = "admin"
+password = "secure-password"  # Change this to your desired password
+key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC..."  # Replace with your SSH public key
+groups = ["wheel", "sudo"]
+
+[[customizations.user]]
+name = "developer"
+password = "dev-password"  # Change this to your desired password
+key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQD..."  # Replace with your SSH public key
+groups = ["wheel", "docker"]
+
+# Hostname configuration
+[customizations.hostname]
+hostname = "fedora-edge-builder"  # Change to your desired hostname
+
+# DNS configuration - these will be written to /etc/resolv.conf
+[customizations.dns]
+nameservers = ["8.8.8.8", "8.8.4.4", "1.1.1.1"]
+search_domains = ["local", "internal"] 

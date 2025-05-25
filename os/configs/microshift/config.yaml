@@ -1,0 +1,46 @@
+# MicroShift configuration for edge deployments
+# This file configures MicroShift for optimal edge computing performance
+
+dns:
+  baseDomain: cluster.local
+
+network:
+  clusterNetwork:
+    - cidr: 10.42.0.0/16
+      hostPrefix: 23
+  serviceNetwork:
+    - 10.43.0.0/16
+  serviceNodePortRange: 30000-32767
+
+node:
+  hostnameOverride: ""
+  nodeIP: ""
+
+# Audit logging configuration
+audit:
+  profile: Default
+
+# etcd configuration for single-node deployment
+etcd:
+  memoryLimitMB: 128
+
+# API server configuration
+apiServer:
+  subjectAltNames: []
+  
+# Ingress configuration  
+ingress:
+  status: Managed
+  ports:
+    http: 80
+    https: 443
+
+# Cluster monitoring and observability
+manifests:
+  kustomizePaths:
+    - /usr/share/microshift/manifests
+    - /etc/microshift/manifests
+
+# Log verbosity (0-10, higher is more verbose)
+debugging:
+  logVerbosity: 2 

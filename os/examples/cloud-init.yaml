@@ -1,0 +1,117 @@
+#cloud-config
+# Example cloud-init configuration for Fedora bootc edge OS deployment
+# This file configures the system on first boot
+
+# Set hostname
+hostname: fedora-edge-001
+
+# Configure users
+users:
+  - name: fedora
+    groups: wheel
+    shell: /bin/bash
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    ssh_authorized_keys:
+      - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC... # Replace with your actual public key
+      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI... # You can add multiple keys
+
+# SSH configuration
+ssh:
+  emit_keys_to_console: false
+  ssh_deletekeys: true
+  ssh_genkeytypes: [rsa, ecdsa, ed25519]
+
+# Package updates (optional - bootc handles OS updates)
+package_update: false
+package_upgrade: false
+
+# Configure timezone
+timezone: UTC
+
+# Network configuration (if needed)
+network:
+  version: 2
+  ethernets:
+    eth0:
+      dhcp4: true
+      dhcp6: true
+
+# Write additional files
+write_files:
+  - path: /etc/motd
+    content: |
+      Welcome to Fedora Edge OS (bootc)
+      
+      This system uses bootc for OS updates.
+      Container runtime: Podman
+      
+      Useful commands:
+      - sudo bootc status        # Check current image
+      - sudo bootc upgrade       # Update OS
+      - podman ps               # List containers
+      - kubectl get nodes         # Check Kubernetes node
+      - kubectl get pods -A       # List all pods
+      - observability             # Check observability stack
+      - jaeger                    # Open Jaeger UI
+      - metrics                   # View metrics endpoint
+      
+    permissions: '0644'
+    owner: root:root
+
+  - path: /home/fedora/.bashrc_extra
+    content: |
+      # Additional bash configuration for edge deployment
+      alias ll='ls -alF'
+      alias la='ls -A'
+      alias l='ls -CF'
+      alias pods='podman ps'
+      alias images='podman images'
+      alias k='kubectl'
+      alias kget='kubectl get'
+      alias klog='kubectl logs'
+      
+      # OpenTelemetry and observability aliases
+      alias otelstatus='systemctl status otel-collector'
+      alias otelrestart='sudo systemctl restart otel-collector'
+      alias jaeger='echo "Jaeger UI: http://localhost:30686"'
+      alias metrics='echo "Metrics: http://localhost:30464/metrics"'
+      alias observability='kubectl get pods -n observability'
+      
+      # Set helpful environment variables
+      export EDITOR=vim
+      export HISTSIZE=1000
+      export HISTFILESIZE=2000
+      export KUBECONFIG=/home/fedora/.kube/config
+      
+    permissions: '0644'
+    owner: fedora:fedora
+    append: true
+
+# Run commands on first boot
+runcmd:
+  - echo "source ~/.bashrc_extra" >> /home/fedora/.bashrc
+  - chown fedora:fedora /home/fedora/.bashrc
+  - systemctl enable --now sshd
+  - systemctl enable --now firewalld
+  - firewall-cmd --permanent --add-service=ssh
+  - firewall-cmd --reload
+  - timedatectl set-ntp true
+
+# Final message
+final_message: |
+  Fedora Edge OS (bootc) deployment completed!
+  
+  Connect via SSH: ssh fedora@<this-machine-ip>
+  
+  System configured with:
+  - SSH key authentication
+  - Firewall enabled
+  - Container runtime ready
+  - MicroShift Kubernetes ready
+  - OpenTelemetry observability stack
+  - Automatic updates enabled
+  
+  Observability endpoints:
+  - Jaeger UI: http://<this-machine-ip>:30686
+  - Metrics: http://<this-machine-ip>:30464/metrics
+  - Host metrics: http://<this-machine-ip>:9090/metrics 

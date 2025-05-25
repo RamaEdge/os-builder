@@ -1,0 +1,104 @@
+# Dependabot configuration for automated dependency updates
+# This configuration monitors various package ecosystems for updates
+
+version: 2
+updates:
+  # Monitor GitHub Actions dependencies
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "@ravichillerega"
+    assignees:
+      - "@ravichillerega"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "github-actions"
+      - "security"
+
+  # Monitor Docker base images (though limited support for Containerfiles)
+  - package-ecosystem: "docker"
+    directory: "/os"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+      time: "06:00"
+    open-pull-requests-limit: 3
+    reviewers:
+      - "@ravichillerega"
+    assignees:
+      - "@ravichillerega"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "docker"
+      - "security"
+      - "container-image"
+
+  # Monitor Terraform configurations if any are added in the future
+  - package-ecosystem: "terraform"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "wednesday"
+      time: "06:00"
+    open-pull-requests-limit: 3
+    reviewers:
+      - "@ravichillerega"
+    assignees:
+      - "@ravichillerega"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "terraform"
+      - "infrastructure"
+
+  # Monitor pip dependencies if any Python scripts are added
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "thursday"
+      time: "06:00"
+    open-pull-requests-limit: 3
+    reviewers:
+      - "@ravichillerega"
+    assignees:
+      - "@ravichillerega"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "python"
+
+  # Monitor npm dependencies if any Node.js components are added
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "friday"
+      time: "06:00"
+    open-pull-requests-limit: 3
+    reviewers:
+      - "@ravichillerega"
+    assignees:
+      - "@ravichillerega"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "npm"
+      - "javascript" 

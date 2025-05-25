@@ -1,0 +1,17 @@
+[Unit]
+Description=Deploy observability stack to MicroShift
+After=microshift.service microshift-kubeconfig-setup.service
+Wants=microshift.service microshift-kubeconfig-setup.service
+Requisite=microshift.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/deploy-observability.sh
+RemainAfterExit=yes
+StandardOutput=journal
+StandardError=journal
+User=root
+Environment=KUBECONFIG=/var/lib/microshift/resources/kubeadmin/kubeconfig
+
+[Install]
+WantedBy=multi-user.target 
