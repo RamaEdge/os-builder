@@ -44,44 +44,10 @@ updates:
       - "security"
       - "container-image"
 
-  # Monitor Terraform configurations if any are added in the future
-  - package-ecosystem: "terraform"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-      day: "wednesday"
-      time: "06:00"
-    open-pull-requests-limit: 3
-    reviewers:
-      - "@ravichillerega"
-    assignees:
-      - "@ravichillerega"
-    commit-message:
-      prefix: "chore(deps)"
-      include: "scope"
-    labels:
-      - "dependencies"
-      - "terraform"
-      - "infrastructure"
-
-  # Monitor pip dependencies if any Python scripts are added
-  - package-ecosystem: "pip"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-      day: "thursday"
-      time: "06:00"
-    open-pull-requests-limit: 3
-    reviewers:
-      - "@ravichillerega"
-    assignees:
-      - "@ravichillerega"
-    commit-message:
-      prefix: "chore(deps)"
-      include: "scope"
-    labels:
-      - "dependencies"
-      - "python"
+  # Note: golang ecosystem is not monitored because:
+  # - MicroShift is built from external repository source
+  # - golang dependencies are managed upstream in MicroShift repo
+  # - No go.mod/go.sum files exist in this repository
 
   # Monitor npm dependencies if any Node.js components are added
   - package-ecosystem: "npm"

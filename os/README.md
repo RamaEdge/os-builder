@@ -12,6 +12,7 @@ This bootc (boot container) image is based on Fedora and provides:
 - **Offline Container Support**: Pre-loaded MicroShift container images for air-gapped deployments
 - **Supply Chain Security**: SHA digest-based immutable container references
 - **Observability Stack**: OpenTelemetry Collector for metrics, logs, and traces
+- **Performance Optimized CI/CD**: Single-build workflow for maximum efficiency
 - SSH access with security hardening
 - Automatic updates capability
 - Edge-specific optimizations
@@ -73,6 +74,8 @@ make test
 # Clean up
 make clean
 ```
+
+> **Note**: Local builds are optimized for development. For production deployments, the GitHub Actions CI/CD pipeline provides optimized single-build workflows with integrated security scanning and multi-platform support.
 
 #### Using the Build Script
 
