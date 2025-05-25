@@ -227,7 +227,7 @@ jobs:
           echo "microshift_image=${MICROSHIFT_IMAGE}" >> $GITHUB_OUTPUT
           
           echo "🔍 Checking for local pre-built MicroShift image..."
-          if podman images --format "table {{.Repository}}:{{.Tag}}" | grep -q "$MICROSHIFT_IMAGE"; then
+          if podman images --format "table" | grep -q "$MICROSHIFT_IMAGE"; then
             echo "✅ Local pre-built MicroShift found: $MICROSHIFT_IMAGE"
             echo "containerfile=Containerfile.fedora.optimized" >> $GITHUB_OUTPUT
             echo "build_mode=optimized" >> $GITHUB_OUTPUT
@@ -276,7 +276,7 @@ jobs:
             .
           
           # Get image ID for scanning and testing
-          IMAGE_ID=$(podman images --format "{{.ID}}" "$LOCAL_TAG")
+          IMAGE_ID=$(podman images --filter reference="$LOCAL_TAG" -q)
           echo "image_id=${IMAGE_ID}" >> $GITHUB_OUTPUT
           echo "local_tag=${LOCAL_TAG}" >> $GITHUB_OUTPUT
           
