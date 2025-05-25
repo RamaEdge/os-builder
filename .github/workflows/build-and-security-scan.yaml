@@ -180,11 +180,11 @@ jobs:
           tags: |
             type=ref,event=branch
             type=ref,event=pr
-            type=semver,pattern={{version}},value=${{ needs.gitversion.outputs.SemVer }}
-            type=semver,pattern={{major}}.{{minor}},value=${{ needs.gitversion.outputs.SemVer }}
-            type=semver,pattern={{major}},value=${{ needs.gitversion.outputs.SemVer }}
+            type=semver,pattern={{'{{version}}'}},value=${{ needs.gitversion.outputs.SemVer }}
+            type=semver,pattern={{'{{major}}.{{minor}}'}},value=${{ needs.gitversion.outputs.SemVer }}
+            type=semver,pattern={{'{{major}}'}},value=${{ needs.gitversion.outputs.SemVer }}
             type=sha,prefix=sha-
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
 
       - name: Check for pre-built MicroShift and select build strategy
         id: build-strategy
@@ -257,6 +257,7 @@ jobs:
             echo "### 💡 Optimization Tip:" >> $GITHUB_STEP_SUMMARY
             echo "- Run the MicroShift Builder workflow first to create local pre-built binaries" >> $GITHUB_STEP_SUMMARY
             echo "- This will significantly speed up future builds" >> $GITHUB_STEP_SUMMARY
+          fi
 
       - name: Build container image (local only)
         id: build
