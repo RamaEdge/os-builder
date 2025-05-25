@@ -46,15 +46,20 @@ jobs:
       BranchName: ${{ steps.gitversion.outputs.BranchName }}
       Sha: ${{ steps.gitversion.outputs.Sha }}
     steps:
-      - name: Install GitVersion
-        uses: gittools/actions/gitversion/setup@v3.2.1
-        with:
-          versionSpec: '5.x'
-      
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.x'
+          
+      - name: Install GitVersion
+        uses: gittools/actions/gitversion/setup@v3.2.1
+        with:
+          versionSpec: '5.x'
       
       - name: Determine Version
         id: gitversion
@@ -67,7 +72,6 @@ jobs:
     runs-on: self-hosted
     permissions:
       contents: read
-      security-events: write
       actions: read
     steps:
       - name: Checkout code
@@ -83,12 +87,7 @@ jobs:
           severity: 'CRITICAL,HIGH'
           skip-dirs: '.git,.github/workflows'
 
-      - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v3
-        if: always()
-        with:
-          sarif_file: 'trivy-fs-results.sarif'
-          category: 'filesystem-scan'
+
 
       - name: Run Trivy vulnerability scanner - Configuration files
         uses: aquasecurity/trivy-action@0.30.0
@@ -100,12 +99,7 @@ jobs:
           severity: 'CRITICAL,HIGH'
           skip-dirs: '.git'
 
-      - name: Upload Trivy configuration scan results
-        uses: github/codeql-action/upload-sarif@v3
-        if: always()
-        with:
-          sarif_file: 'trivy-config-results.sarif'
-          category: 'configuration-scan'
+
 
   build-and-scan:
     name: Build, Scan and Test Container Image
@@ -117,7 +111,6 @@ jobs:
     permissions:
       contents: read
       packages: write
-      security-events: write
       actions: read
     steps:
       - name: Checkout repository
@@ -262,12 +255,7 @@ jobs:
           severity: 'CRITICAL,HIGH'
           vuln-type: 'os,library'
 
-      - name: Upload Trivy image scan results
-        uses: github/codeql-action/upload-sarif@v3
-        if: always()
-        with:
-          sarif_file: 'trivy-image-results.sarif'
-          category: 'container-image-scan'
+
 
       - name: Run Trivy vulnerability scanner - Table output
         uses: aquasecurity/trivy-action@0.30.0
@@ -448,7 +436,6 @@ jobs:
     if: always()
     permissions:
       contents: read
-      security-events: read
     steps:
       - name: Security Scan Summary
         run: |
@@ -461,10 +448,12 @@ jobs:
           echo "- ✅ SBOM (Software Bill of Materials) generation" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Results Location:" >> $GITHUB_STEP_SUMMARY
-          echo "- **GitHub Security Tab**: Check the Security tab in this repository for detailed vulnerability reports" >> $GITHUB_STEP_SUMMARY
+          echo "- **Workflow Summary**: Security scan results are displayed in this workflow summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Console Output**: Detailed scan results available in workflow logs" >> $GITHUB_STEP_SUMMARY
           echo "- **SBOM Artifacts**: Software Bill of Materials available in workflow artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "- **SARIF Files**: Raw security scan results generated but kept local (not uploaded)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Security Tools Used:" >> $GITHUB_STEP_SUMMARY
           echo "- **Trivy**: Vulnerability scanner for containers and filesystems" >> $GITHUB_STEP_SUMMARY
           echo "- **Anchore Syft**: SBOM generation" >> $GITHUB_STEP_SUMMARY
-          echo "- **GitHub Advanced Security**: Centralized security reporting" >> $GITHUB_STEP_SUMMARY 
+          echo "- **Local Reporting**: Security results displayed in workflow summaries only" >> $GITHUB_STEP_SUMMARY 
