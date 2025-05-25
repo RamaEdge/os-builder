@@ -9,7 +9,25 @@ WORKDIR /build
 
 ARG MICROSHIFT_VERSION
 ARG MICROSHIFT_REPO
-RUN git clone --depth 1 --branch ${MICROSHIFT_VERSION} ${MICROSHIFT_REPO} . && \
+RUN echo "🔍 Processing MicroShift version: ${MICROSHIFT_VERSION}" && \
+    # Handle different version formats (branch, tag, or branch-commit)
+    if echo "${MICROSHIFT_VERSION}" | grep -q '^.*-[a-f0-9]\{8\}$'; then \
+        # Format: branch-commit (e.g., release-4.19-12345678)
+        BRANCH_NAME=$(echo "${MICROSHIFT_VERSION}" | sed 's/-[a-f0-9]\{8\}$//'); \
+        COMMIT_HASH=$(echo "${MICROSHIFT_VERSION}" | grep -o '[a-f0-9]\{8\}$'); \
+        echo "📡 Detected branch-commit format: branch=${BRANCH_NAME}, commit=${COMMIT_HASH}"; \
+        git clone --branch ${BRANCH_NAME} ${MICROSHIFT_REPO} . && \
+        git checkout ${COMMIT_HASH}; \
+    elif echo "${MICROSHIFT_VERSION}" | grep -q '^v[0-9]'; then \
+        # Version tag (e.g., v4.19.0)
+        echo "🏷️ Using version tag: ${MICROSHIFT_VERSION}"; \
+        git clone --depth 1 --branch ${MICROSHIFT_VERSION} ${MICROSHIFT_REPO} .; \
+    else \
+        # Branch name (e.g., main, release-4.19)
+        echo "🌿 Using branch: ${MICROSHIFT_VERSION}"; \
+        git clone --depth 1 --branch ${MICROSHIFT_VERSION} ${MICROSHIFT_REPO} .; \
+    fi && \
+    echo "✅ Git clone completed, building MicroShift..." && \
     make build && \
     cp _output/bin/microshift ./microshift && \
     # Extract container images from MicroShift repository

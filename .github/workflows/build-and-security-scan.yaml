@@ -227,8 +227,9 @@ jobs:
           echo "microshift_image=${MICROSHIFT_IMAGE}" >> $GITHUB_OUTPUT
           
           echo "🔍 Checking for local pre-built MicroShift image..."
-          if podman images --format "table" | grep -q "$MICROSHIFT_IMAGE"; then
-            echo "✅ Local pre-built MicroShift found: $MICROSHIFT_IMAGE"
+          # Check for any local microshift-builder images (regardless of registry path)
+          if podman images | grep -q "microshift-builder:${VERSION_TAG}"; then
+            echo "✅ Local pre-built MicroShift found: microshift-builder:${VERSION_TAG}"
             echo "containerfile=Containerfile.fedora.optimized" >> $GITHUB_OUTPUT
             echo "build_mode=optimized" >> $GITHUB_OUTPUT
             echo "microshift_available=true" >> $GITHUB_OUTPUT
@@ -237,7 +238,7 @@ jobs:
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "**Mode**: Using local pre-built MicroShift binary" >> $GITHUB_STEP_SUMMARY
             echo "**MicroShift Version**: $VERSION_TAG" >> $GITHUB_STEP_SUMMARY
-            echo "**Local MicroShift Image**: \`$MICROSHIFT_IMAGE\`" >> $GITHUB_STEP_SUMMARY
+            echo "**Local MicroShift Image**: \`microshift-builder:${VERSION_TAG}\`" >> $GITHUB_STEP_SUMMARY
             echo "**Containerfile**: Containerfile.fedora.optimized" >> $GITHUB_STEP_SUMMARY
             echo "**Expected Build Time**: ~5-8 minutes (85% faster)" >> $GITHUB_STEP_SUMMARY
             echo "**Storage**: Local Podman storage (no network overhead)" >> $GITHUB_STEP_SUMMARY
