@@ -295,7 +295,7 @@ jobs:
       - name: Run Trivy vulnerability scanner - Container Image
         uses: aquasecurity/trivy-action@0.30.0
         with:
-          image-ref: ${{ env.IMAGE_ID }}
+          image-ref: 'podman:${{ env.IMAGE_ID }}'
           format: 'sarif'
           output: 'trivy-image-results.sarif'
           severity: 'CRITICAL,HIGH'
@@ -306,14 +306,14 @@ jobs:
       - name: Run Trivy vulnerability scanner - Table output
         uses: aquasecurity/trivy-action@0.30.0
         with:
-          image-ref: ${{ env.IMAGE_ID }}
+          image-ref: 'podman:${{ env.IMAGE_ID }}'
           format: 'table'
           severity: 'CRITICAL,HIGH'
 
       - name: Generate container image SBOM
         uses: anchore/sbom-action@v0
         with:
-          image: ${{ env.IMAGE_ID }}
+          image: 'podman:${{ env.IMAGE_ID }}'
           format: spdx-json
           output-file: sbom.spdx.json
 
@@ -352,6 +352,7 @@ jobs:
           echo "- **Zero Rebuilds**: Testing same image that was built and scanned" >> $GITHUB_STEP_SUMMARY
           echo "- **Same Runner**: No environment switching needed" >> $GITHUB_STEP_SUMMARY
           echo "- **Instant Testing**: No build time, just test execution time" >> $GITHUB_STEP_SUMMARY
+          echo "- **Podman Integration**: Trivy and SBOM generation configured for Podman runtime" >> $GITHUB_STEP_SUMMARY
 
       - name: Create local image reference
         id: image-ref
@@ -374,6 +375,7 @@ jobs:
           echo "- **Local Only**: No registry push needed, faster workflow" >> $GITHUB_STEP_SUMMARY
           echo "- **MicroShift Optimization**: ${{ steps.build-strategy.outputs.build_mode == 'optimized' && 'Used pre-built binary (85% faster)' || 'Built from source (consider using MicroShift Builder)' }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Zero Network Overhead**: No image push/pull operations" >> $GITHUB_STEP_SUMMARY
+          echo "- **Podman Native**: Security scanning (Trivy) and SBOM generation configured for Podman runtime" >> $GITHUB_STEP_SUMMARY
 
 
   build-iso:
