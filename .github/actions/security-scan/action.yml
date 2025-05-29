@@ -28,38 +28,90 @@ outputs:
 runs:
   using: 'composite'
   steps:
+    # Fix for Podman compatibility: Trivy Action uses Docker by default, but our build system uses Podman.
+    # This step automatically detects the available container runtime socket and configures Trivy accordingly.
+    # This resolves the error: "scan error: unable to initialize a scanner: failed to parse the image name"
+    - name: Detect container runtime configuration
+      id: runtime-config
+      shell: bash
+      run: |
+        echo "🔍 Detecting container runtime configuration..."
+        
+        # Initialize socket variable
+        PODMAN_SOCKET=""
+        
+        # Check container runtime sockets in order of preference:
+        # 1. User Podman socket (rootless Podman) - most common in CI
+        # 2. System Podman socket (rootful Podman)
+        # 3. Docker socket (fallback compatibility)
+        # 4. Default to user Podman if none found
+        if [ -S "/run/user/$(id -u)/podman/podman.sock" ]; then
+          PODMAN_SOCKET="unix:///run/user/$(id -u)/podman/podman.sock"
+          echo "Found user Podman socket: $PODMAN_SOCKET"
+        elif [ -S "/run/podman/podman.sock" ]; then
+          PODMAN_SOCKET="unix:///run/podman/podman.sock"
+          echo "Found system Podman socket: $PODMAN_SOCKET"
+        elif [ -S "/var/run/docker.sock" ]; then
+          PODMAN_SOCKET="unix:///var/run/docker.sock"
+          echo "Found Docker socket, using as fallback: $PODMAN_SOCKET"
+        else
+          echo "No container runtime socket found, trying Podman default"
+          PODMAN_SOCKET="unix:///run/user/$(id -u)/podman/podman.sock"
+        fi
+        
+        # Export socket path for use in subsequent steps
+        echo "container_socket=$PODMAN_SOCKET" >> $GITHUB_OUTPUT
+        echo "Using container socket: $PODMAN_SOCKET"
+
     - name: Run security scans
       id: scan
       shell: bash
       run: |
         echo "🔍 Starting security scans for image: ${{ inputs.image-ref }}"
         
-        # Set SBOM artifact name
+        # Set SBOM artifact name for upload
         SBOM_ARTIFACT="sbom-${{ inputs.build-mode }}-${{ inputs.sha }}"
         echo "sbom_artifact=${SBOM_ARTIFACT}" >> $GITHUB_OUTPUT
 
+    # Configure Trivy to use the detected container socket instead of default Docker socket
+    # The docker-host parameter tells Trivy which container runtime to connect to
+    # Environment variables provide additional configuration for container runtime detection
     - name: Run Trivy vulnerability scanner - Container Image
       uses: aquasecurity/trivy-action@0.30.0
       with:
-        image-ref: 'podman:${{ inputs.image-ref }}'
+        image-ref: '${{ inputs.image-ref }}'
         format: 'sarif'
         output: 'trivy-image-results.sarif'
         severity: ${{ inputs.severity }}
         vuln-type: 'os,library'
         trivy-config: '.trivy.yaml'
+        # Use detected container socket for Podman compatibility
+        docker-host: '${{ steps.runtime-config.outputs.container_socket }}'
+      env:
+        # Set multiple environment variables to ensure Trivy connects to the correct container runtime
+        CONTAINER_HOST: '${{ steps.runtime-config.outputs.container_socket }}'  # Standard container runtime host
+        DOCKER_HOST: '${{ steps.runtime-config.outputs.container_socket }}'     # Docker API compatibility
 
+    # Same configuration as above but for table output format
     - name: Run Trivy vulnerability scanner - Table output
       uses: aquasecurity/trivy-action@0.30.0
       with:
-        image-ref: 'podman:${{ inputs.image-ref }}'
+        image-ref: '${{ inputs.image-ref }}'
         format: 'table'
         severity: ${{ inputs.severity }}
         trivy-config: '.trivy.yaml'
+        # Use detected container socket for Podman compatibility
+        docker-host: '${{ steps.runtime-config.outputs.container_socket }}'
+      env:
+        # Set multiple environment variables to ensure Trivy connects to the correct container runtime
+        CONTAINER_HOST: '${{ steps.runtime-config.outputs.container_socket }}'  # Standard container runtime host
+        DOCKER_HOST: '${{ steps.runtime-config.outputs.container_socket }}'     # Docker API compatibility
 
+    # SBOM generation using Anchore action - this should work with any container runtime
     - name: Generate container image SBOM
       uses: anchore/sbom-action@v0
       with:
-        image: 'podman:${{ inputs.image-ref }}'
+        image: '${{ inputs.image-ref }}'
         format: spdx-json
         output-file: sbom.spdx.json
 
