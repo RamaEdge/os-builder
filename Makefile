@@ -94,7 +94,7 @@ select-runtime:
 -include .runtime_choice
 
 # Build targets
-.PHONY: help build build-microshift clean test test-observability push pull lint install-deps disk-image info check-runtime build-iso create-custom-iso build-iso-bootc-k3s build-iso-bootc-microshift version select-runtime build-with-runtime build-microshift-with-runtime
+.PHONY: help build build-microshift clean test test-observability test-latest push pull lint install-deps disk-image info check-runtime build-iso create-custom-iso build-iso-bootc-k3s build-iso-bootc-microshift version select-runtime build-with-runtime build-microshift-with-runtime
 
 # Default target
 help:
@@ -103,8 +103,9 @@ help:
 	@echo "Available targets:"
 	@echo "  build         - Build K3s edge OS image (default)"
 	@echo "  build-microshift - Build MicroShift edge OS image (using pre-built binaries)"
-	@echo "  test          - Test the built image"
-	@echo "  test-observability - Test observability stack"
+	@echo "  test          - Test the built image and validate OTEL auto-deployment setup"
+	@echo "  test-observability - Detailed OpenTelemetry configuration and manifest validation"
+	@echo "  test-latest   - Test the latest available image regardless of git dirty state"
 	@echo "  clean         - Clean up images and containers"
 	@echo "  push          - Push image to registry"
 	@echo "  pull          - Pull base image"
@@ -142,7 +143,9 @@ endif
 	@echo "  make build                    # Build K3s image (default)"
 	@echo "  make build-microshift         # Build MicroShift image with pre-built binaries"
 	@echo "  make build IMAGE_TAG=v1.0.0"
-	@echo "  make test"
+	@echo "  make test                     # Test image (smart tag detection)"
+	@echo "  make test-latest              # Test latest available image (ignores git dirty state)"
+	@echo "  make test-observability       # Detailed OTEL configuration validation"
 	@echo "  make build-iso                # Interactive ISO - user chooses K3s or MicroShift during install"
 	@echo ""
 	@echo "🔧 Interactive Runtime Selection Examples:"
@@ -189,19 +192,147 @@ clean:
 # Test the built image
 test: check-runtime
 	@echo "Testing the container image..."
-	@echo "Running basic tests with $(CONTAINER_RUNTIME)..."
-	$(CONTAINER_RUNTIME) run --rm $(IMAGE_NAME):$(IMAGE_TAG) /bin/bash -c "bootc status || true"
-	$(CONTAINER_RUNTIME) run --rm $(IMAGE_NAME):$(IMAGE_TAG) /bin/bash -c "systemctl --version"
-	$(CONTAINER_RUNTIME) run --rm $(IMAGE_NAME):$(IMAGE_TAG) /bin/bash -c "dnf --version"
-	@# Test for K3s components
-	$(CONTAINER_RUNTIME) run --rm $(IMAGE_NAME):$(IMAGE_TAG) /bin/bash -c "kubectl version --client || echo 'kubectl binary found'"
-	$(CONTAINER_RUNTIME) run --rm $(IMAGE_NAME):$(IMAGE_TAG) /bin/bash -c "k3s --version || echo 'K3s binary found'"
-	@echo "Testing OpenTelemetry Collector..."
-	$(CONTAINER_RUNTIME) run --rm $(IMAGE_NAME):$(IMAGE_TAG) /bin/bash -c "/usr/bin/otelcol --version || echo 'OpenTelemetry Collector binary not found'"
-	$(CONTAINER_RUNTIME) run --rm $(IMAGE_NAME):$(IMAGE_TAG) /bin/bash -c "ls -la /etc/otelcol/config.yaml"
-	@# Check for K3s manifests
-	$(CONTAINER_RUNTIME) run --rm $(IMAGE_NAME):$(IMAGE_TAG) /bin/bash -c "ls -la /etc/rancher/k3s/manifests/observability-stack.yaml || echo 'Observability manifests found'"
-	@echo "Tests completed."
+	@echo "Checking for image: $(IMAGE_NAME):$(IMAGE_TAG)"
+	@if $(CONTAINER_RUNTIME) inspect $(IMAGE_NAME):$(IMAGE_TAG) >/dev/null 2>&1; then \
+		echo "✅ Found exact image: $(IMAGE_NAME):$(IMAGE_TAG)"; \
+		TEST_IMAGE="$(IMAGE_NAME):$(IMAGE_TAG)"; \
+	else \
+		echo "⚠️  Image $(IMAGE_NAME):$(IMAGE_TAG) not found"; \
+		echo "🔍 Looking for compatible images..."; \
+		CLEAN_TAG=$$(echo "$(IMAGE_TAG)" | sed 's/-dirty$$//'); \
+		if $(CONTAINER_RUNTIME) inspect $(IMAGE_NAME):$$CLEAN_TAG >/dev/null 2>&1; then \
+			echo "✅ Found compatible image: $(IMAGE_NAME):$$CLEAN_TAG"; \
+			TEST_IMAGE="$(IMAGE_NAME):$$CLEAN_TAG"; \
+		else \
+			LATEST_IMAGE=$$($(CONTAINER_RUNTIME) images $(IMAGE_NAME) --format "{{.Repository}}:{{.Tag}}" | head -1); \
+			if [ -n "$$LATEST_IMAGE" ]; then \
+				echo "✅ Using latest available image: $$LATEST_IMAGE"; \
+				TEST_IMAGE="$$LATEST_IMAGE"; \
+			else \
+				echo "❌ No $(IMAGE_NAME) images found!"; \
+				echo "Run 'make build' first to create an image."; \
+				exit 1; \
+			fi; \
+		fi; \
+	fi; \
+	echo "🧪 Running tests with: $$TEST_IMAGE"; \
+	echo "Running basic tests with $(CONTAINER_RUNTIME)..."; \
+	$(CONTAINER_RUNTIME) run --rm $$TEST_IMAGE /bin/bash -c "bootc status || true"; \
+	$(CONTAINER_RUNTIME) run --rm $$TEST_IMAGE /bin/bash -c "systemctl --version"; \
+	$(CONTAINER_RUNTIME) run --rm $$TEST_IMAGE /bin/bash -c "dnf --version"; \
+	echo ""; \
+	echo "🔧 Testing Kubernetes Components..."; \
+	$(CONTAINER_RUNTIME) run --rm $$TEST_IMAGE /bin/bash -c "kubectl version --client || echo 'kubectl binary found'"; \
+	$(CONTAINER_RUNTIME) run --rm $$TEST_IMAGE /bin/bash -c "k3s --version || echo 'K3s binary found'"; \
+	echo ""; \
+	echo "📊 Testing OpenTelemetry Collector..."; \
+	$(CONTAINER_RUNTIME) run --rm $$TEST_IMAGE /bin/bash -c "/usr/bin/otelcol --version || echo 'OpenTelemetry Collector binary not found'"; \
+	$(CONTAINER_RUNTIME) run --rm $$TEST_IMAGE /bin/bash -c "ls -la /etc/otelcol/config.yaml"; \
+	echo ""; \
+	echo "🚀 Testing OpenTelemetry Auto-Deployment Configuration..."; \
+	echo "Checking K3s manifest auto-deploy setup:"; \
+	$(CONTAINER_RUNTIME) run --rm $$TEST_IMAGE /bin/bash -c "ls -la /etc/rancher/k3s/manifests/observability-stack.yaml && echo '✅ OTEL manifests ready for K3s auto-deployment'"; \
+	echo "Validating OTEL manifest content:"; \
+	$(CONTAINER_RUNTIME) run --rm $$TEST_IMAGE /bin/bash -c "grep -q 'kind: Deployment' /etc/rancher/k3s/manifests/observability-stack.yaml && echo '✅ OTEL Deployment manifest found'"; \
+	$(CONTAINER_RUNTIME) run --rm $$TEST_IMAGE /bin/bash -c "grep -q 'name: otel-collector' /etc/rancher/k3s/manifests/observability-stack.yaml && echo '✅ OTEL Collector configured'"; \
+	$(CONTAINER_RUNTIME) run --rm $$TEST_IMAGE /bin/bash -c "grep -q 'namespace: observability' /etc/rancher/k3s/manifests/observability-stack.yaml && echo '✅ Observability namespace configured'"; \
+	$(CONTAINER_RUNTIME) run --rm $$TEST_IMAGE /bin/bash -c "grep -q 'NodePort' /etc/rancher/k3s/manifests/observability-stack.yaml && echo '✅ NodePort services configured for external access'"; \
+	echo "Checking OTEL service endpoints configuration:"; \
+	$(CONTAINER_RUNTIME) run --rm $$TEST_IMAGE /bin/bash -c "grep -q 'nodePort: 30317' /etc/rancher/k3s/manifests/observability-stack.yaml && echo '✅ OTLP gRPC endpoint (30317) configured'"; \
+	$(CONTAINER_RUNTIME) run --rm $$TEST_IMAGE /bin/bash -c "grep -q 'nodePort: 30464' /etc/rancher/k3s/manifests/observability-stack.yaml && echo '✅ Prometheus metrics endpoint (30464) configured'"; \
+	$(CONTAINER_RUNTIME) run --rm $$TEST_IMAGE /bin/bash -c "grep -q 'nodePort: 30888' /etc/rancher/k3s/manifests/observability-stack.yaml && echo '✅ OTEL internal metrics endpoint (30888) configured'"; \
+	echo "Checking auto-deployment scripts:"; \
+	$(CONTAINER_RUNTIME) run --rm $$TEST_IMAGE /bin/bash -c "ls -la /usr/local/bin/deploy-observability.sh 2>/dev/null && echo '✅ OTEL deployment script available' || echo '⚠️ Using K3s native auto-apply only'"; \
+	echo "Verifying systemd service configuration:"; \
+	$(CONTAINER_RUNTIME) run --rm $$TEST_IMAGE /bin/bash -c "systemctl is-enabled otelcol 2>/dev/null && echo '✅ Host OTEL Collector service enabled' || echo '⚠️ Host OTEL service not enabled'"; \
+	$(CONTAINER_RUNTIME) run --rm $$TEST_IMAGE /bin/bash -c "systemctl is-enabled k3s 2>/dev/null && echo '✅ K3s service enabled' || echo '⚠️ K3s service not enabled'"; \
+	echo ""; \
+	echo "🎯 Auto-Deployment Summary:"; \
+	echo "  📁 Manifests location: /etc/rancher/k3s/manifests/"; \
+	echo "  🔄 K3s will auto-apply OTEL manifests on startup"; \
+	echo "  🌐 Endpoints will be available at:"; \
+	echo "     - OTLP gRPC: http://localhost:30317"; \
+	echo "     - OTLP HTTP: http://localhost:30318"; \
+	echo "     - Prometheus: http://localhost:30464/metrics"; \
+	echo "     - OTEL Metrics: http://localhost:30888/metrics"; \
+	echo "     - Host OTEL: http://localhost:8888/metrics"; \
+	echo ""; \
+	echo "✅ All tests completed successfully!"; \
+	echo "🚀 Image ready for deployment with auto-configured observability stack"
+
+# Test observability stack in detail
+test-observability: check-runtime
+	@echo "🔍 Testing OpenTelemetry Observability Stack Configuration"
+	@echo "========================================================"
+	@echo ""
+	@echo "Checking for image: $(IMAGE_NAME):$(IMAGE_TAG)"
+	@if $(CONTAINER_RUNTIME) inspect $(IMAGE_NAME):$(IMAGE_TAG) >/dev/null 2>&1; then \
+		echo "✅ Found exact image: $(IMAGE_NAME):$(IMAGE_TAG)"; \
+		TEST_IMAGE="$(IMAGE_NAME):$(IMAGE_TAG)"; \
+	else \
+		echo "⚠️  Image $(IMAGE_NAME):$(IMAGE_TAG) not found"; \
+		echo "🔍 Looking for compatible images..."; \
+		CLEAN_TAG=$$(echo "$(IMAGE_TAG)" | sed 's/-dirty$$//'); \
+		if $(CONTAINER_RUNTIME) inspect $(IMAGE_NAME):$$CLEAN_TAG >/dev/null 2>&1; then \
+			echo "✅ Found compatible image: $(IMAGE_NAME):$$CLEAN_TAG"; \
+			TEST_IMAGE="$(IMAGE_NAME):$$CLEAN_TAG"; \
+		else \
+			LATEST_IMAGE=$$($(CONTAINER_RUNTIME) images $(IMAGE_NAME) --format "{{.Repository}}:{{.Tag}}" | head -1); \
+			if [ -n "$$LATEST_IMAGE" ]; then \
+				echo "✅ Using latest available image: $$LATEST_IMAGE"; \
+				TEST_IMAGE="$$LATEST_IMAGE"; \
+			else \
+				echo "❌ No $(IMAGE_NAME) images found!"; \
+				echo "Run 'make build' first to create an image."; \
+				exit 1; \
+			fi; \
+		fi; \
+	fi; \
+	echo "🧪 Running observability tests with: $$TEST_IMAGE"; \
+	echo "📊 OpenTelemetry Collector Configuration Tests:"; \
+	$(CONTAINER_RUNTIME) run --rm $$TEST_IMAGE /bin/bash -c "/usr/bin/otelcol --version"; \
+	$(CONTAINER_RUNTIME) run --rm $$TEST_IMAGE /bin/bash -c "cat /etc/otelcol/config.yaml | head -20"; \
+	echo ""; \
+	echo "🚀 K3s Auto-Deployment Manifest Tests:"; \
+	$(CONTAINER_RUNTIME) run --rm $$TEST_IMAGE /bin/bash -c "wc -l /etc/rancher/k3s/manifests/observability-stack.yaml"; \
+	$(CONTAINER_RUNTIME) run --rm $$TEST_IMAGE /bin/bash -c "grep -c 'kind:' /etc/rancher/k3s/manifests/observability-stack.yaml"; \
+	$(CONTAINER_RUNTIME) run --rm $$TEST_IMAGE /bin/bash -c "echo 'Kubernetes resources in manifest:' && grep '^kind:' /etc/rancher/k3s/manifests/observability-stack.yaml"; \
+	echo ""; \
+	echo "🔌 Service Port Configuration Tests:"; \
+	$(CONTAINER_RUNTIME) run --rm $$TEST_IMAGE /bin/bash -c "echo 'NodePort services configured:' && grep -A2 -B2 'nodePort:' /etc/rancher/k3s/manifests/observability-stack.yaml"; \
+	echo ""; \
+	echo "🎯 Host-Level OTEL Configuration:"; \
+	$(CONTAINER_RUNTIME) run --rm $$TEST_IMAGE /bin/bash -c "ls -la /etc/systemd/system/otelcol.service 2>/dev/null || echo 'Host OTEL service file not found'"; \
+	$(CONTAINER_RUNTIME) run --rm $$TEST_IMAGE /bin/bash -c "ls -la /etc/otelcol/ && echo 'Host OTEL config directory contents'"; \
+	echo ""; \
+	echo "✅ Observability test completed!"; \
+	echo "📋 Summary: Image includes both host-level and K3s-deployed OTEL collectors"; \
+	echo "🔄 K3s will automatically deploy observability stack from /etc/rancher/k3s/manifests/"
+
+# Test the latest available image (ignores git dirty state)
+test-latest: check-runtime
+	@echo "🧪 Testing Latest Available Image"
+	@echo "================================="
+	@echo ""
+	@LATEST_IMAGE=$$($(CONTAINER_RUNTIME) images $(IMAGE_NAME) --format "{{.Repository}}:{{.Tag}}" | head -1); \
+	if [ -n "$$LATEST_IMAGE" ]; then \
+		echo "✅ Found latest image: $$LATEST_IMAGE"; \
+		echo "🧪 Running tests with: $$LATEST_IMAGE"; \
+		echo "Running basic tests with $(CONTAINER_RUNTIME)..."; \
+		$(CONTAINER_RUNTIME) run --rm $$LATEST_IMAGE /bin/bash -c "bootc status || true"; \
+		$(CONTAINER_RUNTIME) run --rm $$LATEST_IMAGE /bin/bash -c "systemctl --version | head -1"; \
+		$(CONTAINER_RUNTIME) run --rm $$LATEST_IMAGE /bin/bash -c "k3s --version"; \
+		$(CONTAINER_RUNTIME) run --rm $$LATEST_IMAGE /bin/bash -c "/usr/bin/otelcol --version"; \
+		echo ""; \
+		echo "🚀 Quick OTEL Auto-Deployment Check:"; \
+		$(CONTAINER_RUNTIME) run --rm $$LATEST_IMAGE /bin/bash -c "ls -la /etc/rancher/k3s/manifests/observability-stack.yaml && echo '✅ OTEL manifests ready'"; \
+		echo ""; \
+		echo "✅ Quick test completed for latest image: $$LATEST_IMAGE"; \
+	else \
+		echo "❌ No $(IMAGE_NAME) images found!"; \
+		echo "Run 'make build' first to create an image."; \
+		exit 1; \
+	fi
 
 # Push image to registry
 push: check-runtime

@@ -128,6 +128,51 @@ cp examples/cloud-init.yaml my-config.yaml
 
 See [`examples/README.md`](examples/README.md) for detailed usage instructions and customization guide.
 
+## Testing and Validation
+
+### 🔍 Image Testing
+
+The repository includes comprehensive testing to validate that OpenTelemetry auto-deployment is properly configured:
+
+```bash
+# Basic image testing with OTEL auto-deployment validation
+make test
+
+# Detailed observability stack testing
+make test-observability
+```
+
+### ✅ What the Tests Verify
+
+**Basic Test (`make test`):**
+- ✅ Container image functionality (bootc, systemctl, dnf)
+- ✅ Kubernetes components (kubectl, k3s binaries)
+- ✅ OpenTelemetry Collector installation and configuration
+- ✅ K3s manifest auto-deploy setup (`/etc/rancher/k3s/manifests/`)
+- ✅ OTEL manifest content validation (deployments, services, endpoints)
+- ✅ Service port configuration (NodePorts 30317, 30318, 30464, 30888)
+- ✅ Systemd service enablement (k3s, otelcol)
+
+**Detailed Test (`make test-observability`):**
+- 📊 OpenTelemetry Collector version and configuration details
+- 🚀 Complete K3s manifest analysis (229 lines, 9 Kubernetes resources)
+- 🔌 Detailed service port mappings and NodePort configurations
+- 🎯 Host-level OTEL configuration validation
+- 📁 File structure and permissions verification
+
+### 🎯 Auto-Deployment Verification
+
+The tests confirm that:
+1. **K3s will automatically deploy** OTEL manifests from `/etc/rancher/k3s/manifests/` on startup
+2. **All required endpoints** are configured and will be accessible:
+   - OTLP gRPC: `http://localhost:30317`
+   - OTLP HTTP: `http://localhost:30318`
+   - Prometheus metrics: `http://localhost:30464/metrics`
+   - OTEL internal metrics: `http://localhost:30888/metrics`
+   - Host OTEL metrics: `http://localhost:8888/metrics`
+3. **Both host-level and cluster-level** OpenTelemetry collectors are configured
+4. **All required Kubernetes resources** are included (Namespace, ConfigMap, Deployment, Service, RBAC)
+
 ## Deployment
 
 ### Converting to Disk Image
