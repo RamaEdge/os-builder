@@ -3,9 +3,7 @@
 # Configuration
 IMAGE_NAME ?= localhost/fedora-edge-os
 IMAGE_TAG ?= $(shell \
-	if command -v dotnet >/dev/null 2>&1 && git rev-parse --git-dir >/dev/null 2>&1 && dotnet tool list -g | grep -q "gitversion.tool"; then \
-		dotnet gitversion -showvariable SemVer 2>/dev/null || (git describe --tags --always --dirty 2>/dev/null || echo "latest"); \
-	elif git rev-parse --git-dir >/dev/null 2>&1; then \
+	if git rev-parse --git-dir >/dev/null 2>&1; then \
 		git describe --tags --always --dirty 2>/dev/null || echo "latest"; \
 	else \
 		echo "latest"; \
@@ -125,7 +123,8 @@ test: check-runtime
 	@# Test for K3s components
 	$(CONTAINER_RUNTIME) run --rm $(IMAGE_NAME):$(IMAGE_TAG) /bin/bash -c "kubectl version --client || echo 'kubectl binary found'"
 	$(CONTAINER_RUNTIME) run --rm $(IMAGE_NAME):$(IMAGE_TAG) /bin/bash -c "k3s --version || echo 'K3s binary found'"
-	$(CONTAINER_RUNTIME) run --rm $(IMAGE_NAME):$(IMAGE_TAG) /bin/bash -c "/usr/local/bin/otelcol --version || echo 'OpenTelemetry Collector binary not found'"
+	@echo "Testing OpenTelemetry Collector..."
+	$(CONTAINER_RUNTIME) run --rm $(IMAGE_NAME):$(IMAGE_TAG) /bin/bash -c "/usr/bin/otelcol --version || echo 'OpenTelemetry Collector binary not found'"
 	$(CONTAINER_RUNTIME) run --rm $(IMAGE_NAME):$(IMAGE_TAG) /bin/bash -c "ls -la /etc/otelcol/config.yaml"
 	@# Check for K3s manifests
 	$(CONTAINER_RUNTIME) run --rm $(IMAGE_NAME):$(IMAGE_TAG) /bin/bash -c "ls -la /etc/rancher/k3s/manifests/observability-stack.yaml || echo 'Observability manifests found'"
@@ -162,11 +161,8 @@ ifeq ($(UNAME_S),Darwin)
 		brew install --cask docker || echo "Docker may already be installed"; \
 		echo "Installing hadolint for Containerfile linting..."; \
 		brew install hadolint || echo "hadolint may already be installed"; \
-		echo "Installing .NET for GitVersion support..."; \
-		brew install --cask dotnet || echo ".NET may already be installed"; \
 		echo "Note: Make sure Docker Desktop is running before building"; \
 		echo "Alternative: You can also install podman with: brew install podman"; \
-		echo "For GitVersion support, install with: dotnet tool install --global GitVersion.Tool"; \
 	else \
 		echo "❌ Homebrew not found. Please install Homebrew first:"; \
 		echo "  /bin/bash -c \"\$$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""; \
@@ -175,16 +171,11 @@ ifeq ($(UNAME_S),Darwin)
 	fi
 else
 	@if command -v dnf >/dev/null 2>&1; then \
-		sudo dnf install -y podman buildah skopeo dotnet-sdk-8.0; \
-		echo "For GitVersion support, install with: dotnet tool install --global GitVersion.Tool"; \
+		sudo dnf install -y podman buildah skopeo; \
 	elif command -v apt >/dev/null 2>&1; then \
 		sudo apt update && sudo apt install -y podman buildah skopeo; \
-		wget https://packages.microsoft.com/config/ubuntu/20.04/packages-microsoft-prod.deb -O packages-microsoft-prod.deb; \
-		sudo dpkg -i packages-microsoft-prod.deb; \
-		sudo apt update && sudo apt install -y dotnet-sdk-8.0; \
-		echo "For GitVersion support, install with: dotnet tool install --global GitVersion.Tool"; \
 	else \
-		echo "Package manager not supported. Please install podman, buildah, skopeo, and .NET manually."; \
+		echo "Package manager not supported. Please install podman, buildah, and skopeo manually."; \
 	fi
 endif
 
@@ -256,7 +247,7 @@ endif
 
 # Build ISO image with user configuration
 build-iso: check-runtime
-	@echo "📀 Building ISO image with bootc-image-builder..."
+	@echo "Building ISO image with bootc-image-builder..."
 	@echo "🏗️  Using configuration: $(CONFIG_FILE)"
 	@if [ ! -f "$(CONFIG_FILE)" ]; then \
 		echo "❌ Configuration file not found: $(CONFIG_FILE)"; \
@@ -318,23 +309,6 @@ version:
 		echo "  Dirty:      $$(git diff --quiet || echo 'Yes' && echo 'No')"; \
 	else \
 		echo "  Not in a git repository"; \
-	fi
-	@echo ""
-	@echo "GitVersion:"
-	@if command -v dotnet >/dev/null 2>&1 && git rev-parse --git-dir >/dev/null 2>&1; then \
-		if dotnet tool list -g | grep -q "gitversion.tool"; then \
-			echo "  SemVer:        $$(dotnet gitversion -showvariable SemVer 2>/dev/null || echo 'N/A')"; \
-			echo "  Major:         $$(dotnet gitversion -showvariable Major 2>/dev/null || echo 'N/A')"; \
-			echo "  Minor:         $$(dotnet gitversion -showvariable Minor 2>/dev/null || echo 'N/A')"; \
-			echo "  Patch:         $$(dotnet gitversion -showvariable Patch 2>/dev/null || echo 'N/A')"; \
-			echo "  PreRelease:    $$(dotnet gitversion -showvariable PreReleaseTag 2>/dev/null || echo 'N/A')"; \
-			echo "  Build:         $$(dotnet gitversion -showvariable CommitsSinceVersionSource 2>/dev/null || echo 'N/A')"; \
-		else \
-			echo "  GitVersion tool not installed"; \
-			echo "  Install with: dotnet tool install --global GitVersion.Tool"; \
-		fi; \
-	else \
-		echo "  .NET or git not available"; \
 	fi
 	@echo ""
 	@echo "Build Environment:"

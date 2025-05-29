@@ -36,6 +36,9 @@ RUN --mount=type=cache,target=/var/cache/dnf \
         chrony \
         curl \
         tar \
+        zstd \
+        skopeo \
+        containerd \
         jq && \
     # Security hardening - remove setuid/setgid from unnecessary binaries
     find /usr -type f \( -perm -4000 -o -perm -2000 \) \
@@ -57,9 +60,9 @@ RUN --mount=type=cache,target=/tmp/k3s-cache \
     curl -sL "https://github.com/k3s-io/k3s/releases/download/${K3S_RELEASE}/k3s-${ARCH}" \
         -o /usr/local/bin/k3s && \
     chmod +x /usr/local/bin/k3s && \
-    # Download airgap images for offline operation
-    curl -sL "https://github.com/k3s-io/k3s/releases/download/${K3S_RELEASE}/k3s-airgap-images-${ARCH}.tar.gz" \
-        -o /var/lib/rancher/k3s/agent/images/k3s-airgap-images.tar.gz && \
+    # Download airgap images for offline operation (using correct .tar.zst format)
+    curl -sL "https://github.com/k3s-io/k3s/releases/download/${K3S_RELEASE}/k3s-airgap-images-${ARCH}.tar.zst" \
+        -o "/var/lib/rancher/k3s/agent/images/k3s-airgap-images-${ARCH}.tar.zst" && \
     # Create kubectl symlink
     ln -sf /usr/local/bin/k3s /usr/local/bin/kubectl
 
@@ -78,12 +81,11 @@ RUN mkdir -p /etc/containers/systemd \
              /etc/rancher/k3s/manifests \
              /var/lib/k3s \
              /var/log/k3s && \
-    # Enable essential services
+    # Enable base services that exist by default
     systemctl enable sshd \
                     chronyd \
                     systemd-resolved \
                     podman.socket \
-                    k3s \
                     otelcol && \
     # Enable bootc auto-updates with our custom timer
     systemctl enable bootc-fetch-apply-updates.timer && \
@@ -102,14 +104,18 @@ COPY configs/containers/ /etc/containers/
 COPY configs/otelcol/ /etc/otelcol/
 COPY configs/k3s/ /etc/rancher/k3s/
 COPY manifests/ /etc/rancher/k3s/manifests/
-COPY systemd/ /usr/lib/systemd/system/
+COPY systemd/*.service /usr/lib/systemd/system/
+COPY systemd/k3s/ /usr/lib/systemd/system/
+COPY systemd/bootc-fetch-apply-updates.timer.d/ /usr/lib/systemd/system/bootc-fetch-apply-updates.timer.d/
 COPY scripts/ /usr/local/bin/
 COPY kickstart*.ks /
 
 # Final configuration and permissions
 RUN chmod +x /usr/local/bin/*.sh 2>/dev/null || true && \
-    # Enable additional services
-    systemctl enable edge-setup.service \
+    # Enable services that depend on copied service files
+    systemctl enable k3s.service \
+                    k3s-load-images.service \
+                    edge-setup.service \
                     k3s-kubeconfig-setup.service \
                     observability-deploy.service 2>/dev/null || true && \
     # SELinux context restoration

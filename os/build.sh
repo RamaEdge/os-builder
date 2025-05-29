@@ -16,23 +16,7 @@ MICROSHIFT_VERSION="${MICROSHIFT_VERSION:-release-4.19}"
 get_version() {
     local version=""
     
-    # First try to get version from GitVersion if available
-    if command -v dotnet &> /dev/null; then
-        # Check if we're in a git repository
-        if git rev-parse --git-dir > /dev/null 2>&1; then
-            # Check if GitVersion tool is available
-            if dotnet tool list -g | grep -q "gitversion.tool"; then
-                version=$(dotnet gitversion -showvariable SemVer 2>/dev/null || echo "")
-                if [ -n "$version" ]; then
-                    echo "GitVersion detected: $version" >&2
-                    echo "$version"
-                    return
-                fi
-            fi
-        fi
-    fi
-    
-    # Fallback to git describe if in a git repository
+    # Use git describe if in a git repository
     if git rev-parse --git-dir > /dev/null 2>&1; then
         version=$(git describe --tags --always --dirty 2>/dev/null || echo "")
         if [ -n "$version" ]; then
@@ -183,7 +167,7 @@ build_image() {
         BUILD_ARGS=(
             "${COMMON_BUILD_ARGS[@]}"
             "${COMMON_LABELS[@]}"
-            "${BUILD_ARGS_EXTRA[@]}"
+            "${BUILD_ARGS_EXTRA[@]+"${BUILD_ARGS_EXTRA[@]}"}"
             .
         )
     else
@@ -191,7 +175,7 @@ build_image() {
             "${COMMON_BUILD_ARGS[@]}"
             --layers
             "${COMMON_LABELS[@]}"
-            "${BUILD_ARGS_EXTRA[@]}"
+            "${BUILD_ARGS_EXTRA[@]+"${BUILD_ARGS_EXTRA[@]}"}"
             .
         )
     fi
@@ -249,7 +233,7 @@ usage() {
     echo ""
     echo "Environment variables:"
     echo "  IMAGE_NAME        - Container image name (default: localhost/fedora-edge-os)"
-    echo "  IMAGE_TAG         - Container image tag (default: auto-detected via GitVersion/git)"
+    echo "  IMAGE_TAG         - Container image tag (default: auto-detected via git)"
     echo "  CONTAINERFILE     - Containerfile to use (default: Containerfile.k3s)"
     echo "  CONTAINER_RUNTIME - Container runtime to use (auto-detected: docker on macOS, podman on Linux)"
     echo ""

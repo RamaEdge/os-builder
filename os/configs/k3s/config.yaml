@@ -30,9 +30,6 @@ disable:
   - "traefik"      # Use external ingress if needed
   - "servicelb"    # Use external load balancer if needed
 
-# Container runtime settings optimized for embedded images
-container-runtime-endpoint: "unix:///var/run/crio/crio.sock"
-
 # Logging
 log: "/var/log/k3s/k3s.log"
 

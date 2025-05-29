@@ -164,7 +164,8 @@ jobs:
           podman run --rm "$IMAGE_REF" /bin/bash -c "ls -la /etc/rancher/k3s/ || echo 'K3s config directory found'"
           podman run --rm "$IMAGE_REF" /bin/bash -c "ls -la /var/lib/rancher/k3s/agent/images/ || echo 'K3s images directory found'"
           podman run --rm "$IMAGE_REF" /bin/bash -c "kubectl version --client || echo 'kubectl binary found'"
-          podman run --rm "$IMAGE_REF" /bin/bash -c "/usr/local/bin/otelcol --version || echo 'OpenTelemetry Collector binary not found'"
+          echo "🧪 **Testing OpenTelemetry Collector**:" >> $GITHUB_STEP_SUMMARY
+          podman run --rm "$IMAGE_REF" /bin/bash -c "/usr/bin/otelcol --version || echo 'OpenTelemetry Collector binary not found'" >> $GITHUB_STEP_SUMMARY
           podman run --rm "$IMAGE_REF" /bin/bash -c "ls -la /etc/otelcol/config.yaml"
           
           echo "✅ All K3s tests passed!"

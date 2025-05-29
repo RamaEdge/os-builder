@@ -114,7 +114,8 @@ COPY configs/containers/ /etc/containers/
 COPY configs/microshift/ /etc/microshift/
 COPY configs/otelcol/ /etc/otelcol/
 COPY manifests/ /etc/microshift/manifests/
-COPY systemd/ /usr/lib/systemd/system/
+COPY systemd/*.service /usr/lib/systemd/system/
+COPY systemd/bootc-fetch-apply-updates.timer.d/ /usr/lib/systemd/system/bootc-fetch-apply-updates.timer.d/
 COPY scripts/ /usr/local/bin/
 COPY kickstart*.ks /
 

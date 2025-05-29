@@ -49,7 +49,7 @@ main() {
     fi
     
     # OpenTelemetry Collector
-    check_health "otelcol" "/usr/local/bin/otelcol --version" "OpenTelemetry Collector available" || ((failures++))
+    check_health "otelcol" "/usr/bin/otelcol --version" "OpenTelemetry Collector available" || ((failures++))
     check_health "otelcol-config" "test -f /etc/otelcol/config.yaml" "OpenTelemetry configuration present" || ((failures++))
     
     # Storage health

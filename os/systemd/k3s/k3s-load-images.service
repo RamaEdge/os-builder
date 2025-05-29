@@ -2,8 +2,8 @@
 Description=Load K3s embedded container images for offline operation
 Documentation=https://k3s.io
 Before=k3s.service
-After=crio.service
-Wants=crio.service
+After=network-online.target
+Wants=network-online.target
 
 [Install]
 WantedBy=multi-user.target

@@ -95,7 +95,7 @@ podman build -t localhost/fedora-edge-os:latest -f Containerfile.k3s .
 ### Environment Variables
 
 - `IMAGE_NAME`: Container image name (default: localhost/fedora-edge-os)
-- `IMAGE_TAG`: Container image tag (default: auto-detected via GitVersion/git)
+- `IMAGE_TAG`: Container image tag (default: auto-detected via git)
 - `CONTAINERFILE`: Containerfile to use (default: Containerfile.k3s)
 - `CONTAINER_RUNTIME`: Container runtime (auto-detected: docker on macOS, podman on Linux)
 
@@ -103,7 +103,7 @@ podman build -t localhost/fedora-edge-os:latest -f Containerfile.k3s .
 
 **System Components:**
 - **System Tools**: openssh-server, sudo, systemd-resolved, chrony
-- **Container Runtime**: podman, cri-o
+- **Container Runtime**: podman, containerd (K3s embedded), cri-o (MicroShift)
 - **Observability**: OpenTelemetry Collector (otelcol) via official RPM package
 - **Networking**: NetworkManager, firewalld
 - **Security**: policycoreutils-python-utils

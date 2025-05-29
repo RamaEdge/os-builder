@@ -17,7 +17,7 @@ This directory contains automated CI/CD workflows for building and testing K3s e
 - **Duration**: ~8-12 minutes (optimized with layer caching)
 - **Outputs**: Container images, ISOs, security reports
 - **Features**:
-  - ✅ **Version Auto-Detection** - Semantic versioning with GitVersion
+  - ✅ **Version Auto-Detection** - Semantic versioning with git tags
   - ✅ **Fast Builds**: 8-12 minutes using optimized layer caching
   - ✅ **Multi-Config ISO Generation** - Builds ISOs for different use cases
   - ✅ **Security Scanning** - Trivy vulnerability scanning with SARIF reports

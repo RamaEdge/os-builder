@@ -79,7 +79,7 @@ os-builder/
 
 - **Container Runtime**: Docker (macOS) or Podman (Linux) 
 - **Git**: For repository cloning
-- **Optional**: .NET SDK with GitVersion for semantic versioning
+- **Optional**: Git for version detection
 
 ### 🎯 K3s Edge OS (Recommended)
 
@@ -162,7 +162,7 @@ make build CONTAINERFILE=Containerfile.custom
 ### K3s Components
 
 - **Kubernetes**: K3s lightweight distribution
-- **Runtime**: containerd with crictl
+- **Runtime**: K3s with embedded containerd (K3s) or CRI-O (MicroShift)
 - **Networking**: Flannel CNI
 - **Storage**: Local path provisioner
 - **Ingress**: Traefik reverse proxy
