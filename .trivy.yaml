@@ -1,0 +1,57 @@
+# Trivy Configuration for os-builder repository
+# Optimized for edge OS container building
+
+# General settings
+format: table
+exit-code: 1
+quiet: false
+
+# Scanner configuration - Enable all scanners for comprehensive security
+scanners:
+  - vuln      # Vulnerability scanning
+  - misconfig # Misconfiguration scanning  
+  - secret    # Secret detection
+
+# Misconfiguration scanner settings
+misconfig-scanners:
+  - dockerfile    # Containerfile/Dockerfile security checks
+  - kubernetes    # Kubernetes manifest security checks
+  - helm          # Helm chart security checks
+  - yaml          # General YAML configuration checks
+  - json          # General JSON configuration checks
+
+# Severity levels to scan for
+severity:
+  - CRITICAL
+  - HIGH
+  - MEDIUM
+
+# Skip unnecessary directories to improve performance
+skip-dirs:
+  - .git/
+  - .github/
+
+# Skip files that don't need scanning
+skip-files:
+  - "*.md"
+  - "*.txt"
+  - "*.log"
+  - "*.tar.gz"
+  - "*.zip"
+
+# Vulnerability scanning settings
+vuln:
+  type:
+    - os
+    - library
+
+# Output configuration
+output:
+  clean: true
+  
+# Cache settings for better performance
+cache:
+  clear: false
+  
+# Ignore unfixed vulnerabilities for better signal-to-noise ratio
+ignore-unfixed: true 

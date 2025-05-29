@@ -46,6 +46,7 @@ runs:
         output: 'trivy-image-results.sarif'
         severity: ${{ inputs.severity }}
         vuln-type: 'os,library'
+        trivy-config: '.trivy.yaml'
 
     - name: Run Trivy vulnerability scanner - Table output
       uses: aquasecurity/trivy-action@0.30.0
@@ -53,6 +54,7 @@ runs:
         image-ref: 'podman:${{ inputs.image-ref }}'
         format: 'table'
         severity: ${{ inputs.severity }}
+        trivy-config: '.trivy.yaml'
 
     - name: Generate container image SBOM
       uses: anchore/sbom-action@v0

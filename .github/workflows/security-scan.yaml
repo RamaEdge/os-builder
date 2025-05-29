@@ -59,6 +59,7 @@ jobs:
           output: 'trivy-fs-results.sarif'
           severity: ${{ github.event.inputs.scan_severity || 'CRITICAL,HIGH' }}
           skip-dirs: '.git,.github/workflows'
+          trivy-config: '.trivy.yaml'
 
       - name: Run Trivy vulnerability scanner - Filesystem (Table)
         uses: aquasecurity/trivy-action@0.30.0
@@ -68,6 +69,7 @@ jobs:
           format: 'table'
           severity: ${{ github.event.inputs.scan_severity || 'CRITICAL,HIGH' }}
           skip-dirs: '.git,.github/workflows'
+          trivy-config: '.trivy.yaml'
 
       - name: Upload Trivy scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v3
@@ -96,6 +98,7 @@ jobs:
           output: 'trivy-config-results.sarif'
           severity: ${{ github.event.inputs.scan_severity || 'CRITICAL,HIGH' }}
           skip-dirs: '.git'
+          trivy-config: '.trivy.yaml'
 
       - name: Run Trivy vulnerability scanner - Configuration files (Table)
         uses: aquasecurity/trivy-action@0.30.0
@@ -105,6 +108,7 @@ jobs:
           format: 'table'
           severity: ${{ github.event.inputs.scan_severity || 'CRITICAL,HIGH' }}
           skip-dirs: '.git'
+          trivy-config: '.trivy.yaml'
 
       - name: Upload Trivy scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v3

@@ -1,5 +1,5 @@
 # Dependabot configuration for automated dependency updates
-# This configuration monitors various package ecosystems for updates
+# This configuration monitors package ecosystems relevant to container OS building
 
 version: 2
 updates:
@@ -23,7 +23,7 @@ updates:
       - "github-actions"
       - "security"
 
-  # Monitor Docker base images (though limited support for Containerfiles)
+  # Monitor Docker base images and Containerfile dependencies
   - package-ecosystem: "docker"
     directory: "/os"
     schedule:
@@ -42,29 +42,4 @@ updates:
       - "dependencies"
       - "docker"
       - "security"
-      - "container-image"
-
-  # Note: golang ecosystem is not monitored because:
-  # - MicroShift is built from external repository source
-  # - golang dependencies are managed upstream in MicroShift repo
-  # - No go.mod/go.sum files exist in this repository
-
-  # Monitor npm dependencies if any Node.js components are added
-  - package-ecosystem: "npm"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-      day: "friday"
-      time: "06:00"
-    open-pull-requests-limit: 3
-    reviewers:
-      - "@ravichillerega"
-    assignees:
-      - "@ravichillerega"
-    commit-message:
-      prefix: "chore(deps)"
-      include: "scope"
-    labels:
-      - "dependencies"
-      - "npm"
-      - "javascript" 
+      - "container-image" 
