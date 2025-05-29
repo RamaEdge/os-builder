@@ -104,7 +104,7 @@ podman build -t localhost/fedora-edge-os:latest -f Containerfile.k3s .
 **System Components:**
 - **System Tools**: openssh-server, sudo, systemd-resolved, chrony
 - **Container Runtime**: podman, cri-o
-- **Observability**: OpenTelemetry Collector (otelcol)
+- **Observability**: OpenTelemetry Collector (otelcol) via official RPM package
 - **Networking**: NetworkManager, firewalld
 - **Security**: policycoreutils-python-utils
 

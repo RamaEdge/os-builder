@@ -71,8 +71,8 @@ write_files:
       alias klog='kubectl logs'
       
       # OpenTelemetry and observability aliases
-      alias otelstatus='systemctl status otel-collector'
-      alias otelrestart='sudo systemctl restart otel-collector'
+      alias otelstatus='systemctl status otelcol'
+      alias otelrestart='sudo systemctl restart otelcol'
       alias jaeger='echo "Jaeger UI: http://localhost:30686"'
       alias metrics='echo "Metrics: http://localhost:30464/metrics"'
       alias observability='kubectl get pods -n observability'

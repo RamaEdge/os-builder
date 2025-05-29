@@ -4,6 +4,7 @@ FROM quay.io/fedora/fedora-bootc:42
 
 # Build arguments for version information
 ARG K3S_VERSION="latest"
+ARG OTEL_VERSION="0.127.0"
 ARG BUILD_DATE
 ARG VCS_REF
 ARG VERSION
@@ -18,7 +19,8 @@ LABEL org.opencontainers.image.title="Edge OS - Fedora bootc with K3s" \
       org.opencontainers.image.licenses="MIT" \
       containers.bootc=1 \
       k3s.version="${K3S_VERSION}" \
-      k3s.distribution="k3s"
+      k3s.distribution="k3s" \
+      otel.version="${OTEL_VERSION}"
 
 # Install system packages in a single layer with cleanup
 RUN --mount=type=cache,target=/var/cache/dnf \
@@ -61,13 +63,14 @@ RUN --mount=type=cache,target=/tmp/k3s-cache \
     # Create kubectl symlink
     ln -sf /usr/local/bin/k3s /usr/local/bin/kubectl
 
-# Install OpenTelemetry Collector in separate layer
-RUN --mount=type=cache,target=/tmp/otel-cache \
+# Install OpenTelemetry Collector via official RPM package
+RUN --mount=type=cache,target=/var/cache/dnf \
     ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/') && \
-    OTEL_VERSION="0.126.0" && \
-    curl -sL "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v${OTEL_VERSION}/otelcol_linux_${ARCH}.tar.gz" | \
-    tar -xz -C /usr/local/bin/ otelcol && \
-    chmod +x /usr/local/bin/otelcol
+    # Download and install OpenTelemetry Collector RPM
+    curl -fsSL "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v${OTEL_VERSION}/otelcol_${OTEL_VERSION}_linux_${ARCH}.rpm" \
+        -o /tmp/otelcol.rpm && \
+    dnf install -y /tmp/otelcol.rpm && \
+    rm -f /tmp/otelcol.rpm
 
 # Configure services and directories
 RUN mkdir -p /etc/containers/systemd \
@@ -81,7 +84,7 @@ RUN mkdir -p /etc/containers/systemd \
                     systemd-resolved \
                     podman.socket \
                     k3s \
-                    otel-collector && \
+                    otelcol && \
     # Enable bootc auto-updates with our custom timer
     systemctl enable bootc-fetch-apply-updates.timer && \
     # Configure firewall for K3s and observability

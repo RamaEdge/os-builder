@@ -71,6 +71,7 @@ This directory contains reusable GitHub Actions for the OS Builder project.
 - Uses Podman for container building
 - Passes build metadata as build arguments (BUILD_DATE, VCS_REF, VERSION)
 - Automatically handles MicroShift build arguments when needed
+- Installs OpenTelemetry Collector via official RPM packages for better integration
 
 ### 🛡️ security-scan
 
