@@ -198,6 +198,14 @@ build_image() {
     
     # Build the image
     info "Running: $CONTAINER_RUNTIME build [build args]"
+    info "🔧 Build arguments:"
+    info "  BUILD_DATE=${build_date}"
+    info "  VCS_REF=${git_commit}"
+    info "  VERSION=${IMAGE_TAG}"
+    if [[ "$CONTAINERFILE" == *"microshift"* ]] || [[ "$CONTAINERFILE" == *"fedora.optimized"* ]]; then
+        info "  MICROSHIFT_VERSION=${MICROSHIFT_VERSION}"
+    fi
+    
     if "$CONTAINER_RUNTIME" build "${BUILD_ARGS[@]}"; then
         info "✅ Build completed successfully!"
         info "Image: ${IMAGE_NAME}:${IMAGE_TAG}"

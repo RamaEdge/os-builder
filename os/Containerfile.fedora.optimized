@@ -4,6 +4,11 @@ ARG MICROSHIFT_VERSION=main
 ARG MICROSHIFT_REPO=https://github.com/openshift/microshift.git
 ARG MICROSHIFT_IMAGE_BASE=ghcr.io/ramaedge/microshift-builder
 
+# Build arguments for version information
+ARG BUILD_DATE
+ARG VCS_REF
+ARG VERSION
+
 # Stage 1: Get pre-built MicroShift binary
 FROM ${MICROSHIFT_IMAGE_BASE}:${MICROSHIFT_VERSION} AS microshift-prebuilt
 
@@ -12,9 +17,17 @@ FROM quay.io/fedora/fedora-bootc:42
 
 ARG MICROSHIFT_VERSION=main
 ARG MICROSHIFT_REPO=https://github.com/openshift/microshift.git
+ARG BUILD_DATE
+ARG VCS_REF
+ARG VERSION
 
 LABEL org.opencontainers.image.title="Edge OS - Fedora bootc (Optimized)" \
       org.opencontainers.image.description="Fedora bootc with pre-built MicroShift for edge computing" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.created="${BUILD_DATE}" \
+      org.opencontainers.image.revision="${VCS_REF}" \
+      org.opencontainers.image.vendor="RamaEdge" \
+      org.opencontainers.image.licenses="MIT" \
       containers.bootc=1 \
       microshift.version="${MICROSHIFT_VERSION}" \
       microshift.optimization="pre-built-binary"

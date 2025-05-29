@@ -69,6 +69,8 @@ This directory contains reusable GitHub Actions for the OS Builder project.
 - Adds OCI-compliant labels
 - Supports both K3s and MicroShift builds
 - Uses Podman for container building
+- Passes build metadata as build arguments (BUILD_DATE, VCS_REF, VERSION)
+- Automatically handles MicroShift build arguments when needed
 
 ### 🛡️ security-scan
 
