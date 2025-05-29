@@ -26,6 +26,7 @@ This directory contains reusable GitHub Actions for the OS Builder project.
   - At tag: Uses tag version (e.g., `1.2.3`)
   - Ahead of tag: Pre-release version (e.g., `1.2.3-dev.5+abc1234`)
 - **Release Branch**: Release candidate (e.g., `1.3.0-rc.2+abc1234`)
+- **Pull Request**: Clean PR version (e.g., `1.2.3-pr.42.feature-branch`)
 - **Feature Branch**: Feature version (e.g., `1.2.3-feature-branch.3+abc1234`)
 
 ### 📦 build-container

@@ -47,23 +47,41 @@ runs:
         # Count commits since last tag
         COMMITS_SINCE_TAG=$(git rev-list --count ${LATEST_TAG}..HEAD 2>/dev/null || echo "0")
         
-        # Generate version based on context
-        if [ "$BRANCH" = "main" ]; then
-          if [ "$COMMITS_SINCE_TAG" = "0" ]; then
-            # On main, at a tag - this is a release
-            VERSION="$VERSION_BASE"
-          else
-            # On main, ahead of tag - this is a pre-release
-            VERSION="$VERSION_BASE-dev.$COMMITS_SINCE_TAG+$SHA"
-          fi
-        elif [[ "$BRANCH" =~ ^release/.* ]]; then
-          # Release branch
-          RELEASE_VERSION=$(echo "$BRANCH" | sed 's/release\///')
-          VERSION="$RELEASE_VERSION-rc.$COMMITS_SINCE_TAG+$SHA"
+        # Special handling for pull requests
+        if [ "${{ github.event_name }}" = "pull_request" ]; then
+          PR_NUMBER="${{ github.event.number }}"
+          # Get the source branch name from the PR
+          SOURCE_BRANCH="${{ github.head_ref }}"
+          # Clean branch name for version tag
+          SAFE_BRANCH=$(echo "$SOURCE_BRANCH" | sed 's/[^a-zA-Z0-9]/-/g' | sed 's/^-//' | sed 's/-$//')
+          
+          # Create clean PR version: base.version-pr.number.safe-branch
+          VERSION="$VERSION_BASE-pr.$PR_NUMBER.$SAFE_BRANCH"
+          
+          echo "🔀 Pull Request Build Detected"
+          echo "  PR Number: #$PR_NUMBER"
+          echo "  Source Branch: $SOURCE_BRANCH"
+          echo "  Safe Branch: $SAFE_BRANCH"
+          echo "  Generated Version: $VERSION"
         else
-          # Feature/other branch
-          SAFE_BRANCH=$(echo "$BRANCH" | sed 's/[^a-zA-Z0-9]/-/g')
-          VERSION="$VERSION_BASE-$SAFE_BRANCH.$COMMITS_SINCE_TAG+$SHA"
+          # Generate version based on branch context (existing logic)
+          if [ "$BRANCH" = "main" ]; then
+            if [ "$COMMITS_SINCE_TAG" = "0" ]; then
+              # On main, at a tag - this is a release
+              VERSION="$VERSION_BASE"
+            else
+              # On main, ahead of tag - this is a pre-release
+              VERSION="$VERSION_BASE-dev.$COMMITS_SINCE_TAG+$SHA"
+            fi
+          elif [[ "$BRANCH" =~ ^release/.* ]]; then
+            # Release branch
+            RELEASE_VERSION=$(echo "$BRANCH" | sed 's/release\///')
+            VERSION="$RELEASE_VERSION-rc.$COMMITS_SINCE_TAG+$SHA"
+          else
+            # Feature/other branch
+            SAFE_BRANCH=$(echo "$BRANCH" | sed 's/[^a-zA-Z0-9]/-/g')
+            VERSION="$VERSION_BASE-$SAFE_BRANCH.$COMMITS_SINCE_TAG+$SHA"
+          fi
         fi
         
         echo "version=$VERSION" >> $GITHUB_OUTPUT
@@ -75,7 +93,13 @@ runs:
         echo "## 📋 Version Information" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "**Generated Version**: \`$VERSION\`" >> $GITHUB_STEP_SUMMARY
-        echo "**Branch**: \`$BRANCH\`" >> $GITHUB_STEP_SUMMARY
+        if [ "${{ github.event_name }}" = "pull_request" ]; then
+          echo "**Context**: Pull Request #${{ github.event.number }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Source Branch**: \`${{ github.head_ref }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Target Branch**: \`${{ github.base_ref }}\`" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "**Branch**: \`$BRANCH\`" >> $GITHUB_STEP_SUMMARY
+        fi
         echo "**Commit**: \`$SHA\`" >> $GITHUB_STEP_SUMMARY
         echo "**Base Version**: \`$VERSION_BASE\`" >> $GITHUB_STEP_SUMMARY
         echo "**Commits Since Tag**: $COMMITS_SINCE_TAG" >> $GITHUB_STEP_SUMMARY 

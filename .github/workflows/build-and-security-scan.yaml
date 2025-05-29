@@ -104,12 +104,29 @@ jobs:
           echo "**Version**: v${{ needs.calculate-version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "**Branch**: ${{ needs.calculate-version.outputs.branch }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 🎯 Why K3s is the Default?" >> $GITHUB_STEP_SUMMARY
-          echo "- **Truly Open Source**: No Red Hat subscription needed" >> $GITHUB_STEP_SUMMARY
-          echo "- **Better Offline Support**: Built for edge/air-gapped deployments" >> $GITHUB_STEP_SUMMARY
-          echo "- **Smaller Footprint**: ~50MB binary vs complex MicroShift build" >> $GITHUB_STEP_SUMMARY
-          echo "- **Easier Maintenance**: Single binary, auto-updates available" >> $GITHUB_STEP_SUMMARY
-          echo "- **Container Images Embedded**: All required containers pre-loaded for offline operation" >> $GITHUB_STEP_SUMMARY
+          
+          # Show different information for PRs vs regular builds
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "### 🔀 Pull Request Build" >> $GITHUB_STEP_SUMMARY
+            echo "- **PR Number**: #${{ github.event.number }}" >> $GITHUB_STEP_SUMMARY
+            echo "- **Source Branch**: \`${{ github.head_ref }}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- **Target Branch**: \`${{ github.base_ref }}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- **Clean Version Tag**: \`${{ needs.calculate-version.outputs.version }}\` (No more messy HEAD tags!)" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### ✅ PR Build Benefits:" >> $GITHUB_STEP_SUMMARY
+            echo "- **Clean Tagging**: Uses format \`base-version-pr.number.branch\`" >> $GITHUB_STEP_SUMMARY
+            echo "- **Easy Identification**: PR number and branch clearly visible" >> $GITHUB_STEP_SUMMARY
+            echo "- **No SHA Pollution**: Cleaner than old \`0.1.0-HEAD.0+afa8b60\` format" >> $GITHUB_STEP_SUMMARY
+            echo "- **Artifact Naming**: Easier to identify PR artifacts and images" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### 🎯 Why K3s is the Default?" >> $GITHUB_STEP_SUMMARY
+            echo "- **Truly Open Source**: No Red Hat subscription needed" >> $GITHUB_STEP_SUMMARY
+            echo "- **Better Offline Support**: Built for edge/air-gapped deployments" >> $GITHUB_STEP_SUMMARY
+            echo "- **Smaller Footprint**: ~50MB binary vs complex MicroShift build" >> $GITHUB_STEP_SUMMARY
+            echo "- **Easier Maintenance**: Single binary, auto-updates available" >> $GITHUB_STEP_SUMMARY
+            echo "- **Container Images Embedded**: All required containers pre-loaded for offline operation" >> $GITHUB_STEP_SUMMARY
+          fi
+          
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 🛠️ For MicroShift Builds:" >> $GITHUB_STEP_SUMMARY
           echo "- Use the dedicated 'Build MicroShift OS' workflow (manual trigger only)" >> $GITHUB_STEP_SUMMARY
