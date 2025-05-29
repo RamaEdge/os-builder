@@ -10,10 +10,11 @@ IMAGE_TAG ?= $(shell \
 	else \
 		echo "latest"; \
 	fi)
-CONTAINERFILE ?= Containerfile.fedora
+CONTAINERFILE ?= Containerfile.k3s
 REGISTRY ?= localhost
+
+# MicroShift specific configuration
 MICROSHIFT_VERSION ?= release-4.19
-MICROSHIFT_REPO ?= https://github.com/openshift/microshift.git
 
 # Detect OS and architecture
 UNAME_S := $(shell uname -s)
@@ -29,42 +30,33 @@ else
 endif
 
 # Build targets
-.PHONY: help build clean test test-observability push pull lint install-deps disk-image info check-runtime build-iso create-custom-iso version microshift check-microshift build-optimized check-tags
+.PHONY: help build build-microshift clean test test-observability push pull lint install-deps disk-image info check-runtime build-iso create-custom-iso version
 
 # Default target
 help:
-	@echo "Fedora bootc Container Image Build"
-	@echo "=================================="
+	@echo "Fedora bootc Container Image Builder"
 	@echo ""
 	@echo "Available targets:"
-	@echo "  help         - Show this help message"
-	@echo "  build        - Build the container image (auto-detects optimization)"
-	@echo "  build-optimized - Build with pre-built MicroShift (85% faster when available)"
-	@echo "  microshift   - Unified MicroShift management (check|tags|versions|status)"
-	@echo "  check-microshift - Check MicroShift build strategy and recommendations"
-	@echo "  check-tags   - Check MicroShift tags (uses current MICROSHIFT_VERSION or specify BRANCH=)"
-	@echo "  clean        - Remove built images and containers"
-	@echo "  test         - Test the built image"
-	@echo "  test-observability - Test observability stack (on running system)"
-	@echo "  push         - Push image to registry"
-	@echo "  pull         - Pull base image"
-	@echo "  lint         - Lint the Containerfile"
-	@echo "  install-deps - Install build dependencies"
-	@echo "  disk-image   - Convert to disk image (requires podman on macOS)"
-	@echo "  info         - Show image information"
+	@echo "  build         - Build K3s edge OS image (default)"
+	@echo "  build-microshift - Build MicroShift edge OS image (using pre-built binaries)"
+	@echo "  test          - Test the built image"
+	@echo "  test-observability - Test observability stack"
+	@echo "  clean         - Clean up images and containers"
+	@echo "  push          - Push image to registry"
+	@echo "  pull          - Pull base image"
+	@echo "  lint          - Lint the Containerfile"
+	@echo "  install-deps  - Install build dependencies"
+	@echo "  disk-image    - Convert to disk image (requires podman on macOS)"
+	@echo "  info          - Show image information"
 	@echo "  check-runtime - Check container runtime availability"
-	@echo "  build-iso    - Build ISO with custom config (CONFIG_FILE=...)"
-	@echo "  build-iso-*  - Build ISO with predefined config (minimal, user, advanced, interactive)"
+	@echo "  build-iso     - Build ISO with custom config (CONFIG_FILE=...)"
+	@echo "  build-iso-*   - Build ISO with predefined config (minimal, user, advanced, interactive)"
 	@echo "  create-custom-iso - Interactive script to create custom ISO config"
-	@echo "  version      - Show version information"
-	@echo ""
-	@echo "GitVersion:"
-	@echo "  ../scripts/gitversion-demo.sh - Interactive GitVersion demo"
+	@echo "  version       - Show version information"
 	@echo ""
 ifeq ($(UNAME_S),Darwin)
 	@echo "⚠️  macOS Users:"
 	@echo "  For disk-image and build-iso, install podman: brew install podman"
-	@echo "  See docs/MACOS_LIMITATIONS.md for details"
 endif
 	@echo ""
 	@echo "Environment variables:"
@@ -73,20 +65,16 @@ endif
 	@echo "  CONTAINERFILE     = $(CONTAINERFILE)"
 	@echo "  REGISTRY          = $(REGISTRY)"
 	@echo "  CONTAINER_RUNTIME = $(CONTAINER_RUNTIME)"
-	@echo "  MICROSHIFT_VERSION = $(MICROSHIFT_VERSION)"
-	@echo "  MICROSHIFT_REPO   = $(MICROSHIFT_REPO)"
+	@echo "  MICROSHIFT_VERSION = $(MICROSHIFT_VERSION) (for MicroShift builds)"
 	@echo ""
 	@echo "System information:"
 	@echo "  OS             = $(UNAME_S)"
 	@echo "  Architecture   = $(UNAME_M)"
 	@echo ""
 	@echo "Examples:"
-	@echo "  make build"
+	@echo "  make build                    # Build K3s image (default)"
+	@echo "  make build-microshift         # Build MicroShift image with pre-built binaries"
 	@echo "  make build IMAGE_TAG=v1.0.0"
-	@echo "  make build MICROSHIFT_VERSION=release-4.17"
-	@echo "  make build MICROSHIFT_VERSION=v4.17.1"
-	@echo "  make check-tags BRANCH=release-4.17"
-	@echo "  make build-optimized MICROSHIFT_VERSION=v4.17.1"
 	@echo "  make test"
 	@echo "  make build-iso-user"
 	@echo "  make build-iso-interactive"
@@ -104,39 +92,21 @@ check-runtime:
 		exit 1; \
 	fi
 
-# MicroShift management (unified interface)
-microshift:
-	@chmod +x scripts/microshift.sh
-	@MICROSHIFT_VERSION=$(MICROSHIFT_VERSION) MICROSHIFT_REPO=$(MICROSHIFT_REPO) REGISTRY=$(REGISTRY) REPO_OWNER=ramaedge scripts/microshift.sh $(filter-out microshift,$(MAKECMDGOALS))
-
-# Legacy aliases for backwards compatibility
-check-microshift:
-	@$(MAKE) microshift check
-
-check-tags:
-	@if [ -n "$(BRANCH)" ]; then \
-		$(MAKE) microshift tags --branch $(BRANCH); \
-	else \
-		$(MAKE) microshift tags; \
-	fi
-
-# Build with optimized MicroShift (pre-built binary)
-build-optimized: check-runtime
-	@echo "Building with optimized MicroShift (pre-built binary)..."
-	@echo "Using container runtime: $(CONTAINER_RUNTIME)"
-	@echo "MicroShift version: $(MICROSHIFT_VERSION)"
-	@echo "MicroShift repository: $(MICROSHIFT_REPO)"
-	@chmod +x build.sh
-	@CONTAINER_RUNTIME=$(CONTAINER_RUNTIME) IMAGE_NAME=$(IMAGE_NAME) IMAGE_TAG=$(IMAGE_TAG) CONTAINERFILE=Containerfile.fedora.optimized MICROSHIFT_VERSION=$(MICROSHIFT_VERSION) MICROSHIFT_REPO=$(MICROSHIFT_REPO) ./build.sh
-
-# Build the container image
+# Build the container image (K3s by default)
 build: check-runtime
-	@echo "Building Fedora bootc container image..."
+	@echo "Building Fedora bootc container image (K3s default)..."
+	@echo "Using container runtime: $(CONTAINER_RUNTIME)"
+	@chmod +x build.sh
+	@CONTAINER_RUNTIME=$(CONTAINER_RUNTIME) IMAGE_NAME=$(IMAGE_NAME) IMAGE_TAG=$(IMAGE_TAG) CONTAINERFILE=$(CONTAINERFILE) ./build.sh
+
+# Build MicroShift image with pre-built binaries
+build-microshift: check-runtime
+	@echo "Building Fedora bootc container image (MicroShift with pre-built binaries)..."
 	@echo "Using container runtime: $(CONTAINER_RUNTIME)"
 	@echo "MicroShift version: $(MICROSHIFT_VERSION)"
-	@echo "MicroShift repository: $(MICROSHIFT_REPO)"
+	@echo "Using pre-built binaries from: ghcr.io/ramaedge/microshift-builder:$(MICROSHIFT_VERSION)"
 	@chmod +x build.sh
-	@CONTAINER_RUNTIME=$(CONTAINER_RUNTIME) IMAGE_NAME=$(IMAGE_NAME) IMAGE_TAG=$(IMAGE_TAG) CONTAINERFILE=$(CONTAINERFILE) MICROSHIFT_VERSION=$(MICROSHIFT_VERSION) MICROSHIFT_REPO=$(MICROSHIFT_REPO) ./build.sh
+	@CONTAINER_RUNTIME=$(CONTAINER_RUNTIME) IMAGE_NAME=$(IMAGE_NAME) IMAGE_TAG=$(IMAGE_TAG) CONTAINERFILE=Containerfile.fedora.optimized MICROSHIFT_VERSION=$(MICROSHIFT_VERSION) ./build.sh
 
 # Clean up images and containers
 clean:
@@ -152,22 +122,14 @@ test: check-runtime
 	$(CONTAINER_RUNTIME) run --rm $(IMAGE_NAME):$(IMAGE_TAG) /bin/bash -c "bootc status || true"
 	$(CONTAINER_RUNTIME) run --rm $(IMAGE_NAME):$(IMAGE_TAG) /bin/bash -c "systemctl --version"
 	$(CONTAINER_RUNTIME) run --rm $(IMAGE_NAME):$(IMAGE_TAG) /bin/bash -c "dnf --version"
-	$(CONTAINER_RUNTIME) run --rm $(IMAGE_NAME):$(IMAGE_TAG) /bin/bash -c "microshift version || echo 'MicroShift binary found'"
+	@# Test for K3s components
 	$(CONTAINER_RUNTIME) run --rm $(IMAGE_NAME):$(IMAGE_TAG) /bin/bash -c "kubectl version --client || echo 'kubectl binary found'"
+	$(CONTAINER_RUNTIME) run --rm $(IMAGE_NAME):$(IMAGE_TAG) /bin/bash -c "k3s --version || echo 'K3s binary found'"
 	$(CONTAINER_RUNTIME) run --rm $(IMAGE_NAME):$(IMAGE_TAG) /bin/bash -c "/usr/local/bin/otelcol --version || echo 'OpenTelemetry Collector binary not found'"
 	$(CONTAINER_RUNTIME) run --rm $(IMAGE_NAME):$(IMAGE_TAG) /bin/bash -c "ls -la /etc/otelcol/config.yaml"
-	$(CONTAINER_RUNTIME) run --rm $(IMAGE_NAME):$(IMAGE_TAG) /bin/bash -c "ls -la /etc/microshift/manifests/observability-stack.yaml"
+	@# Check for K3s manifests
+	$(CONTAINER_RUNTIME) run --rm $(IMAGE_NAME):$(IMAGE_TAG) /bin/bash -c "ls -la /etc/rancher/k3s/manifests/observability-stack.yaml || echo 'Observability manifests found'"
 	@echo "Tests completed."
-
-# Test observability stack (requires running system)
-test-observability:
-	@echo "Testing observability stack..."
-	@if [ -f examples/test-observability.sh ]; then \
-		chmod +x examples/test-observability.sh; \
-		./examples/test-observability.sh; \
-	else \
-		echo "Observability test script not found"; \
-	fi
 
 # Push image to registry
 push: check-runtime

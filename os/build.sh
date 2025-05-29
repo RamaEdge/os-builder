@@ -6,12 +6,11 @@ set -euo pipefail
 # Configuration
 IMAGE_NAME="${IMAGE_NAME:-localhost/fedora-edge-os}"
 IMAGE_TAG="${IMAGE_TAG:-}"
-CONTAINERFILE="${CONTAINERFILE:-Containerfile.fedora}"
+CONTAINERFILE="${CONTAINERFILE:-Containerfile.k3s}"
 CONTAINER_RUNTIME="${CONTAINER_RUNTIME:-}"
-MICROSHIFT_VERSION="${MICROSHIFT_VERSION:-main}"
-MICROSHIFT_REPO="${MICROSHIFT_REPO:-https://github.com/openshift/microshift.git}"
 REGISTRY="${REGISTRY:-ghcr.io}"
 REPO_OWNER="${REPO_OWNER:-ramaedge}"
+MICROSHIFT_VERSION="${MICROSHIFT_VERSION:-release-4.19}"
 
 # GitVersion integration
 get_version() {
@@ -118,51 +117,12 @@ check_dependencies() {
     info "Dependencies check completed."
 }
 
-# Check for MicroShift optimization opportunity
-check_microshift_optimization() {
-    if [[ "$CONTAINERFILE" == "Containerfile.fedora" ]]; then
-        info "Checking for MicroShift optimization opportunity..."
-        
-        # Get version tag for checking - handle different version types
-        local version_tag="$MICROSHIFT_VERSION"
-        if [ "$MICROSHIFT_VERSION" = "main" ]; then
-            local commit_hash
-            commit_hash=$(git ls-remote "$MICROSHIFT_REPO" HEAD | cut -f1 | cut -c1-8 2>/dev/null || echo "")
-            if [ -n "$commit_hash" ]; then
-                version_tag="main-${commit_hash}"
-            fi
-        elif [[ "$MICROSHIFT_VERSION" =~ ^release- ]]; then
-            # It's a release branch, get latest commit for that branch
-            local commit_hash
-            commit_hash=$(git ls-remote "$MICROSHIFT_REPO" "refs/heads/$MICROSHIFT_VERSION" | cut -f1 | cut -c1-8 2>/dev/null || echo "")
-            if [ -n "$commit_hash" ]; then
-                version_tag="${MICROSHIFT_VERSION}-${commit_hash}"
-            fi
-        elif [[ "$MICROSHIFT_VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
-            # It's already a version tag, use as-is
-            version_tag="$MICROSHIFT_VERSION"
-        fi
-        
-        # Check if pre-built MicroShift image exists
-        local microshift_image="${REGISTRY}/${REPO_OWNER}/microshift-builder:${version_tag}"
-        if $CONTAINER_RUNTIME pull "$microshift_image" >/dev/null 2>&1; then
-            warn "🚀 OPTIMIZATION AVAILABLE: Pre-built MicroShift found!"
-            warn "   For 85% faster builds, use: make build-optimized"
-            warn "   Or manually: CONTAINERFILE=Containerfile.fedora.optimized make build"
-            warn "   Using optimized build can reduce build time from ~20 minutes to ~3 minutes"
-        fi
-    fi
-}
-
 # Build the container image
 build_image() {
-    info "Building Fedora bootc container image..."
+    info "Building Fedora bootc container image with K3s..."
     info "Image: ${IMAGE_NAME}:${IMAGE_TAG}"
     info "Containerfile: ${CONTAINERFILE}"
     info "Container runtime: ${CONTAINER_RUNTIME}"
-    
-    # Check for optimization if using standard build
-    check_microshift_optimization
     
     # Change to the script directory
     cd "$(dirname "$0")"
@@ -189,13 +149,14 @@ build_image() {
         git_repo_url="unknown"
     fi
     
-    # Common build arguments and labels
+    # Common build arguments and labels (enhanced with build metadata)
     local COMMON_BUILD_ARGS=(
         --tag "${IMAGE_NAME}:${IMAGE_TAG}"
         --file "${CONTAINERFILE}"
         --force-rm
-        --build-arg "MICROSHIFT_VERSION=${MICROSHIFT_VERSION}"
-        --build-arg "MICROSHIFT_REPO=${MICROSHIFT_REPO}"
+        --build-arg "BUILD_DATE=${build_date}"
+        --build-arg "VCS_REF=${git_commit}"
+        --build-arg "VERSION=${IMAGE_TAG}"
     )
     
     local COMMON_LABELS=(
@@ -204,15 +165,25 @@ build_image() {
         --label "org.opencontainers.image.revision=${git_commit}"
         --label "org.opencontainers.image.source=${git_repo_url}"
         --label "org.opencontainers.image.branch=${git_branch}"
-        --label "microshift.version=${MICROSHIFT_VERSION}"
-        --label "microshift.source=${MICROSHIFT_REPO}"
     )
+    
+    # Add build args for MicroShift builds
+    local BUILD_ARGS_EXTRA=()
+    if [[ "$CONTAINERFILE" == *"microshift"* ]] || [[ "$CONTAINERFILE" == *"fedora.optimized"* ]]; then
+        BUILD_ARGS_EXTRA+=(--build-arg "MICROSHIFT_VERSION=${MICROSHIFT_VERSION}")
+        COMMON_LABELS+=(--label "microshift.version=${MICROSHIFT_VERSION}")
+        info "Building with MicroShift version: ${MICROSHIFT_VERSION}"
+    else
+        COMMON_LABELS+=(--label "k3s.distribution=k3s")
+        info "Building with K3s distribution"
+    fi
     
     # Build arguments based on container runtime
     if [[ "$CONTAINER_RUNTIME" == "docker" ]]; then
         BUILD_ARGS=(
             "${COMMON_BUILD_ARGS[@]}"
             "${COMMON_LABELS[@]}"
+            "${BUILD_ARGS_EXTRA[@]}"
             .
         )
     else
@@ -220,6 +191,7 @@ build_image() {
             "${COMMON_BUILD_ARGS[@]}"
             --layers
             "${COMMON_LABELS[@]}"
+            "${BUILD_ARGS_EXTRA[@]}"
             .
         )
     fi
@@ -265,21 +237,17 @@ main() {
 usage() {
     echo "Usage: $0 [OPTIONS]"
     echo ""
-    echo "Build Fedora bootc container image for edge deployment"
+    echo "Build Fedora bootc container image for edge deployment with K3s"
     echo ""
     echo "Environment variables:"
     echo "  IMAGE_NAME        - Container image name (default: localhost/fedora-edge-os)"
     echo "  IMAGE_TAG         - Container image tag (default: auto-detected via GitVersion/git)"
-    echo "  CONTAINERFILE     - Containerfile to use (default: Containerfile.fedora)"
+    echo "  CONTAINERFILE     - Containerfile to use (default: Containerfile.k3s)"
     echo "  CONTAINER_RUNTIME - Container runtime to use (auto-detected: docker on macOS, podman on Linux)"
-    echo "  MICROSHIFT_VERSION - MicroShift version/branch to build (default: main)"
-    echo "  MICROSHIFT_REPO   - MicroShift repository URL (default: https://github.com/openshift/microshift.git)"
     echo ""
     echo "Examples:"
     echo "  $0"
     echo "  IMAGE_NAME=my-registry/edge-os IMAGE_TAG=v1.0.0 $0"
-    echo "  MICROSHIFT_VERSION=release-4.17 $0"
-    echo "  MICROSHIFT_VERSION=v4.17.1 MICROSHIFT_REPO=https://github.com/openshift/microshift.git $0"
 }
 
 # Parse command line arguments

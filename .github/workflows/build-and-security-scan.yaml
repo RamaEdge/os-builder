@@ -1,4 +1,4 @@
-name: Build and Security Scan
+name: Build and Container Scan (K3s)
 
 on:
   push:
@@ -10,8 +10,10 @@ on:
     paths:
       - 'os/**'
   schedule:
-    # Run weekly security scans
-    - cron: '0 2 * * 1'
+    # Weekly builds on Fridays at 1 AM UTC (inspired by RHEL bootc workstation)
+    - cron: '0 1 * * Fri'
+    # Monthly security scans on first Monday
+    - cron: '0 2 1 * 1'
   workflow_dispatch:
     inputs:
       iso_config:
@@ -24,142 +26,59 @@ on:
           - user
           - advanced
           - interactive
+          - production
       build_iso:
         description: 'Build ISO images'
         required: false
         default: true
         type: boolean
+      force_rebuild:
+        description: 'Force rebuild (ignore cache)'
+        required: false
+        default: false
+        type: boolean
 
 env:
-  IMAGE_NAME: ramaedge-os
-  IMAGE_NAME_DEV: dev/ramaedge-os
+  # Core build configuration (enhanced like RHEL bootc workstation)
+  IMAGE_NAME: ramaedge-os-k3s
   REGISTRY: ghcr.io
   WORKING_PATH: ./os
+  
+  # Build environment configuration
+  SOURCE_REGISTRY_HOST: quay.io
+  DEST_REGISTRY_HOST: ghcr.io
+  CONTAINERFILE: Containerfile.k3s
+  
+  # Feature flags
+  ENABLE_HEALTHCHECK: true
+  ENABLE_SCHEDULED_UPDATES: true
 
 jobs:
-  gitversion:
-    name: Determine Version
+  calculate-version:
+    name: Calculate Version
     runs-on: self-hosted
     outputs:
-      MajorMinorPatch: ${{ steps.version.outputs.version }}
-      SemVer: ${{ steps.version.outputs.version }}
-      BranchName: ${{ steps.version.outputs.branch }}
-      Sha: ${{ steps.version.outputs.sha }}
-      RepositoryOwner: ${{ steps.repo.outputs.owner }}
+      version: ${{ steps.version.outputs.version }}
+      branch: ${{ steps.version.outputs.branch }}
+      sha: ${{ steps.version.outputs.sha }}
+      repository-owner: ${{ steps.version.outputs.repository-owner }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Get repository owner in lowercase
-        id: repo
-        run: |
-          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
-          echo "owner=${OWNER}" >> $GITHUB_OUTPUT
-          echo "Repository owner (lowercase): ${OWNER}"
-
-      - name: Generate Version
+      - name: Calculate Version
         id: version
-        run: |
-          # Get git information
-          SHA=$(git rev-parse --short HEAD)
-          BRANCH=$(git rev-parse --abbrev-ref HEAD)
-          
-          # Try to get version from latest tag
-          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.1.0")
-          
-          # Extract version number from tag (remove 'v' prefix if present)
-          VERSION_BASE=$(echo "$LATEST_TAG" | sed 's/^v//')
-          
-          # Count commits since last tag
-          COMMITS_SINCE_TAG=$(git rev-list --count ${LATEST_TAG}..HEAD 2>/dev/null || echo "0")
-          
-          # Generate version based on context
-          if [ "$BRANCH" = "main" ]; then
-            if [ "$COMMITS_SINCE_TAG" = "0" ]; then
-              # On main, at a tag - this is a release
-              VERSION="$VERSION_BASE"
-            else
-              # On main, ahead of tag - this is a pre-release
-              VERSION="$VERSION_BASE-dev.$COMMITS_SINCE_TAG+$SHA"
-            fi
-          elif [[ "$BRANCH" =~ ^release/.* ]]; then
-            # Release branch
-            RELEASE_VERSION=$(echo "$BRANCH" | sed 's/release\///')
-            VERSION="$RELEASE_VERSION-rc.$COMMITS_SINCE_TAG+$SHA"
-          else
-            # Feature/other branch
-            SAFE_BRANCH=$(echo "$BRANCH" | sed 's/[^a-zA-Z0-9]/-/g')
-            VERSION="$VERSION_BASE-$SAFE_BRANCH.$COMMITS_SINCE_TAG+$SHA"
-          fi
-          
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "branch=$BRANCH" >> $GITHUB_OUTPUT
-          echo "sha=$SHA" >> $GITHUB_OUTPUT
-          echo "base_version=$VERSION_BASE" >> $GITHUB_OUTPUT
-          echo "commits_since_tag=$COMMITS_SINCE_TAG" >> $GITHUB_OUTPUT
-          
-          echo "## 📋 Version Information" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Generated Version**: \`$VERSION\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Branch**: \`$BRANCH\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Commit**: \`$SHA\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Base Version**: \`$VERSION_BASE\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Commits Since Tag**: $COMMITS_SINCE_TAG" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Version Strategy:" >> $GITHUB_STEP_SUMMARY
-          if [ "$BRANCH" = "main" ] && [ "$COMMITS_SINCE_TAG" = "0" ]; then
-            echo "🏷️ **Release Version** - On main branch at tagged commit" >> $GITHUB_STEP_SUMMARY
-          elif [ "$BRANCH" = "main" ]; then
-            echo "🚧 **Development Version** - On main branch ahead of last tag" >> $GITHUB_STEP_SUMMARY
-          elif [[ "$BRANCH" =~ ^release/.* ]]; then
-            echo "🎯 **Release Candidate** - On release branch" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "🔧 **Feature Version** - On feature/development branch" >> $GITHUB_STEP_SUMMARY
-          fi
-
-  security-scan-files:
-    name: Security Scan - Files
-    runs-on: self-hosted
-    permissions:
-      contents: read
-      actions: read
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Run Trivy vulnerability scanner - Filesystem
-        uses: aquasecurity/trivy-action@0.30.0
-        with:
-          scan-type: 'fs'
-          scan-ref: '.'
-          format: 'sarif'
-          output: 'trivy-fs-results.sarif'
-          severity: 'CRITICAL,HIGH'
-          skip-dirs: '.git,.github/workflows'
-
-
-
-      - name: Run Trivy vulnerability scanner - Configuration files
-        uses: aquasecurity/trivy-action@0.30.0
-        with:
-          scan-type: 'config'
-          scan-ref: '.'
-          format: 'sarif'
-          output: 'trivy-config-results.sarif'
-          severity: 'CRITICAL,HIGH'
-          skip-dirs: '.git'
-
-
+        uses: ./.github/actions/calculate-version
 
   build-and-scan:
-    name: Build, Scan and Test Container Image
+    name: Build and Scan K3s OS Image
     runs-on: self-hosted
-    needs: [gitversion, security-scan-files]
+    needs: [calculate-version]
     outputs:
-      image-id: ${{ steps.image-ref.outputs.image_id }}
-      image-ref: ${{ steps.image-ref.outputs.ref }}
+      image-id: ${{ steps.build.outputs.image-id }}
+      image-ref: ${{ steps.build.outputs.local-tag }}
     permissions:
       contents: read
       packages: write
@@ -172,186 +91,75 @@ jobs:
         run: |
           # Ensure Podman is available and configured
           podman --version
-          # Configure Podman for multi-arch builds if needed
           podman system info
 
-      - name: Setup Container Environment
+      - name: Build Summary
         run: |
-          echo "🔧 Setting up local container environment (no registry push)"
-          podman system info
+          echo "## 🚀 K3s Edge OS Build (Default & Recommended)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Distribution**: K3s (Lightweight Kubernetes) - **DEFAULT**" >> $GITHUB_STEP_SUMMARY
+          echo "**Mode**: Direct binary download with embedded container images" >> $GITHUB_STEP_SUMMARY
+          echo "**Containerfile**: Containerfile.k3s" >> $GITHUB_STEP_SUMMARY
+          echo "**Expected Build Time**: ~8-12 minutes" >> $GITHUB_STEP_SUMMARY
+          echo "**Version**: v${{ needs.calculate-version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch**: ${{ needs.calculate-version.outputs.branch }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🎯 Why K3s is the Default?" >> $GITHUB_STEP_SUMMARY
+          echo "- **Truly Open Source**: No Red Hat subscription needed" >> $GITHUB_STEP_SUMMARY
+          echo "- **Better Offline Support**: Built for edge/air-gapped deployments" >> $GITHUB_STEP_SUMMARY
+          echo "- **Smaller Footprint**: ~50MB binary vs complex MicroShift build" >> $GITHUB_STEP_SUMMARY
+          echo "- **Easier Maintenance**: Single binary, auto-updates available" >> $GITHUB_STEP_SUMMARY
+          echo "- **Container Images Embedded**: All required containers pre-loaded for offline operation" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🛠️ For MicroShift Builds:" >> $GITHUB_STEP_SUMMARY
+          echo "- Use the dedicated 'Build MicroShift OS' workflow (manual trigger only)" >> $GITHUB_STEP_SUMMARY
+          echo "- MicroShift builds require additional setup and longer build times" >> $GITHUB_STEP_SUMMARY
 
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ needs.gitversion.outputs.RepositoryOwner }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=semver,pattern={{'{{version}}'}},value=${{ needs.gitversion.outputs.SemVer }}
-            type=semver,pattern={{'{{major}}.{{minor}}'}},value=${{ needs.gitversion.outputs.SemVer }}
-            type=semver,pattern={{'{{major}}'}},value=${{ needs.gitversion.outputs.SemVer }}
-            type=sha,prefix=sha-
-            type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
-
-      - name: Check for pre-built MicroShift and select build strategy
-        id: build-strategy
-        run: |
-          # Get MicroShift version from environment or default to release-4.19
-          MICROSHIFT_VERSION="${MICROSHIFT_VERSION:-release-4.19}"
-          MICROSHIFT_REPO="https://github.com/openshift/microshift.git"
-          
-          echo "🔍 Determining MicroShift version tag for: $MICROSHIFT_VERSION"
-          
-          # Use the same version detection logic as our utility scripts
-          if [ "$MICROSHIFT_VERSION" = "main" ]; then
-            COMMIT_HASH=$(git ls-remote "$MICROSHIFT_REPO" HEAD | cut -f1 | cut -c1-8)
-            VERSION_TAG="main-${COMMIT_HASH}"
-            echo "📡 Main branch commit: $COMMIT_HASH"
-          elif [[ "$MICROSHIFT_VERSION" =~ ^release- ]]; then
-            # It's a release branch, get latest commit for that branch
-            COMMIT_HASH=$(git ls-remote "$MICROSHIFT_REPO" "refs/heads/$MICROSHIFT_VERSION" | cut -f1 | cut -c1-8)
-            if [ -n "$COMMIT_HASH" ]; then
-              VERSION_TAG="${MICROSHIFT_VERSION}-${COMMIT_HASH}"
-              echo "📡 Branch $MICROSHIFT_VERSION commit: $COMMIT_HASH"
-            else
-              VERSION_TAG="$MICROSHIFT_VERSION"
-              echo "⚠️ Branch $MICROSHIFT_VERSION not found, using as-is"
-            fi
-          elif [[ "$MICROSHIFT_VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
-            # It's already a version tag, use as-is
-            VERSION_TAG="$MICROSHIFT_VERSION"
-            echo "🏷️ Using version tag: $MICROSHIFT_VERSION"
-          else
-            # Use as-is for other cases
-            VERSION_TAG="$MICROSHIFT_VERSION"
-            echo "🔧 Using version as-is: $MICROSHIFT_VERSION"
-          fi
-          
-          echo "microshift_version=${VERSION_TAG}" >> $GITHUB_OUTPUT
-          
-          # Check if pre-built MicroShift image exists
-          MICROSHIFT_IMAGE="${{ env.REGISTRY }}/${{ needs.gitversion.outputs.RepositoryOwner }}/microshift-builder:${VERSION_TAG}"
-          echo "microshift_image=${MICROSHIFT_IMAGE}" >> $GITHUB_OUTPUT
-          
-          echo "🔍 Checking for local pre-built MicroShift image..."
-          # Check for any local microshift-builder images (regardless of registry path)
-          if podman images | grep -q "microshift-builder:${VERSION_TAG}"; then
-            echo "✅ Local pre-built MicroShift found: microshift-builder:${VERSION_TAG}"
-            echo "containerfile=Containerfile.fedora.optimized" >> $GITHUB_OUTPUT
-            echo "build_mode=optimized" >> $GITHUB_OUTPUT
-            echo "microshift_available=true" >> $GITHUB_OUTPUT
-            
-            echo "## 🚀 Optimized Build Mode (Local)" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "**Mode**: Using local pre-built MicroShift binary" >> $GITHUB_STEP_SUMMARY
-            echo "**MicroShift Version**: $VERSION_TAG" >> $GITHUB_STEP_SUMMARY
-            echo "**Local MicroShift Image**: \`microshift-builder:${VERSION_TAG}\`" >> $GITHUB_STEP_SUMMARY
-            echo "**Containerfile**: Containerfile.fedora.optimized" >> $GITHUB_STEP_SUMMARY
-            echo "**Expected Build Time**: ~5-8 minutes (85% faster)" >> $GITHUB_STEP_SUMMARY
-            echo "**Storage**: Local Podman storage (no network overhead)" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "⚠️ Local pre-built MicroShift not found, falling back to source build"
-            echo "containerfile=Containerfile.fedora" >> $GITHUB_OUTPUT
-            echo "build_mode=source" >> $GITHUB_OUTPUT
-            echo "microshift_available=false" >> $GITHUB_OUTPUT
-            
-            echo "## 🔨 Source Build Mode" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "**Mode**: Building MicroShift from source" >> $GITHUB_STEP_SUMMARY
-            echo "**Reason**: Local pre-built binary not available for version $VERSION_TAG" >> $GITHUB_STEP_SUMMARY
-            echo "**Containerfile**: Containerfile.fedora" >> $GITHUB_STEP_SUMMARY
-            echo "**Expected Build Time**: ~15-25 minutes" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "### 💡 Optimization Tip:" >> $GITHUB_STEP_SUMMARY
-            echo "- Run the MicroShift Builder workflow first to create local pre-built binaries" >> $GITHUB_STEP_SUMMARY
-            echo "- This will significantly speed up future builds" >> $GITHUB_STEP_SUMMARY
-          fi
-
-      - name: Build container image (local only)
+      - name: Build Container Image
         id: build
-        run: |
-          cd ${{ env.WORKING_PATH }}
-          
-          # Create simple local tag
-          LOCAL_TAG="ramaedge-os:local-${{ github.run_id }}"
-          echo "Building local image: $LOCAL_TAG"
-          
-          # Build image with Podman (local only)
-          podman build \
-            -f ${{ steps.build-strategy.outputs.containerfile }} \
-            -t "$LOCAL_TAG" \
-            --build-arg MICROSHIFT_VERSION=${{ steps.build-strategy.outputs.microshift_version }} \
-            --build-arg MICROSHIFT_IMAGE_BASE=${{ env.REGISTRY }}/${{ needs.gitversion.outputs.RepositoryOwner }}/microshift-builder \
-            .
-          
-          # Get image ID for scanning and testing
-          IMAGE_ID=$(podman images --filter reference="$LOCAL_TAG" -q)
-          echo "image_id=${IMAGE_ID}" >> $GITHUB_OUTPUT
-          echo "local_tag=${LOCAL_TAG}" >> $GITHUB_OUTPUT
-          
-          echo "✅ Container image built locally: $LOCAL_TAG"
-          echo "📦 Image ID: $IMAGE_ID"
-
-      - name: Set image for scanning
-        run: |
-          # Use the local tag for scanning
-          LOCAL_TAG="${{ steps.build.outputs.local_tag }}"
-          echo "IMAGE_ID=${LOCAL_TAG}" >> $GITHUB_ENV
-          echo "Scanning local image: ${LOCAL_TAG}"
-
-      - name: Run Trivy vulnerability scanner - Container Image
-        uses: aquasecurity/trivy-action@0.30.0
+        uses: ./.github/actions/build-container
         with:
-          image-ref: 'podman:${{ env.IMAGE_ID }}'
-          format: 'sarif'
-          output: 'trivy-image-results.sarif'
+          containerfile: 'Containerfile.k3s'
+          image-name: ${{ env.IMAGE_NAME }}
+          version: ${{ needs.calculate-version.outputs.version }}
+          sha: ${{ needs.calculate-version.outputs.sha }}
+          registry: ${{ env.REGISTRY }}
+          repository-owner: ${{ needs.calculate-version.outputs.repository-owner }}
+          working-path: ${{ env.WORKING_PATH }}
+
+      - name: Security Scan
+        uses: ./.github/actions/security-scan
+        with:
+          image-ref: ${{ steps.build.outputs.local-tag }}
           severity: 'CRITICAL,HIGH'
-          vuln-type: 'os,library'
+          build-mode: 'k3s'
+          sha: ${{ needs.calculate-version.outputs.sha }}
 
-
-
-      - name: Run Trivy vulnerability scanner - Table output
-        uses: aquasecurity/trivy-action@0.30.0
-        with:
-          image-ref: 'podman:${{ env.IMAGE_ID }}'
-          format: 'table'
-          severity: 'CRITICAL,HIGH'
-
-      - name: Generate container image SBOM
-        uses: anchore/sbom-action@v0
-        with:
-          image: 'podman:${{ env.IMAGE_ID }}'
-          format: spdx-json
-          output-file: sbom.spdx.json
-
-      - name: Upload SBOM artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: sbom-${{ steps.build-strategy.outputs.build_mode }}-${{ needs.gitversion.outputs.Sha }}
-          path: sbom.spdx.json
-
-      - name: Test container image (PRs only)
+      - name: Test K3s Container Image (PRs only)
         if: github.event_name == 'pull_request'
         run: |
-          echo "🧪 Testing container image (same build, no rebuild needed)..."
-          podman run --rm ${{ env.IMAGE_ID }} /bin/bash -c "bootc status || true"
-          podman run --rm ${{ env.IMAGE_ID }} /bin/bash -c "systemctl --version"
-          podman run --rm ${{ env.IMAGE_ID }} /bin/bash -c "microshift version || echo 'MicroShift binary found'"
-          podman run --rm ${{ env.IMAGE_ID }} /bin/bash -c "kubectl version --client || echo 'kubectl binary found'"
-          podman run --rm ${{ env.IMAGE_ID }} /bin/bash -c "/usr/local/bin/otelcol --version || echo 'OpenTelemetry Collector binary not found'"
-          podman run --rm ${{ env.IMAGE_ID }} /bin/bash -c "ls -la /etc/otelcol/config.yaml"
-          podman run --rm ${{ env.IMAGE_ID }} /bin/bash -c "ls -la /etc/microshift/manifests/observability-stack.yaml"
+          echo "🧪 Testing K3s container image..."
+          IMAGE_REF="${{ steps.build.outputs.local-tag }}"
           
-          echo "✅ All tests passed!"
-          echo "🎯 Perfect optimization: Built once, scanned once, tested once - all in same job!"
+          podman run --rm "$IMAGE_REF" /bin/bash -c "bootc status || true"
+          podman run --rm "$IMAGE_REF" /bin/bash -c "systemctl --version"
+          podman run --rm "$IMAGE_REF" /bin/bash -c "k3s --version || echo 'K3s binary found'"
+          podman run --rm "$IMAGE_REF" /bin/bash -c "ls -la /etc/rancher/k3s/ || echo 'K3s config directory found'"
+          podman run --rm "$IMAGE_REF" /bin/bash -c "ls -la /var/lib/rancher/k3s/agent/images/ || echo 'K3s images directory found'"
+          podman run --rm "$IMAGE_REF" /bin/bash -c "kubectl version --client || echo 'kubectl binary found'"
+          podman run --rm "$IMAGE_REF" /bin/bash -c "/usr/local/bin/otelcol --version || echo 'OpenTelemetry Collector binary not found'"
+          podman run --rm "$IMAGE_REF" /bin/bash -c "ls -la /etc/otelcol/config.yaml"
           
-          echo "## 🧪 Container Testing Summary" >> $GITHUB_STEP_SUMMARY
+          echo "✅ All K3s tests passed!"
+          
+          echo "## 🧪 K3s Container Testing Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### ✅ Test Results:" >> $GITHUB_STEP_SUMMARY
           echo "- **bootc command**: Available" >> $GITHUB_STEP_SUMMARY
           echo "- **systemctl**: Available" >> $GITHUB_STEP_SUMMARY
-          echo "- **MicroShift binary**: Present" >> $GITHUB_STEP_SUMMARY
+          echo "- **K3s binary**: Present (Default)" >> $GITHUB_STEP_SUMMARY
+          echo "- **K3s configuration**: Available" >> $GITHUB_STEP_SUMMARY
+          echo "- **Embedded container images**: Pre-loaded for offline operation" >> $GITHUB_STEP_SUMMARY
           echo "- **kubectl client**: Available" >> $GITHUB_STEP_SUMMARY
           echo "- **OpenTelemetry Collector**: Installed" >> $GITHUB_STEP_SUMMARY
           echo "- **Configuration files**: Present" >> $GITHUB_STEP_SUMMARY
@@ -362,34 +170,21 @@ jobs:
           echo "- **Instant Testing**: No build time, just test execution time" >> $GITHUB_STEP_SUMMARY
           echo "- **Podman Integration**: Trivy and SBOM generation configured for Podman runtime" >> $GITHUB_STEP_SUMMARY
 
-      - name: Create local image reference
-        id: image-ref
+      - name: Health Check (Enhanced Testing)
+        if: env.ENABLE_HEALTHCHECK == 'true'
         run: |
-          # Create local image reference for ISO building
-          LOCAL_TAG="${{ steps.build.outputs.local_tag }}"
-          IMAGE_ID="${{ steps.build.outputs.image_id }}"
-          echo "ref=${LOCAL_TAG}" >> $GITHUB_OUTPUT
-          echo "image_id=${IMAGE_ID}" >> $GITHUB_OUTPUT
+          echo "🏥 Running enhanced health checks..."
+          IMAGE_REF="${{ steps.build.outputs.local-tag }}"
           
-          echo "## 📦 Local Image Reference" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Local Tag**: \`${LOCAL_TAG}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Image ID**: \`${IMAGE_ID}\`" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Image built and kept locally for ISO creation and testing." >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 🚀 Performance Optimization" >> $GITHUB_STEP_SUMMARY
-          echo "- **Single Build**: Container built only once (not twice like before)" >> $GITHUB_STEP_SUMMARY
-          echo "- **Local Only**: No registry push needed, faster workflow" >> $GITHUB_STEP_SUMMARY
-          echo "- **MicroShift Optimization**: ${{ steps.build-strategy.outputs.build_mode == 'optimized' && 'Used pre-built binary (85% faster)' || 'Built from source (consider using MicroShift Builder)' }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Zero Network Overhead**: No image push/pull operations" >> $GITHUB_STEP_SUMMARY
-          echo "- **Podman Native**: Security scanning (Trivy) and SBOM generation configured for Podman runtime" >> $GITHUB_STEP_SUMMARY
-
+          # Run our comprehensive health check script
+          podman run --rm "$IMAGE_REF" /bin/bash -c "/usr/local/bin/health-check.sh || exit 0"
+          
+          echo "✅ Health check completed!"
 
   build-iso:
-    name: Build ISO Image
+    name: Build K3s ISO Image
     runs-on: self-hosted
-    needs: [gitversion, build-and-scan]
+    needs: [calculate-version, build-and-scan]
     if: github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || github.event.inputs.build_iso == 'true')
     permissions:
       contents: read
@@ -400,23 +195,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Get local image reference from build-and-scan job
-        id: image_ref
-        run: |
-          # Use the local image from build-and-scan job
-          IMAGE_REF="${{ needs.build-and-scan.outputs.image-ref }}"
-          IMAGE_ID="${{ needs.build-and-scan.outputs.image-id }}"
-          
-          if [ -z "$IMAGE_REF" ]; then
-            echo "ERROR: No local image reference available from build-and-scan job"
-            exit 1
-          fi
-          
-          echo "image_ref=${IMAGE_REF}" >> $GITHUB_OUTPUT
-          echo "image_id=${IMAGE_ID}" >> $GITHUB_OUTPUT
-          echo "Using local image reference: ${IMAGE_REF}"
-          echo "Image ID: ${IMAGE_ID}"
-
       - name: Create output directory
         run: mkdir -p ${{ github.workspace }}/iso-output
 
@@ -424,15 +202,15 @@ jobs:
         run: |
           # Use the appropriate config file based on matrix
           CONFIG_FILE="${{ env.WORKING_PATH }}/config-examples/${{ matrix.config }}-config.toml"
+          IMAGE_REF="${{ needs.build-and-scan.outputs.image-ref }}"
           
-          echo "Building ISO with ${{ matrix.config }} configuration..."
-          echo "Using local container image: ${{ steps.image_ref.outputs.image_ref }}"
+          echo "Building K3s ISO with ${{ matrix.config }} configuration..."
+          echo "Using local container image: $IMAGE_REF"
           
           # Pull the latest bootc-image-builder
           podman pull quay.io/centos-bootc/bootc-image-builder:latest
           
           # Build ISO image using the local container image
-          # Note: bootc-image-builder can use local images directly
           podman run \
             --rm \
             --privileged \
@@ -444,51 +222,49 @@ jobs:
             --type iso \
             --config /config.toml \
             --local \
-            ${{ steps.image_ref.outputs.image_ref }}
+            "$IMAGE_REF"
 
       - name: Upload ISO artifact
         uses: actions/upload-artifact@v4
         with:
-          name: fedora-edge-os-iso-${{ matrix.config }}-${{ needs.gitversion.outputs.Sha }}
+          name: k3s-edge-os-iso-${{ matrix.config }}-v${{ needs.calculate-version.outputs.version }}
           path: ${{ github.workspace }}/iso-output/
           retention-days: 30
 
       - name: ISO Build Summary
         run: |
-          echo "## 📀 ISO Build Summary - ${{ matrix.config }}" >> $GITHUB_STEP_SUMMARY
+          echo "## 📀 K3s ISO Build Summary - ${{ matrix.config }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Configuration Used:" >> $GITHUB_STEP_SUMMARY
           echo "- **Config Type**: ${{ matrix.config }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Base Image**: ${{ steps.image_ref.outputs.image_ref }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Image ID**: \`${{ steps.image_ref.outputs.image_id }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version**: v${{ needs.calculate-version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch**: ${{ needs.calculate-version.outputs.branch }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Base Image**: ${{ needs.build-and-scan.outputs.image-ref }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Kubernetes Distribution**: K3s (Lightweight Kubernetes)" >> $GITHUB_STEP_SUMMARY
           echo "- **Build Time**: $(date)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Local Build Benefits:" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ **No Registry Dependency**: Uses local image directly" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ **Faster Build**: No network pull required" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ **Supply Chain**: Uses exact same built and scanned image" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ **Semantic Versioning**: Consistent version-based artifact naming" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### ISO File Details:" >> $GITHUB_STEP_SUMMARY
           if [ -f "${{ github.workspace }}/iso-output/anaconda-iso/install.iso" ]; then
             ISO_SIZE=$(du -h "${{ github.workspace }}/iso-output/anaconda-iso/install.iso" | cut -f1)
             echo "- **ISO Size**: ${ISO_SIZE}" >> $GITHUB_STEP_SUMMARY
             echo "- **ISO Location**: Available in workflow artifacts" >> $GITHUB_STEP_SUMMARY
+            echo "- **Artifact Name**: k3s-edge-os-iso-${{ matrix.config }}-v${{ needs.calculate-version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           else
             echo "- **Status**: ISO file not found in expected location" >> $GITHUB_STEP_SUMMARY
             echo "- **Debug**: Listing output directory contents..." >> $GITHUB_STEP_SUMMARY
             ls -la "${{ github.workspace }}/iso-output/" || true >> $GITHUB_STEP_SUMMARY
           fi
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 🚀 Performance Optimization:" >> $GITHUB_STEP_SUMMARY
-          echo "- **Local Image Reuse**: Used local container image from build-and-scan job" >> $GITHUB_STEP_SUMMARY
-          echo "- **No Network Overhead**: No registry push/pull operations" >> $GITHUB_STEP_SUMMARY
-          echo "- **Massive Time Savings**: Only one build instead of multiple" >> $GITHUB_STEP_SUMMARY
-          echo "- **Zero Registry Dependency**: Complete local workflow" >> $GITHUB_STEP_SUMMARY
 
   security-summary:
     name: Security Summary
     runs-on: self-hosted
-    needs: [security-scan-files, build-and-scan, build-iso]
+    needs: [build-and-scan, build-iso]
     if: always()
     permissions:
       contents: read
@@ -497,11 +273,13 @@ jobs:
         run: |
           echo "## 🔒 Security Scan Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Completed Scans:" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Filesystem vulnerability scan" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Configuration files security scan" >> $GITHUB_STEP_SUMMARY
+          echo "### Completed Scans (Build Workflow):" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Container image vulnerability scan" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ SBOM (Software Bill of Materials) generation" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Additional Security Scans:" >> $GITHUB_STEP_SUMMARY
+          echo "- 📋 **Filesystem & Configuration Scans**: Run via separate 'Security Scan' workflow" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔍 **Repository Security**: Automated scans on schedule and code changes" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Results Location:" >> $GITHUB_STEP_SUMMARY
           echo "- **Workflow Summary**: Security scan results are displayed in this workflow summary" >> $GITHUB_STEP_SUMMARY

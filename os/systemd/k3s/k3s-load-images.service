@@ -1,0 +1,19 @@
+[Unit]
+Description=Load K3s embedded container images for offline operation
+Documentation=https://k3s.io
+Before=k3s.service
+After=crio.service
+Wants=crio.service
+
+[Install]
+WantedBy=multi-user.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=root
+ExecStart=/usr/local/bin/k3s-load-images.sh
+TimeoutStartSec=300
+Restart=no
+StandardOutput=journal
+StandardError=journal 

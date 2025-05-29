@@ -84,4 +84,12 @@ RUN chmod +x /usr/local/bin/*.sh 2>/dev/null || true && \
 # Note: This is for container image security; bootc will use system users when booted
 USER containeruser
 
-CMD ["/bin/bash"] 
+# Enable additional services
+RUN systemctl enable microshift.service microshift-kubeconfig-setup.service 2>/dev/null || true && \
+    systemctl enable edge-setup.service 2>/dev/null || true && \
+    systemctl enable observability-deploy.service 2>/dev/null || true && \
+    restorecon -R /etc /usr/local/bin 2>/dev/null || true && \
+    bootc container lint
+
+# This is a bootc image - no CMD needed as it will be converted to a bootable OS
+# When booted, systemd will be PID 1, not a container command 

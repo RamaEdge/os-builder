@@ -1,0 +1,87 @@
+name: 'Build Container Image'
+description: 'Build container image with Podman and proper labeling'
+author: 'os-builder'
+branding:
+  icon: 'package'
+  color: 'green'
+
+inputs:
+  containerfile:
+    description: 'Path to Containerfile'
+    required: true
+  image-name:
+    description: 'Container image name'
+    required: true
+  version:
+    description: 'Version tag for the image'
+    required: true
+  sha:
+    description: 'Git commit SHA'
+    required: true
+  microshift-version:
+    description: 'MicroShift version (for MicroShift builds)'
+    required: false
+    default: ''
+  registry:
+    description: 'Container registry'
+    required: true
+  repository-owner:
+    description: 'Repository owner'
+    required: true
+  working-path:
+    description: 'Working directory for build'
+    required: false
+    default: './os'
+
+outputs:
+  image-id:
+    description: 'Built image ID'
+    value: ${{ steps.build.outputs.image_id }}
+  local-tag:
+    description: 'Local image tag'
+    value: ${{ steps.build.outputs.local_tag }}
+  version-tag:
+    description: 'Version tag'
+    value: ${{ steps.build.outputs.version_tag }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Build container image
+      id: build
+      shell: bash
+      working-directory: ${{ inputs.working-path }}
+      run: |
+        # Create version-based local tag
+        LOCAL_TAG="${{ inputs.image-name }}:${{ inputs.version }}"
+        LATEST_TAG="${{ inputs.image-name }}:latest"
+        
+        echo "Building versioned image: $LOCAL_TAG"
+        
+        # Prepare build arguments
+        BUILD_ARGS=""
+        if [ -n "${{ inputs.microshift-version }}" ]; then
+          BUILD_ARGS="--build-arg MICROSHIFT_VERSION=${{ inputs.microshift-version }} --build-arg MICROSHIFT_IMAGE_BASE=${{ inputs.registry }}/${{ inputs.repository-owner }}/microshift-builder"
+        fi
+        
+        # Build image with Podman (local only)
+        podman build \
+          -f ${{ inputs.containerfile }} \
+          -t "$LOCAL_TAG" \
+          -t "$LATEST_TAG" \
+          $BUILD_ARGS \
+          --label "org.opencontainers.image.version=${{ inputs.version }}" \
+          --label "org.opencontainers.image.revision=${{ inputs.sha }}" \
+          --label "org.opencontainers.image.created=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+          --label "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
+          .
+        
+        # Get image ID for scanning and testing
+        IMAGE_ID=$(podman images --filter reference="$LOCAL_TAG" -q)
+        echo "image_id=${IMAGE_ID}" >> $GITHUB_OUTPUT
+        echo "local_tag=${LOCAL_TAG}" >> $GITHUB_OUTPUT
+        echo "version_tag=${{ inputs.version }}" >> $GITHUB_OUTPUT
+        
+        echo "✅ Container image built locally: $LOCAL_TAG"
+        echo "📦 Image ID: $IMAGE_ID"
+        echo "🏷️ Version: ${{ inputs.version }}" 

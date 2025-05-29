@@ -1,0 +1,67 @@
+# Production Edge OS Configuration
+# Inspired by RHEL bootc workstation patterns
+# This configuration sets up automatic bootc switching for updates
+
+[[blueprint.customizations.user]]
+name = "edgeuser"
+description = "Edge Device Administrator"
+password = "$6$CHO2$3rN8eviE2t50lmVyBYihTgVRHcaecmeCk31L..."  # Replace with your hashed password
+key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC... your-public-key-here"
+home = "/home/edgeuser"
+shell = "/bin/bash"
+groups = ["wheel", "docker"]
+
+[customizations.installer.kickstart]
+# Automatic bootc switching for updates (inspired by RHEL bootc workstation)
+contents = """
+%post --erroronfail
+# Configure bootc to use the registry image for updates
+bootc switch --mutate-in-place --transport registry ghcr.io/ramaedge/ramaedge-os-k3s:latest
+
+# Configure automatic updates timer
+systemctl enable bootc-fetch-apply-updates.timer
+
+# Set hostname
+hostnamectl set-hostname edge-device-prod
+
+# Configure K3s for production
+mkdir -p /etc/rancher/k3s
+cat > /etc/rancher/k3s/config.yaml << 'EOF'
+write-kubeconfig-mode: "0644"
+cluster-cidr: "10.42.0.0/16"
+service-cidr: "10.43.0.0/16"
+disable:
+  - traefik  # Disable traefik in production, use custom ingress
+node-label:
+  - "node.kubernetes.io/instance-type=edge"
+  - "topology.kubernetes.io/zone=production"
+EOF
+
+%end
+"""
+
+# Filesystem configuration for production edge devices
+[[customizations.filesystem]]
+mountpoint = "/var/lib/containers"
+size = "20GiB"
+
+[[customizations.filesystem]]
+mountpoint = "/var/lib/rancher"
+size = "30GiB"
+
+[[customizations.filesystem]]
+mountpoint = "/var/log"
+size = "5GiB"
+
+# Kernel arguments for edge optimization
+[customizations.kernel]
+append = "quiet loglevel=3 systemd.log_level=warning"
+
+# Services configuration
+[customizations.services]
+enabled = ["sshd", "k3s", "bootc-fetch-apply-updates.timer", "firewalld"]
+disabled = ["bluetooth", "cups"]
+
+# Firewall configuration for production
+[customizations.firewall]
+ports = ["22:tcp", "6443:tcp", "80:tcp", "443:tcp"] 

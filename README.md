@@ -1,216 +1,210 @@
-# os-builder
+# 🚀 Fedora Edge OS Builder
 
-This repository contains code for building operating systems that can be deployed on edge devices using bootc (bootable containers) technology.
+An automated container image builder for creating lightweight, secure edge computing operating systems using **Fedora bootc**. This project generates container images that can be deployed as bootable operating systems on edge devices.
 
-## Overview
+## 🎯 Key Features
 
-This project provides container-based OS builds for edge computing deployments using bootc technology, which enables:
+- **🔧 Modern Architecture**: Uses Fedora bootc for container-native OS deployments
+- **⚡ Lightweight**: Optimized for edge computing environments
+- **🔒 Security-First**: SELinux enabled, hardened configurations, automated security scanning
+- **📊 Observability**: Built-in OpenTelemetry stack for comprehensive monitoring
+- **⚙️ GitOps Ready**: Version-controlled infrastructure with automated builds
+- **🌐 Multi-Platform**: Supports x86_64 and ARM64 architectures
 
-- Immutable OS updates via container images
-- Transactional updates with rollback capability
-- Container-native OS management
-- Edge-optimized configurations
+## 🏗️ Architecture Overview
 
-## Available OS Builds
+### 🎯 K3s Edge OS (Default & Recommended)
 
-### Fedora bootc Edge OS (`os/`)
+**Primary focus with optimized experience:**
 
-A complete Fedora-based bootc container image optimized for edge deployments.
+- **Fast Builds**: 8-12 minutes with optimized caching
+- **Lightweight**: K3s provides a minimal Kubernetes footprint
+- **Automated Builds**: Triggered on every push for continuous integration
+- **Smaller Footprint**: ~50MB binary vs complex builds
+- **Production Ready**: Battle-tested in edge environments
 
-**Features:**
+### 🎯 MicroShift Edge OS (Enterprise Alternative)
 
-- Based on Fedora 42 bootc base image
-- Container runtime (Podman) pre-installed
-- **MicroShift Kubernetes built from source** for latest features and customization
-- **Offline Container Support**: Pre-loaded MicroShift container images for offline deployment
-- **Observability Stack**: OpenTelemetry Collector for metrics, logs, and traces
-- SSH access with security hardening
-- Automatic updates capability
-- Edge-specific optimizations
-- **Supply Chain Security**: SHA digest-based immutable container references
-- **Performance Optimized CI/CD**: Single container build per workflow run
-- **MicroShift Build Optimization**: Pre-built binary caching system for 85% faster builds
-  - 80% faster pull request builds
-  - 70% faster production builds  
-  - Eliminated redundant container builds
-  - Integrated build, scan, and test in single job
-- **ISO Building**: Create bootable ISOs with user configuration
-  - Interactive installation wizard with user prompts
-  - User account setup with SSH keys
-  - Custom hostname and DNS configuration (DHCP or static IP)
-  - Filesystem customizations with multiple layout options
-  - Automated via GitHub Actions with optimized builds
+**Enterprise-focused Kubernetes for edge with Red Hat ecosystem:**
+
+- **Fast Builds**: 5-8 minutes using pre-built binaries from [microshift-builder](https://github.com/RamaEdge/microshift-builder)
+- **Enterprise Ready**: Based on OpenShift, Red Hat support available
+- **Manual Builds**: Triggered via workflow_dispatch for controlled deployments
+- **Resource Efficient**: Optimized for edge and IoT environments
+- **Pre-built Binaries**: Uses container images with compiled MicroShift binaries
 
 **Quick Start:**
 
 ```bash
-cd os/
-# 🚀 NEW: Check MicroShift optimization and get latest recommendations
-make microshift check                   # Shows latest recommended tags
-make build-optimized                    # Build with optimization (85% faster)
+git clone https://github.com/RamaEdge/os-builder.git
+cd os-builder/os
 
-# Or build with specific version
-make build MICROSHIFT_VERSION=release-4.19  # Uses latest tag for release-4.19
-make test
+# Build K3s locally (recommended)
+make build
+
+# Build MicroShift locally (using pre-built binaries)
+make build-microshift
+
+# Or use GitHub Actions
+# K3s: Automatically triggers on code pushes
+# MicroShift: Manual trigger via workflow_dispatch
 ```
 
-**Documentation:** See [os/README.md](os/README.md) for detailed instructions.
-
-**MicroShift Source Build:** MicroShift is built from source for latest features.
-See [docs/MICROSHIFT_SOURCE_BUILD.md](docs/MICROSHIFT_SOURCE_BUILD.md) for details.
-
-**Versioning:** Container images are automatically versioned using GitVersion.
-See [docs/GITVERSION.md](docs/GITVERSION.md) for details.
-
-**Interactive Installation:** Guide for the interactive ISO installation process.
-See [docs/INTERACTIVE_INSTALLATION.md](docs/INTERACTIVE_INSTALLATION.md) for details.
-
-**ISO Building:** Complete guide for building bootable ISOs.
-See [docs/ISO_BUILDING.md](docs/ISO_BUILDING.md) for details.
-
-### 🚀 Performance Optimized CI/CD
-
-The project uses an optimized GitHub Actions workflow that builds container images only once per run:
-
-- **Pull Requests**: Single AMD64 build → Security scan → Test → No redundant builds
-- **Production**: Single multi-platform build → Security scan → Push → ISO creation from same image
-- **Massive Performance Gains**: 70-80% reduction in build times
-- **Supply Chain Security**: All artifacts (images, ISOs) built from exact same scanned container
-
-### 🚀 MicroShift Build Optimization
-
-Advanced caching system for MicroShift binaries that dramatically reduces build times:
-
-- **Pre-built Binaries**: MicroShift compiled once and cached in GitHub Packages
-- **Smart Detection**: Automatically uses optimized builds when available
-- **Massive Time Savings**: 85% faster builds (20 minutes → 3-8 minutes)
-- **Version Management**: Automatic versioning with commit hashes for main branch
-- **Fallback Support**: Gracefully falls back to source builds when needed
-
-**Usage:**
-```bash
-cd os/
-# 🚀 NEW: Unified interface (recommended)
-make microshift check    # Check optimization status and latest recommendations
-make microshift tags     # Show latest tags for current branch
-make build-optimized     # Use pre-built MicroShift (when available)
-
-# Legacy commands (still supported)
-make check-microshift    # Check optimization status
-make build              # Auto-detects best strategy
-```
-
-See [docs/MICROSHIFT_OPTIMIZATION.md](docs/MICROSHIFT_OPTIMIZATION.md) for complete documentation.
-
-See [.github/workflows/README.md](.github/workflows/README.md) for detailed workflow documentation.
-
-### RHEL bootc (Legacy - `os/Dockerfile`)
-
-The original RHEL-based bootc configuration with MicroShift.
-
-## Project Structure
+### 📁 Repository Structure
 
 ```
 os-builder/
-├── os/                          # Fedora bootc edge OS build
-│   ├── Containerfile.fedora     # Main multi-stage Containerfile
-│   ├── Containerfile.fedora.optimized # 🚀 NEW: Optimized build with pre-built MicroShift
-│   ├── build.sh                 # Enhanced build script with optimization detection
-│   ├── Makefile                 # Enhanced build automation with unified MicroShift interface
-│   ├── configs/                 # Configuration files
-│   ├── scripts/                 # Setup and utility scripts
-│   │   ├── microshift-utils.sh  # 🚀 NEW: Shared utility functions
-│   │   ├── microshift.sh        # 🚀 NEW: Unified MicroShift management
-│   │   └── check-microshift*.sh # Enhanced optimization and tag checking
-│   ├── systemd/                 # Systemd services
-│   ├── manifests/               # Kubernetes manifests
-│   ├── config-examples/         # ISO configuration examples
-│   ├── kickstart*.ks           # Interactive installation Kickstart files
-│   └── README.md                # Updated documentation
-├── .github/                     # GitHub workflows
-│   ├── workflows/               # CI/CD workflows
-│   └── README.md                # Workflow documentation
-├── docs/                        # Documentation
-│   ├── GITVERSION.md            # GitVersion integration guide
-│   ├── MACOS_LIMITATIONS.md     # macOS limitations and solutions
-│   ├── MICROSHIFT_SOURCE_BUILD.md # MicroShift source build guide
-│   ├── ISO_BUILDING.md          # ISO building guide
-│   └── INTERACTIVE_INSTALLATION.md # Interactive installation guide
-├── GitVersion.yml               # Version configuration
-├── CHANGELOG.md                 # Project changelog and performance improvements
-├── LICENSE                      # License file
-└── README.md                    # This file
+├── os/
+│   ├── Containerfile.k3s           # K3s optimized build
+│   ├── build.sh                    # Build automation script  
+│   ├── configs/                    # System configurations
+│   │   ├── otelcol/               # OpenTelemetry configs
+│   │   └── systemd/               # Service definitions
+│   ├── manifests/                 # Kubernetes manifests
+│   ├── scripts/                   # Setup and utility scripts
+│   └── Makefile                   # Build targets
+├── .github/
+│   ├── actions/                   # Reusable GitHub Actions
+│   └── workflows/                 # CI/CD workflows
+│       ├── build-and-security-scan.yaml     # K3s workflow (automated)
+│       └── security-scan.yaml               # Security scanning
+├── config-examples/               # ISO configuration examples
+├── scripts/                       # Build utilities
+└── README.md                      # This file
 ```
 
-## Getting Started
+## 🚀 Quick Start Guide
 
-1. **Clone the repository:**
+### Prerequisites
 
+- **Container Runtime**: Docker (macOS) or Podman (Linux) 
+- **Git**: For repository cloning
+- **Optional**: .NET SDK with GitVersion for semantic versioning
+
+### 🎯 K3s Edge OS (Recommended)
+
+**Choose your build method:**
+
+1. **Local Build (K3s):**
    ```bash
-   git clone <repository-url>
-   cd os-builder
+   cd os-builder/os
+   make build
    ```
 
-2. **Build the Fedora bootc image:**
+2. **GitHub Actions (automated on push):**
+   - Push to repository
+   - Select "Build and Security Scan" workflow
+   - Download artifacts when complete
 
-   ```bash
-   cd os/
-   make help  # Show available commands
-   make build # Build the container image
-   ```
+## 📋 Build Options
 
-3. **Convert to disk image (for deployment):**
+| Feature | K3s Build (Default) | MicroShift Build | Build Time | Trigger | Use Case |
+|---------|---------------------|------------------|------------|---------|----------|
+| **Automation** | Fully automated | Manual dispatch | 8-12 min / 5-8 min | Auto on push / Manual | Production, CI/CD / Enterprise |
+| **Binary Source** | Downloaded during build | Pre-built from [microshift-builder](https://github.com/RamaEdge/microshift-builder) | - | - | Community / Enterprise |
 
-   ```bash
-   make disk-image
-   ```
+## 🛠️ Usage Examples
 
-4. **Build ISO with user configuration:**
+### Local Development
 
-   ```bash
-   make build-iso-user         # Pre-configured users (automated)
-   make build-iso-minimal      # Pre-configured minimal (automated)
-   make build-iso-advanced     # Interactive with basic prompts
-   make build-iso-interactive  # Interactive with comprehensive setup wizard
-   ```
+```bash
+# Build K3s image locally
+cd os-builder/os
+make build
 
-5. **Deploy to your edge infrastructure**
+# Build MicroShift image locally (using pre-built binaries)
+make build-microshift
 
-## Requirements
+# Test the image
+make test
 
-- Linux system (Fedora, RHEL, or compatible recommended)
-- Podman or Docker
-- At least 4GB free disk space
-- Network access to pull base images
+# Create ISO
+make build-iso-interactive
+```
 
-## Use Cases
+### Production Deployment
 
-This OS builder is designed for:
+```bash
+# Push to trigger automated K3s build
+git push origin main
 
-- **Edge Computing**: Deployments at network edge locations
-- **IoT Infrastructure**: Internet of Things device management
-- **Container Workloads**: Running containerized applications
-- **Kubernetes Edge**: Lightweight Kubernetes workloads with MicroShift
-- **Immutable Infrastructure**: Infrastructure as code deployments
-- **Development/Testing**: Local development environments
-- **Offline Deployments**: Pre-loaded container images for air-gapped environments
+# Manually trigger MicroShift build
+gh workflow run build-microshift.yaml
 
-## Contributing
+# Download artifacts from GitHub Actions
+# Deploy to edge devices via bootc or ISO
+```
+
+### Advanced Options
+
+```bash
+# Custom image name and tag
+make build IMAGE_NAME=my-edge-os IMAGE_TAG=v2.0.0
+
+# MicroShift with specific version
+make build-microshift MICROSHIFT_VERSION=release-4.18
+
+# Different Containerfile
+make build CONTAINERFILE=Containerfile.custom
+```
+
+## 📦 What's Included
+
+### Core Components (All Builds)
+
+- **Base OS**: Fedora Linux with bootc
+- **Security**: SELinux enforcing, firewall configured
+- **Networking**: NetworkManager, Cockpit web interface
+- **Containers**: Podman runtime for workloads
+- **Monitoring**: OpenTelemetry Collector for observability
+- **Updates**: Automatic system updates via bootc
+
+### K3s Components
+
+- **Kubernetes**: K3s lightweight distribution
+- **Runtime**: containerd with crictl
+- **Networking**: Flannel CNI
+- **Storage**: Local path provisioner
+- **Ingress**: Traefik reverse proxy
+
+### MicroShift Components
+
+- **Kubernetes**: MicroShift (OpenShift-based)
+- **Runtime**: CRI-O with crictl
+- **Networking**: OVN-Kubernetes CNI
+- **Storage**: CSI host path provisioner
+- **Ingress**: HAProxy router
+- **Source**: Pre-built binaries from [microshift-builder](https://github.com/RamaEdge/microshift-builder)
+
+## 🎯 Use Cases
+
+- **Edge Computing**: Distributed computing at network edge
+- **IoT Deployments**: Device management and orchestration
+- **Kubernetes Edge**: Lightweight Kubernetes workloads with K3s
+- **Development**: Container-native development environments
+
+## 📖 Documentation
+
+- **Getting Started**: See individual `os/README.md` for detailed instructions
+- **Workflows**: See `.github/workflows/README.md` for CI/CD documentation
+- **Configuration**: See `config-examples/` for ISO configuration examples
+
+## 🤝 Contributing
 
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
-4. Test thoroughly
+4. Add tests if applicable
 5. Submit a pull request
 
-## License
+For major changes, please open an issue first to discuss the proposed changes.
 
-This project is licensed under the terms specified in the [LICENSE](LICENSE) file.
+## 📚 References
 
-## Support
+- **Fedora bootc**: [bootc Project](https://github.com/containers/bootc)
+- **K3s**: [K3s Documentation](https://k3s.io/)
+- **OpenTelemetry**: [OpenTelemetry Documentation](https://opentelemetry.io/)
 
-For support and documentation:
+## 📄 License
 
-- **Fedora bootc**: [Fedora bootc Documentation](https://docs.fedoraproject.org/en-US/bootc/)
-- **bootc project**: [bootc-dev/bootc](https://github.com/bootc-dev/bootc)
-- **Issues**: Open an issue in this repository
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

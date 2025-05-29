@@ -1,0 +1,68 @@
+name: 'Security Scan'
+description: 'Run comprehensive security scans on container images'
+author: 'os-builder'
+branding:
+  icon: 'shield'
+  color: 'red'
+
+inputs:
+  image-ref:
+    description: 'Container image reference to scan'
+    required: true
+  severity:
+    description: 'Scan severity level'
+    required: false
+    default: 'CRITICAL,HIGH'
+  build-mode:
+    description: 'Build mode for artifact naming'
+    required: true
+  sha:
+    description: 'Git commit SHA'
+    required: true
+
+outputs:
+  sbom-artifact:
+    description: 'SBOM artifact name'
+    value: ${{ steps.scan.outputs.sbom_artifact }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Run security scans
+      id: scan
+      shell: bash
+      run: |
+        echo "🔍 Starting security scans for image: ${{ inputs.image-ref }}"
+        
+        # Set SBOM artifact name
+        SBOM_ARTIFACT="sbom-${{ inputs.build-mode }}-${{ inputs.sha }}"
+        echo "sbom_artifact=${SBOM_ARTIFACT}" >> $GITHUB_OUTPUT
+
+    - name: Run Trivy vulnerability scanner - Container Image
+      uses: aquasecurity/trivy-action@0.30.0
+      with:
+        image-ref: 'podman:${{ inputs.image-ref }}'
+        format: 'sarif'
+        output: 'trivy-image-results.sarif'
+        severity: ${{ inputs.severity }}
+        vuln-type: 'os,library'
+
+    - name: Run Trivy vulnerability scanner - Table output
+      uses: aquasecurity/trivy-action@0.30.0
+      with:
+        image-ref: 'podman:${{ inputs.image-ref }}'
+        format: 'table'
+        severity: ${{ inputs.severity }}
+
+    - name: Generate container image SBOM
+      uses: anchore/sbom-action@v0
+      with:
+        image: 'podman:${{ inputs.image-ref }}'
+        format: spdx-json
+        output-file: sbom.spdx.json
+
+    - name: Upload SBOM artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ steps.scan.outputs.sbom_artifact }}
+        path: sbom.spdx.json 
