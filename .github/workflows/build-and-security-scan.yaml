@@ -45,11 +45,19 @@ jobs:
       SemVer: ${{ steps.version.outputs.version }}
       BranchName: ${{ steps.version.outputs.branch }}
       Sha: ${{ steps.version.outputs.sha }}
+      RepositoryOwner: ${{ steps.repo.outputs.owner }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Get repository owner in lowercase
+        id: repo
+        run: |
+          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          echo "owner=${OWNER}" >> $GITHUB_OUTPUT
+          echo "Repository owner (lowercase): ${OWNER}"
 
       - name: Generate Version
         id: version
@@ -176,7 +184,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}
+          images: ${{ env.REGISTRY }}/${{ needs.gitversion.outputs.RepositoryOwner }}/${{ env.IMAGE_NAME }}
           tags: |
             type=ref,event=branch
             type=ref,event=pr
@@ -223,7 +231,7 @@ jobs:
           echo "microshift_version=${VERSION_TAG}" >> $GITHUB_OUTPUT
           
           # Check if pre-built MicroShift image exists
-          MICROSHIFT_IMAGE="${{ env.REGISTRY }}/${{ github.repository_owner }}/microshift-builder:${VERSION_TAG}"
+          MICROSHIFT_IMAGE="${{ env.REGISTRY }}/${{ needs.gitversion.outputs.RepositoryOwner }}/microshift-builder:${VERSION_TAG}"
           echo "microshift_image=${MICROSHIFT_IMAGE}" >> $GITHUB_OUTPUT
           
           echo "🔍 Checking for local pre-built MicroShift image..."
@@ -274,7 +282,7 @@ jobs:
             -f ${{ steps.build-strategy.outputs.containerfile }} \
             -t "$LOCAL_TAG" \
             --build-arg MICROSHIFT_VERSION=${{ steps.build-strategy.outputs.microshift_version }} \
-            --build-arg MICROSHIFT_IMAGE_BASE=${{ env.REGISTRY }}/${{ github.repository_owner }}/microshift-builder \
+            --build-arg MICROSHIFT_IMAGE_BASE=${{ env.REGISTRY }}/${{ needs.gitversion.outputs.RepositoryOwner }}/microshift-builder \
             .
           
           # Get image ID for scanning and testing
