@@ -108,7 +108,6 @@ COPY systemd/*.service /usr/lib/systemd/system/
 COPY systemd/k3s/ /usr/lib/systemd/system/
 COPY systemd/bootc-fetch-apply-updates.timer.d/ /usr/lib/systemd/system/bootc-fetch-apply-updates.timer.d/
 COPY scripts/ /usr/local/bin/
-COPY kickstart*.ks /
 
 # Final configuration and permissions
 RUN chmod +x /usr/local/bin/*.sh 2>/dev/null || true && \

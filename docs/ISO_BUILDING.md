@@ -1,70 +1,58 @@
 # ISO Building Guide
 
-This project includes automated ISO building capabilities that create bootable installation media from your container images with customizable user configurations.
+This project includes automated ISO building capabilities that create bootable installation media with an interactive installer for both K3s and MicroShift distributions.
 
 ## Overview
 
-The ISO building process creates bootable installation media with pre-configured settings:
+The ISO building process creates a single bootable installation medium with an interactive installer that allows users to choose their configuration during installation:
 
-- User accounts with SSH keys
-- Custom hostnames and DNS configuration
-- Different levels of automation vs interactivity
+- **Distribution Selection**: Choose between K3s (lightweight) or MicroShift (enterprise)
+- **User Account Creation**: Configure username and password during installation
+- **Partitioning Options**: Multiple filesystem layout choices
+- **Network Configuration**: Automatic hostname assignment based on distribution choice
 
-## Configuration Types
+## Interactive Installation Flow
 
-Four configuration options are available:
+When you boot the ISO, the installer guides you through:
 
-### 1. Minimal (`minimal-config.toml`)
+### 1. Distribution Selection
+```
+🚀 Kubernetes Distribution Selection
+Choose your Kubernetes distribution:
 
-Basic pre-configured setup for automated deployment:
+1) K3s (Recommended)
+   - Lightweight Kubernetes
+   - Fast startup, minimal resources
+   - Great for edge/IoT deployments
 
-```toml
-[[customizations.user]]
-name = "user"
-password = "changeme"  # IMPORTANT: Change this password!
-groups = ["wheel"]
+2) MicroShift
+   - OpenShift-based edge Kubernetes
+   - Enterprise features
+   - Red Hat ecosystem integration
 ```
 
-### 2. User (`user-config.toml`)
+### 2. User Account Setup
+- Interactive username creation with validation
+- Password setup with confirmation
+- Automatic addition to wheel group for sudo access
 
-Pre-configured users with network settings:
+### 3. Partitioning Options
+- **Simple Layout**: Single root partition (recommended)
+- **Advanced Layout**: Separate /home and /var partitions
+- **Developer Layout**: Separate /home, /var, /opt partitions
+- **Custom Layout**: Manual partitioning
 
-```toml
-[[customizations.user]]
-name = "admin"
-password = "secure-password"
-key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC..."
-groups = ["wheel", "sudo"]
+## Building the ISO
 
-[customizations.hostname]
-hostname = "fedora-edge-builder"
-
-[customizations.dns]
-nameservers = ["8.8.8.8", "8.8.4.4"]
+### Single Command
+```bash
+# Build interactive ISO for both K3s and MicroShift
+make build-iso
 ```
 
-### 3. Advanced (`advanced-config.toml`)
+This creates a single ISO that supports both distributions, with the user choosing during installation.
 
-Guided installation with basic prompts:
-
-```toml
-[customizations.installer.kickstart]
-path = "/kickstart.ks"
-```
-
-### 4. Interactive (`interactive-config.toml`)
-
-Fully interactive installation wizard:
-
-```toml
-[customizations.installer.kickstart]
-path = "/kickstart-interactive.ks"
-```
-
-## Building ISOs
-
-### Via GitHub Actions (Recommended)
-
+### Via GitHub Actions (Automated)
 ISOs are automatically built when:
 - Code is pushed to main branch
 - Pull requests are merged
@@ -72,101 +60,78 @@ ISOs are automatically built when:
 
 Download ISOs from GitHub Actions artifacts.
 
-### Local Building
+## What Happens During Installation
 
+1. **Base Installation**: Installs Fedora bootc base system
+2. **User Configuration**: Creates user account with chosen credentials
+3. **Distribution Setup**: Based on user choice:
+   - **K3s**: Switches to `ghcr.io/ramaedge/os-builder:latest`
+   - **MicroShift**: Switches to `ghcr.io/ramaedge/os-builder:microshift-latest`
+4. **System Configuration**: 
+   - Sets appropriate hostname (`fedora-k3s` or `fedora-microshift`)
+   - Configures services and security
+   - Creates welcome message with distribution-specific instructions
+
+## Advanced Options
+
+### Custom Container Image
+You can specify a custom container image via kernel parameter:
 ```bash
-# Build all ISO types
-make build-iso-minimal
-make build-iso-user
-make build-iso-advanced
-make build-iso-interactive
-
-# Or build specific type
-make build-iso-[type]
+# At boot, press 'e' to edit grub and add:
+bootc.image=your.registry.com/your-image:tag
 ```
 
-## Customizing Configuration
+### Security Features
+- SELinux enforcing mode
+- Firewall enabled with SSH access
+- Root account locked (sudo-only access)
+- Hardened file permissions
+- Secure kernel parameters
 
-To create your own ISO:
+## Using the ISO
 
-1. Copy an example configuration file from `config-examples/`
-2. Edit user accounts, passwords, and SSH keys
-3. Modify hostname and DNS settings
-4. Build the ISO with your configuration
+Once built, the ISO can be:
 
-### Example User Configuration
+1. **Downloaded** from GitHub Actions artifacts
+2. **Written to USB drives** for bare metal installation:
+   ```bash
+   dd if=install.iso of=/dev/sdX bs=4M status=progress
+   ```
+3. **Used in virtual machines** (VMware, VirtualBox, KVM)
+4. **Deployed via PXE boot** for network installation
 
-```toml
-[[customizations.user]]
-name = "your-username"
-password = "your-secure-password"
-key = "ssh-rsa AAAAB3..."  # Your SSH public key
-groups = ["wheel", "sudo"]
-```
+## Post-Installation
 
-### Example Network Configuration
+After installation, the system provides:
 
-```toml
-[customizations.hostname]
-hostname = "your-hostname"
+### K3s Distribution
+- Service: `systemctl status k3s`
+- Kubeconfig: `/etc/rancher/k3s/k3s.yaml`
+- Start K3s: `sudo systemctl enable --now k3s`
 
-[customizations.dns]
-nameservers = ["8.8.8.8", "1.1.1.1"]
-search_domains = ["your.domain"]
-```
-
-## Interactive Installation Features
-
-The interactive ISO provides a guided installation with:
-
-- **User Account Setup**: Username, password, SSH key configuration
-- **Network Configuration**: DHCP, static IP, or manual setup
-- **Filesystem Options**: 
-  - Simple: Single root partition (20GB minimum)
-  - Standard: Root + home partitions (30GB minimum)
-  - Advanced: Multiple partitions (50GB+ minimum)
-  - Custom: Manual partitioning
-- **Configuration Review**: Confirm all settings before installation
-
-## Security Best Practices
-
-1. **Change Default Passwords**: Always change default passwords in configuration files
-2. **Use SSH Keys**: Prefer SSH key authentication over passwords
-3. **Secure Storage**: Keep configuration files with secrets secure
-4. **Review Configs**: Always review configuration files before building
-
-## Using the ISOs
-
-Once built, ISOs can be:
-
-1. Downloaded from GitHub Actions artifacts
-2. Written to USB drives for bare metal installation
-3. Used in virtual machines
-4. Deployed via PXE boot
-
-### Pre-configured ISOs (minimal, user)
-
-- Unattended installation
-- Automatically creates configured user accounts
-- Sets hostname and DNS from configuration
-
-### Interactive ISOs (advanced, interactive)
-
-- Boot to installation wizard
-- Configure users, network, and filesystem interactively
-- Review settings before installation
+### MicroShift Distribution  
+- Service: `systemctl status microshift`
+- Kubeconfig: `/var/lib/microshift/resources/kubeadmin/kubeconfig`
+- Start MicroShift: `sudo systemctl enable --now microshift`
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **Build Failures**: Check TOML syntax in configuration files
-2. **SSH Access**: Verify SSH public keys are correctly formatted
-3. **User Permissions**: Ensure users are added to appropriate groups
-4. **Network Issues**: Validate IP addresses and DNS settings
+1. **Boot Issues**: Verify ISO integrity and boot media
+2. **Network Problems**: Check DHCP availability during installation
+3. **Container Pull Failures**: Ensure internet connectivity for bootc switch
+4. **Permission Issues**: Default user is added to wheel group for sudo
 
 ### Getting Help
 
 - Check GitHub Actions logs for build errors
-- Validate TOML files before building
-- Test configurations in virtual machines first
+- Test ISOs in virtual machines first
+- Review installation logs in `/var/log/anaconda/`
+
+## Technical Details
+
+- **Base Image**: `quay.io/fedora/fedora-bootc:42`
+- **Kickstart File**: `os/kickstart.ks` (unified for both distributions)
+- **Builder**: `quay.io/centos-bootc/bootc-image-builder:latest`
+- **Installation Method**: Interactive kickstart with bootc switch

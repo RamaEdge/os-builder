@@ -8,7 +8,7 @@ IMAGE_TAG ?= $(shell \
 	else \
 		echo "latest"; \
 	fi)
-CONTAINERFILE ?= Containerfile.k3s
+CONTAINERFILE ?= os/Containerfile.k3s
 REGISTRY ?= localhost
 
 # MicroShift specific configuration
@@ -27,8 +27,74 @@ else
 	CONTAINER_STORAGE_PATH = /var/lib/containers/storage
 endif
 
+# Function to select container runtime interactively
+select-runtime:
+	@echo "🔧 Container Runtime Selection"
+	@echo "=============================="
+	@echo ""
+	@echo "Available container runtimes:"
+	@available_runtimes=""; \
+	runtime_count=0; \
+	if command -v docker >/dev/null 2>&1; then \
+		echo "  1) Docker $(shell docker --version 2>/dev/null | cut -d' ' -f3 | tr -d ',')"; \
+		available_runtimes="$$available_runtimes docker"; \
+		runtime_count=$$((runtime_count + 1)); \
+	fi; \
+	if command -v podman >/dev/null 2>&1; then \
+		echo "  2) Podman $(shell podman --version 2>/dev/null | cut -d' ' -f3)"; \
+		available_runtimes="$$available_runtimes podman"; \
+		runtime_count=$$((runtime_count + 1)); \
+	fi; \
+	echo ""; \
+	if [ $$runtime_count -eq 0 ]; then \
+		echo "❌ No container runtimes found!"; \
+		echo "Run 'make install-deps' to install a container runtime."; \
+		exit 1; \
+	elif [ $$runtime_count -eq 1 ]; then \
+		selected_runtime=$$(echo $$available_runtimes | tr ' ' '\n' | head -1); \
+		echo "✅ Only $$selected_runtime available, using it automatically."; \
+		echo "CONTAINER_RUNTIME=$$selected_runtime" > .runtime_choice; \
+	else \
+		echo "Default for $(UNAME_S): $(CONTAINER_RUNTIME)"; \
+		echo ""; \
+		echo "Choose your container runtime:"; \
+		if command -v docker >/dev/null 2>&1; then \
+			echo "  1) Docker"; \
+		fi; \
+		if command -v podman >/dev/null 2>&1; then \
+			echo "  2) Podman"; \
+		fi; \
+		echo "  3) Use default ($(CONTAINER_RUNTIME))"; \
+		echo ""; \
+		read -p "Enter choice [1-3]: " choice; \
+		case $$choice in \
+			1) if command -v docker >/dev/null 2>&1; then \
+				echo "CONTAINER_RUNTIME=docker" > .runtime_choice; \
+				echo "✅ Selected: Docker"; \
+			else \
+				echo "❌ Docker not available"; exit 1; \
+			fi ;; \
+			2) if command -v podman >/dev/null 2>&1; then \
+				echo "CONTAINER_RUNTIME=podman" > .runtime_choice; \
+				echo "✅ Selected: Podman"; \
+			else \
+				echo "❌ Podman not available"; exit 1; \
+			fi ;; \
+			3) echo "CONTAINER_RUNTIME=$(CONTAINER_RUNTIME)" > .runtime_choice; \
+				echo "✅ Using default: $(CONTAINER_RUNTIME)" ;; \
+			*) echo "❌ Invalid choice"; exit 1 ;; \
+		esac; \
+	fi; \
+	echo ""; \
+	echo "🎯 Runtime choice saved to .runtime_choice"
+	@echo "   Use 'make build-with-runtime' to build with selected runtime"
+	@echo "   Or continue using 'make build' with current default"
+
+# Load runtime choice if available
+-include .runtime_choice
+
 # Build targets
-.PHONY: help build build-microshift clean test test-observability push pull lint install-deps disk-image info check-runtime build-iso create-custom-iso version
+.PHONY: help build build-microshift clean test test-observability push pull lint install-deps disk-image info check-runtime build-iso create-custom-iso build-iso-bootc-k3s build-iso-bootc-microshift version select-runtime build-with-runtime build-microshift-with-runtime
 
 # Default target
 help:
@@ -47,11 +113,14 @@ help:
 	@echo "  disk-image    - Convert to disk image (requires podman on macOS)"
 	@echo "  info          - Show image information"
 	@echo "  check-runtime - Check container runtime availability"
-	@echo "  build-iso     - Build ISO with custom config (CONFIG_FILE=...)"
-	@echo "  build-iso-*   - Build ISO with predefined config (minimal, user, advanced, interactive)"
-	@echo "  create-custom-iso - Interactive script to create custom ISO config"
+	@echo "  build-iso     - Build interactive ISO (user selects K3s or MicroShift during install)"
 	@echo "  version       - Show version information"
+	@echo "  select-runtime - Select container runtime interactively"
 	@echo ""
+	@echo "🔧 Interactive Runtime Selection:"
+	@echo "  select-runtime           - Choose Docker or Podman interactively"
+	@echo "  build-with-runtime       - Build K3s with selected runtime"
+	@echo "  build-microshift-with-runtime - Build MicroShift with selected runtime"
 ifeq ($(UNAME_S),Darwin)
 	@echo "⚠️  macOS Users:"
 	@echo "  For disk-image and build-iso, install podman: brew install podman"
@@ -74,9 +143,13 @@ endif
 	@echo "  make build-microshift         # Build MicroShift image with pre-built binaries"
 	@echo "  make build IMAGE_TAG=v1.0.0"
 	@echo "  make test"
-	@echo "  make build-iso-user"
-	@echo "  make build-iso-interactive"
-	@echo "  make build-iso CONFIG_FILE=config-examples/minimal-config.toml"
+	@echo "  make build-iso                # Interactive ISO - user chooses K3s or MicroShift during install"
+	@echo ""
+	@echo "🔧 Interactive Runtime Selection Examples:"
+	@echo "  make select-runtime && make build-with-runtime"
+	@echo "  make select-runtime         # Choose runtime once"
+	@echo "  make build-with-runtime     # Build K3s with chosen runtime"
+	@echo "  make build-microshift-with-runtime  # Build MicroShift with chosen runtime"
 
 # Check container runtime availability
 check-runtime:
@@ -94,8 +167,8 @@ check-runtime:
 build: check-runtime
 	@echo "Building Fedora bootc container image (K3s default)..."
 	@echo "Using container runtime: $(CONTAINER_RUNTIME)"
-	@chmod +x build.sh
-	@CONTAINER_RUNTIME=$(CONTAINER_RUNTIME) IMAGE_NAME=$(IMAGE_NAME) IMAGE_TAG=$(IMAGE_TAG) CONTAINERFILE=$(CONTAINERFILE) ./build.sh
+	@chmod +x os/build.sh
+	@cd os && CONTAINER_RUNTIME=$(CONTAINER_RUNTIME) IMAGE_NAME=$(IMAGE_NAME) IMAGE_TAG=$(IMAGE_TAG) CONTAINERFILE=$(notdir $(CONTAINERFILE)) ./build.sh
 
 # Build MicroShift image with pre-built binaries
 build-microshift: check-runtime
@@ -103,8 +176,8 @@ build-microshift: check-runtime
 	@echo "Using container runtime: $(CONTAINER_RUNTIME)"
 	@echo "MicroShift version: $(MICROSHIFT_VERSION)"
 	@echo "Using pre-built binaries from: ghcr.io/ramaedge/microshift-builder:$(MICROSHIFT_VERSION)"
-	@chmod +x build.sh
-	@CONTAINER_RUNTIME=$(CONTAINER_RUNTIME) IMAGE_NAME=$(IMAGE_NAME) IMAGE_TAG=$(IMAGE_TAG) CONTAINERFILE=Containerfile.fedora.optimized MICROSHIFT_VERSION=$(MICROSHIFT_VERSION) ./build.sh
+	@chmod +x os/build.sh
+	@cd os && CONTAINER_RUNTIME=$(CONTAINER_RUNTIME) IMAGE_NAME=$(IMAGE_NAME) IMAGE_TAG=$(IMAGE_TAG) CONTAINERFILE=Containerfile.fedora.optimized MICROSHIFT_VERSION=$(MICROSHIFT_VERSION) ./build.sh
 
 # Clean up images and containers
 clean:
@@ -245,53 +318,6 @@ else
 	@$(CONTAINER_RUNTIME) images $(IMAGE_NAME):$(IMAGE_TAG) --format "table {{.Repository}}\t{{.Tag}}\t{{.ID}}\t{{.Created}}\t{{.Size}}" || echo "Image not found"
 endif
 
-# Build ISO image with user configuration
-build-iso: check-runtime
-	@echo "Building ISO image with bootc-image-builder..."
-	@echo "🏗️  Using configuration: $(CONFIG_FILE)"
-	@if [ ! -f "$(CONFIG_FILE)" ]; then \
-		echo "❌ Configuration file not found: $(CONFIG_FILE)"; \
-		echo "📝 Available configurations:"; \
-		ls -la config-examples/*.toml 2>/dev/null || echo "   No config examples found"; \
-		echo "💡 Usage: make build-iso CONFIG_FILE=config-examples/user-config.toml"; \
-		exit 1; \
-	fi
-	@mkdir -p $(PWD)/iso-output
-	$(CONTAINER_RUNTIME) pull quay.io/centos-bootc/bootc-image-builder:latest
-	$(CONTAINER_RUNTIME) run --rm --privileged \
-		--security-opt label=type:unconfined_t \
-		-v $(PWD)/iso-output:/output \
-		-v $(PWD)/$(CONFIG_FILE):/config.toml:ro \
-		quay.io/centos-bootc/bootc-image-builder:latest \
-		--type iso \
-		--config /config.toml \
-		$(IMAGE_NAME):$(IMAGE_TAG)
-	@echo "✅ ISO build completed!"
-	@echo "📁 Output directory: $(PWD)/iso-output"
-	@if [ -f "$(PWD)/iso-output/anaconda-iso/install.iso" ]; then \
-		ISO_SIZE=$$(du -h "$(PWD)/iso-output/anaconda-iso/install.iso" | cut -f1); \
-		echo "💿 ISO file: $(PWD)/iso-output/anaconda-iso/install.iso ($$ISO_SIZE)"; \
-	else \
-		echo "🔍 ISO files available:"; \
-		find $(PWD)/iso-output -name "*.iso" -exec ls -lh {} \; 2>/dev/null || echo "   No ISO files found"; \
-	fi
-
-# Build ISO with predefined configurations
-build-iso-%:
-	@if [ ! -f "config-examples/$*-config.toml" ]; then \
-		echo "❌ Configuration not found: config-examples/$*-config.toml"; \
-		echo "📝 Available configurations:"; \
-		ls -1 config-examples/*.toml 2>/dev/null | sed 's|config-examples/||; s|-config\.toml||' | sed 's/^/  /' || echo "   No config examples found"; \
-		exit 1; \
-	fi
-	$(MAKE) build-iso CONFIG_FILE=config-examples/$*-config.toml
-
-# Create custom ISO configuration interactively
-create-custom-iso:
-	@echo "🚀 Creating custom ISO configuration..."
-	@chmod +x scripts/create-custom-iso.sh
-	@./scripts/create-custom-iso.sh
-
 # Show version information
 version:
 	@echo "📋 Version Information"
@@ -314,4 +340,40 @@ version:
 	@echo "Build Environment:"
 	@echo "  OS:            $(UNAME_S)"
 	@echo "  Architecture:  $(UNAME_M)"
-	@echo "  Runtime:       $(CONTAINER_RUNTIME)" 
+	@echo "  Runtime:       $(CONTAINER_RUNTIME)"
+
+# Build interactive ISO with unified kickstart (user chooses K3s or MicroShift during install)
+build-iso: check-runtime
+	@echo "Building interactive ISO with unified kickstart..."
+	@echo "🎯 User will choose between K3s and MicroShift during installation"
+	@mkdir -p $(PWD)/iso-output
+	$(CONTAINER_RUNTIME) pull quay.io/centos-bootc/bootc-image-builder:latest
+	$(CONTAINER_RUNTIME) run --rm --privileged \
+		--security-opt label=type:unconfined_t \
+		-v $(PWD)/iso-output:/output \
+		-v $(PWD)/os/kickstart.ks:/kickstart.ks:ro \
+		quay.io/centos-bootc/bootc-image-builder:latest \
+		--type iso \
+		--kickstart-path /kickstart.ks \
+		quay.io/fedora/fedora-bootc:42
+	@echo "✅ Interactive ISO build completed!"
+	@echo "📁 Output directory: $(PWD)/iso-output"
+	@echo "🎯 During installation, user will choose:"
+	@echo "   - K3s: ghcr.io/ramaedge/os-builder:latest"
+	@echo "   - MicroShift: ghcr.io/ramaedge/os-builder:microshift-latest"
+
+# Build targets with selected runtime
+build-with-runtime: check-runtime
+	@echo "Building Fedora bootc container image with selected runtime..."
+	@echo "Using container runtime: $(CONTAINER_RUNTIME)"
+	@chmod +x os/build.sh
+	@cd os && CONTAINER_RUNTIME=$(CONTAINER_RUNTIME) IMAGE_NAME=$(IMAGE_NAME) IMAGE_TAG=$(IMAGE_TAG) CONTAINERFILE=$(notdir $(CONTAINERFILE)) ./build.sh
+
+# Build MicroShift image with pre-built binaries with selected runtime
+build-microshift-with-runtime: check-runtime
+	@echo "Building Fedora bootc container image (MicroShift with pre-built binaries) with selected runtime..."
+	@echo "Using container runtime: $(CONTAINER_RUNTIME)"
+	@echo "MicroShift version: $(MICROSHIFT_VERSION)"
+	@echo "Using pre-built binaries from: ghcr.io/ramaedge/microshift-builder:$(MICROSHIFT_VERSION)"
+	@chmod +x os/build.sh
+	@cd os && CONTAINER_RUNTIME=$(CONTAINER_RUNTIME) IMAGE_NAME=$(IMAGE_NAME) IMAGE_TAG=$(IMAGE_TAG) CONTAINERFILE=Containerfile.fedora.optimized MICROSHIFT_VERSION=$(MICROSHIFT_VERSION) ./build.sh 

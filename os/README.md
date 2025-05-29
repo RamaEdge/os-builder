@@ -38,10 +38,12 @@ os/
 │   └── observability-stack.yaml    # Kubernetes observability manifests
 ├── scripts/
 │   ├── edge-setup.sh               # Edge-specific setup script
-│   └── create-custom-iso.sh        # Interactive ISO configuration creator
 ├── systemd/                        # Systemd service files
-├── config-examples/                # ISO configuration examples
-├── kickstart*.ks                   # Interactive installation Kickstart files
+├── examples/                       # Configuration examples and test scripts
+│   ├── cloud-init.yaml            # Post-installation configuration (K3s/MicroShift)
+│   ├── test-observability.sh      # Observability stack validator
+│   └── README.md                   # Examples documentation
+├── kickstart.ks                   # Interactive installation Kickstart file
 └── README.md                       # This file
 ```
 
@@ -52,42 +54,14 @@ os/
 - Container runtime: Docker (macOS) or Podman (Linux)
 - At least 4GB free disk space
 
-### Building Images
-
-#### K3s Edge OS
+### Quick Build Examples
 
 ```bash
-# Show available targets
-make help
-
-# Build K3s image (default)
-make build
-
-# Test the image
-make test
-
-# Clean up
-make clean
-```
-
-#### Using the Build Script
-
-```bash
-# Make the script executable
-chmod +x build.sh
-
-# Build K3s (default)
-./build.sh
-
-# Build with custom settings
-IMAGE_NAME=my-registry/edge-os IMAGE_TAG=v1.0.0 ./build.sh
-```
-
-#### Manual Build
-
-```bash
-# K3s build
-podman build -t localhost/fedora-edge-os:latest -f Containerfile.k3s .
+# From repository root
+make build                    # K3s build
+make build-microshift         # MicroShift build  
+make test                     # Test built image
+make build-iso-interactive    # Create bootable ISO
 ```
 
 ## Configuration
@@ -119,6 +93,40 @@ podman build -t localhost/fedora-edge-os:latest -f Containerfile.k3s .
 - Home: `/home/fedora`
 - Shell: `/bin/bash`
 - Password: Disabled (SSH key authentication only)
+
+## Examples and Templates
+
+The [`examples/`](examples/) directory contains ready-to-use configuration templates and testing scripts:
+
+### 📋 Available Examples
+
+- **`cloud-init.yaml`**: Post-installation system configuration
+  - Works with both K3s and MicroShift
+  - Automatic kubeconfig setup based on detected distribution
+  - Pre-configured aliases and helpful commands
+  - SSH key management and user setup
+
+- **`test-observability.sh`**: Comprehensive observability stack validator
+  - Auto-detects K3s or MicroShift distributions
+  - Tests all observability endpoints and services
+  - Provides troubleshooting guidance
+  - Colored output for easy reading
+
+### 🚀 Quick Usage
+
+```bash
+# Test your observability stack
+cd os/examples
+chmod +x test-observability.sh
+./test-observability.sh
+
+# Use cloud-init for post-installation setup
+cp examples/cloud-init.yaml my-config.yaml
+# Edit my-config.yaml with your settings
+# Deploy with ISO using cloud-init URL
+```
+
+See [`examples/README.md`](examples/README.md) for detailed usage instructions and customization guide.
 
 ## Deployment
 
@@ -282,3 +290,7 @@ For issues related to:
 - **Fedora bootc**: Visit [Fedora bootc documentation](https://docs.fedoraproject.org/en-US/bootc/)
 - **K3s**: Visit [K3s Documentation](https://docs.k3s.io/)
 - **This configuration**: Open an issue in this repository
+
+## 🔧 Build Process
+
+The build process uses a **Makefile** (located at the repository root) that provides multiple targets for different build scenarios.

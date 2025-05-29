@@ -1,6 +1,7 @@
 #!/bin/bash
 # Test script for OpenTelemetry observability stack
 # This script validates that all components are working correctly
+# Works with both K3s and MicroShift distributions
 
 set -euo pipefail
 
@@ -11,7 +12,25 @@ echo "============================================="
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
 NC='\033[0m' # No Color
+
+# Detect Kubernetes distribution
+DISTRO="unknown"
+K8S_SERVICE=""
+if systemctl is-active --quiet k3s; then
+    DISTRO="k3s"
+    K8S_SERVICE="k3s"
+    echo -e "${BLUE}📦 Detected distribution: K3s${NC}"
+elif systemctl is-active --quiet microshift; then
+    DISTRO="microshift"
+    K8S_SERVICE="microshift"
+    echo -e "${BLUE}📦 Detected distribution: MicroShift${NC}"
+else
+    echo -e "${YELLOW}⚠️  No Kubernetes distribution detected${NC}"
+fi
+
+echo ""
 
 # Function to check service status
 check_service() {
@@ -51,7 +70,8 @@ check_k8s_resource() {
     
     echo -n "Checking $description... "
     if kubectl get $resource -n $namespace &>/dev/null; then
-        if kubectl get $resource -n $namespace -o jsonpath='{.status.readyReplicas}' | grep -q "1"; then
+        local ready_replicas=$(kubectl get $resource -n $namespace -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo "0")
+        if [[ "$ready_replicas" =~ ^[0-9]+$ ]] && [ "$ready_replicas" -gt 0 ]; then
             echo -e "${GREEN}✓ Ready${NC}"
             return 0
         else
@@ -64,11 +84,15 @@ check_k8s_resource() {
     fi
 }
 
-echo ""
 echo "🖥️  Host-level Services"
 echo "----------------------"
-check_service "otel-collector" "OpenTelemetry Collector"
-check_service "microshift" "MicroShift"
+check_service "otelcol" "OpenTelemetry Collector"
+
+if [ "$DISTRO" != "unknown" ]; then
+    check_service "$K8S_SERVICE" "$DISTRO"
+else
+    echo -e "${YELLOW}Skipping Kubernetes service check${NC}"
+fi
 
 echo ""
 echo "🌐 Network Endpoints"
@@ -82,10 +106,16 @@ echo ""
 echo "☸️  Kubernetes Resources"
 echo "-----------------------"
 if kubectl get nodes &>/dev/null; then
-    echo -e "MicroShift cluster: ${GREEN}✓ Active${NC}"
+    echo -e "$DISTRO cluster: ${GREEN}✓ Active${NC}"
     
-    check_k8s_resource "deployment/otel-collector" "observability" "OTel Collector deployment"
-    check_k8s_resource "deployment/jaeger" "observability" "Jaeger deployment"
+    # Check if observability namespace exists
+    if kubectl get namespace observability &>/dev/null; then
+        check_k8s_resource "deployment/otel-collector" "observability" "OTel Collector deployment"
+        check_k8s_resource "deployment/jaeger" "observability" "Jaeger deployment"
+    else
+        echo -e "${YELLOW}Observability namespace not found - checking default namespace${NC}"
+        kubectl get deployments --all-namespaces | grep -E "(otel|jaeger)" || echo -e "${YELLOW}No observability deployments found${NC}"
+    fi
     
     echo ""
     echo "🔗 Cluster Endpoints"
@@ -95,7 +125,8 @@ if kubectl get nodes &>/dev/null; then
     check_endpoint "http://localhost:30686" "Jaeger UI"
     
 else
-    echo -e "MicroShift cluster: ${RED}✗ Not available${NC}"
+    echo -e "$DISTRO cluster: ${RED}✗ Not available${NC}"
+    echo -e "${YELLOW}Make sure kubectl is configured and cluster is running${NC}"
 fi
 
 echo ""
@@ -105,7 +136,7 @@ echo "Fetching sample metrics..."
 
 # Test host metrics
 echo -n "Host CPU metrics: "
-if curl -s http://localhost:9090/metrics | grep -q "system_cpu_utilization"; then
+if curl -s http://localhost:9090/metrics | grep -q "system_cpu_utilization\|cpu_usage"; then
     echo -e "${GREEN}✓ Available${NC}"
 else
     echo -e "${RED}✗ Not found${NC}"
@@ -114,23 +145,41 @@ fi
 # Test cluster metrics (if available)
 if curl -s --max-time 5 http://localhost:30464/metrics &>/dev/null; then
     echo -n "Cluster metrics: "
-    if curl -s http://localhost:30464/metrics | grep -q "up"; then
+    if curl -s http://localhost:30464/metrics | grep -q "up\|otelcol"; then
         echo -e "${GREEN}✓ Available${NC}"
     else
         echo -e "${RED}✗ Not found${NC}"
     fi
+else
+    echo -e "${YELLOW}Cluster metrics endpoint not accessible${NC}"
 fi
 
 echo ""
 echo "🎯 Summary"
 echo "----------"
-echo "Test completed! Check the results above."
+echo -e "Test completed for ${BLUE}$DISTRO${NC} distribution!"
 echo ""
 echo "Quick access commands:"
 echo "- View Jaeger UI: firefox http://localhost:30686"
-echo "- Check OTel logs: sudo journalctl -u otel-collector -f"
-echo "- Monitor cluster: kubectl get pods -n observability -w"
+echo "- Check OTel logs: sudo journalctl -u otelcol -f"
+
+if [ "$DISTRO" == "k3s" ]; then
+    echo "- Monitor cluster: kubectl get pods -A -w"
+    echo "- K3s logs: sudo journalctl -u k3s -f"
+    echo "- K3s status: sudo systemctl status k3s"
+elif [ "$DISTRO" == "microshift" ]; then
+    echo "- Monitor cluster: kubectl get pods -n observability -w"
+    echo "- MicroShift logs: sudo journalctl -u microshift -f"
+    echo "- MicroShift status: sudo systemctl status microshift"
+fi
+
 echo ""
 echo "For detailed troubleshooting, run:"
-echo "  kubectl describe pods -n observability"
-echo "  sudo systemctl status otel-collector" 
+if kubectl get nodes &>/dev/null; then
+    echo "  kubectl get pods --all-namespaces"
+    echo "  kubectl describe pods -n observability"
+fi
+echo "  sudo systemctl status otelcol"
+if [ "$DISTRO" != "unknown" ]; then
+    echo "  sudo systemctl status $K8S_SERVICE"
+fi 

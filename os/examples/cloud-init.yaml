@@ -1,13 +1,14 @@
 #cloud-config
 # Example cloud-init configuration for Fedora bootc edge OS deployment
-# This file configures the system on first boot
+# This file configures the system on first boot for both K3s and MicroShift
 
-# Set hostname
+# Set hostname (can be customized)
 hostname: fedora-edge-001
 
-# Configure users
+# Configure users (adjust username to match your installation)
+# Note: Replace 'edgeuser' with the username you created during installation
 users:
-  - name: fedora
+  - name: edgeuser  # Change this to match your kickstart username
     groups: wheel
     shell: /bin/bash
     sudo: ALL=(ALL) NOPASSWD:ALL
@@ -49,16 +50,56 @@ write_files:
       - sudo bootc status        # Check current image
       - sudo bootc upgrade       # Update OS
       - podman ps               # List containers
-      - kubectl get nodes         # Check Kubernetes node
-      - kubectl get pods -A       # List all pods
-      - observability             # Check observability stack
-      - jaeger                    # Open Jaeger UI
-      - metrics                   # View metrics endpoint
+      
+      Kubernetes commands (K3s):
+      - kubectl get nodes       # Check K3s node status
+      - kubectl get pods -A     # List all pods
+      - sudo systemctl status k3s
+      
+      Kubernetes commands (MicroShift):
+      - kubectl get nodes       # Check MicroShift node status  
+      - kubectl get pods -A     # List all pods
+      - sudo systemctl status microshift
+      
+      Observability:
+      - observability           # Check observability stack
+      - jaeger                  # Open Jaeger UI
+      - metrics                 # View metrics endpoint
       
     permissions: '0644'
     owner: root:root
 
-  - path: /home/fedora/.bashrc_extra
+  - path: /usr/local/bin/setup-kubeconfig
+    content: |
+      #!/bin/bash
+      # Setup kubeconfig for the current user based on the distribution
+      
+      USERNAME=$(whoami)
+      
+      # Detect which Kubernetes distribution is running
+      if systemctl is-active --quiet k3s; then
+          echo "Setting up kubeconfig for K3s..."
+          mkdir -p /home/$USERNAME/.kube
+          sudo cp /etc/rancher/k3s/k3s.yaml /home/$USERNAME/.kube/config
+          sudo chown $USERNAME:$USERNAME /home/$USERNAME/.kube/config
+          echo "export KUBECONFIG=/home/$USERNAME/.kube/config" >> /home/$USERNAME/.bashrc
+          echo "K3s kubeconfig configured for user $USERNAME"
+      elif systemctl is-active --quiet microshift; then
+          echo "Setting up kubeconfig for MicroShift..."
+          mkdir -p /home/$USERNAME/.kube
+          sudo cp /var/lib/microshift/resources/kubeadmin/kubeconfig /home/$USERNAME/.kube/config
+          sudo chown $USERNAME:$USERNAME /home/$USERNAME/.kube/config
+          echo "export KUBECONFIG=/home/$USERNAME/.kube/config" >> /home/$USERNAME/.bashrc
+          echo "MicroShift kubeconfig configured for user $USERNAME"
+      else
+          echo "No Kubernetes distribution detected"
+          exit 1
+      fi
+      
+    permissions: '0755'
+    owner: root:root
+
+  - path: /home/edgeuser/.bashrc_extra
     content: |
       # Additional bash configuration for edge deployment
       alias ll='ls -alF'
@@ -70,6 +111,10 @@ write_files:
       alias kget='kubectl get'
       alias klog='kubectl logs'
       
+      # Distribution-agnostic aliases
+      alias kubectlstatus='kubectl get nodes && kubectl get pods -A'
+      alias kstatus='kubectlstatus'
+      
       # OpenTelemetry and observability aliases
       alias otelstatus='systemctl status otelcol'
       alias otelrestart='sudo systemctl restart otelcol'
@@ -77,41 +122,53 @@ write_files:
       alias metrics='echo "Metrics: http://localhost:30464/metrics"'
       alias observability='kubectl get pods -n observability'
       
+      # Distribution detection
+      alias distro='if systemctl is-active --quiet k3s; then echo "K3s"; elif systemctl is-active --quiet microshift; then echo "MicroShift"; else echo "Unknown"; fi'
+      
       # Set helpful environment variables
       export EDITOR=vim
       export HISTSIZE=1000
       export HISTFILESIZE=2000
-      export KUBECONFIG=/home/fedora/.kube/config
+      
+      # Note: KUBECONFIG will be set by setup-kubeconfig script
       
     permissions: '0644'
-    owner: fedora:fedora
+    owner: edgeuser:edgeuser
     append: true
 
 # Run commands on first boot
 runcmd:
-  - echo "source ~/.bashrc_extra" >> /home/fedora/.bashrc
-  - chown fedora:fedora /home/fedora/.bashrc
+  - echo "source ~/.bashrc_extra" >> /home/edgeuser/.bashrc
+  - chown edgeuser:edgeuser /home/edgeuser/.bashrc
   - systemctl enable --now sshd
   - systemctl enable --now firewalld
   - firewall-cmd --permanent --add-service=ssh
   - firewall-cmd --reload
   - timedatectl set-ntp true
+  - /usr/local/bin/setup-kubeconfig || echo "Kubeconfig setup will run on first user login"
 
 # Final message
 final_message: |
   Fedora Edge OS (bootc) deployment completed!
   
-  Connect via SSH: ssh fedora@<this-machine-ip>
+  Connect via SSH: ssh edgeuser@<this-machine-ip>
   
   System configured with:
   - SSH key authentication
   - Firewall enabled
   - Container runtime ready
-  - MicroShift Kubernetes ready
+  - Kubernetes ready (K3s or MicroShift based on installation choice)
   - OpenTelemetry observability stack
   - Automatic updates enabled
+  
+  Next steps:
+  1. SSH into the system
+  2. Run 'distro' to check which Kubernetes distribution is active
+  3. Run 'kstatus' to check cluster status
   
   Observability endpoints:
   - Jaeger UI: http://<this-machine-ip>:30686
   - Metrics: http://<this-machine-ip>:30464/metrics
-  - Host metrics: http://<this-machine-ip>:9090/metrics 
+  - Host metrics: http://<this-machine-ip>:9090/metrics
+  
+  Note: Replace 'edgeuser' in this file with your actual username before use. 

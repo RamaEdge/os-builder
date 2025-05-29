@@ -68,40 +68,67 @@ os-builder/
 │   └── workflows/                 # CI/CD workflows
 │       ├── build-and-security-scan.yaml     # K3s workflow (automated)
 │       └── security-scan.yaml               # Security scanning
-├── config-examples/               # ISO configuration examples
 ├── scripts/                       # Build utilities
 └── README.md                      # This file
 ```
 
-## 🚀 Quick Start Guide
+## 🚀 Quick Start
 
-### Prerequisites
+### Option 1: Using Make (Recommended)
 
-- **Container Runtime**: Docker (macOS) or Podman (Linux) 
-- **Git**: For repository cloning
-- **Optional**: Git for version detection
+```bash
+# Clone the repository
+git clone https://github.com/ramaedge/os-builder.git
+cd os-builder
 
-### 🎯 K3s Edge OS (Recommended)
+# Build the default K3s image
+make build
 
-**Choose your build method:**
+# Or build the MicroShift image
+make build-microshift
 
-1. **Local Build (K3s):**
-   ```bash
-   cd os-builder/os
-   make build
-   ```
-
-2. **GitHub Actions (automated on push):**
-   - Push to repository
-   - Select "Build and Security Scan" workflow
-   - Download artifacts when complete
+# Test the image
+make test
+```
 
 ## 📋 Build Options
 
-| Feature | K3s Build (Default) | MicroShift Build | Build Time | Trigger | Use Case |
-|---------|---------------------|------------------|------------|---------|----------|
-| **Automation** | Fully automated | Manual dispatch | 8-12 min / 5-8 min | Auto on push / Manual | Production, CI/CD / Enterprise |
-| **Binary Source** | Downloaded during build | Pre-built from [microshift-builder](https://github.com/RamaEdge/microshift-builder) | - | - | Community / Enterprise |
+### 🎯 K3s (Default - Recommended)
+- **Best for**: Edge computing, IoT, development
+- **Size**: Smaller footprint
+- **Setup**: Zero-configuration clustering
+
+### 🏢 MicroShift (Enterprise)
+- **Best for**: Enterprise edge deployments
+- **Size**: Larger but more OpenShift features
+- **Setup**: Uses pre-built binaries from separate builder
+
+## 🛠️ Manual Build Options
+
+### Option 2: Direct Script Usage
+
+```bash
+cd os-builder
+chmod +x os/build.sh
+
+# Build K3s image
+cd os && ./build.sh
+
+# Build MicroShift image  
+cd os && CONTAINERFILE=Containerfile.fedora.optimized ./build.sh
+```
+
+### Option 3: Direct Container Commands
+
+```bash
+cd os-builder
+
+# K3s build
+podman build -f os/Containerfile.k3s -t localhost/fedora-edge-os:latest os/
+
+# MicroShift build
+podman build -f os/Containerfile.fedora.optimized -t localhost/fedora-edge-os:latest os/
+```
 
 ## 🛠️ Usage Examples
 
@@ -119,7 +146,7 @@ make build-microshift
 make test
 
 # Create ISO
-make build-iso-interactive
+make build-iso
 ```
 
 ### Production Deployment
@@ -187,7 +214,6 @@ make build CONTAINERFILE=Containerfile.custom
 
 - **Getting Started**: See individual `os/README.md` for detailed instructions
 - **Workflows**: See `.github/workflows/README.md` for CI/CD documentation
-- **Configuration**: See `config-examples/` for ISO configuration examples
 
 ## 🤝 Contributing
 
@@ -208,3 +234,31 @@ For major changes, please open an issue first to discuss the proposed changes.
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 💿 Bootc-Native ISO Deployment (Recommended)
+
+### Why bootc-embedded ISOs?
+
+Instead of converting container images to disk images, we embed **bootc container image references** directly in the kickstart files. This approach is:
+
+- **🚀 More Efficient**: Smaller ISOs (base Fedora + kickstart only)
+- **🔄 Always Updated**: Pulls latest container image during installation  
+- **🎯 Flexible**: Can specify different image versions via kernel parameters
+- **📦 bootc-Native**: Uses the intended bootc workflow
+
+### Quick ISO Creation
+
+```bash
+# Interactive ISO - user chooses K3s or MicroShift during installation
+make build-iso
+```
+
+### How it Works
+
+1. **ISO Creation**: Creates bootable ISO with Fedora bootc base + unified kickstart
+2. **User Choice**: During installation, user selects K3s or MicroShift distribution
+3. **Installation**: Kickstart runs `bootc switch` to selected container image:
+   - K3s: `ghcr.io/ramaedge/os-builder:latest`
+   - MicroShift: `ghcr.io/ramaedge/os-builder:microshift-latest`
+4. **First Boot**: System starts with chosen edge OS configuration
+5. **Updates**: Use `bootc upgrade` to update to newer container image versions

@@ -111,13 +111,13 @@ RUN mkdir -p /etc/containers/systemd \
 
 # Copy configuration files (optimized order for better caching)
 COPY configs/containers/ /etc/containers/
-COPY configs/microshift/ /etc/microshift/
 COPY configs/otelcol/ /etc/otelcol/
+COPY configs/microshift/ /etc/microshift/
 COPY manifests/ /etc/microshift/manifests/
 COPY systemd/*.service /usr/lib/systemd/system/
+COPY systemd/microshift/ /usr/lib/systemd/system/
 COPY systemd/bootc-fetch-apply-updates.timer.d/ /usr/lib/systemd/system/bootc-fetch-apply-updates.timer.d/
 COPY scripts/ /usr/local/bin/
-COPY kickstart*.ks /
 
 # Final configuration and permissions
 RUN chmod +x /usr/local/bin/*.sh 2>/dev/null || true && \
