@@ -1,4 +1,4 @@
-name: Security Scan
+name: 'Security Scan'
 
 on:
   push:
@@ -50,6 +50,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # Standardized Trivy scan using centralized .trivy.yaml configuration
+      # Skip-dirs and other settings are defined in .trivy.yaml to reduce duplication
       - name: Run Trivy vulnerability scanner - Filesystem
         uses: aquasecurity/trivy-action@0.30.0
         with:
@@ -58,7 +60,6 @@ jobs:
           format: 'sarif'
           output: 'trivy-fs-results.sarif'
           severity: ${{ github.event.inputs.scan_severity || 'CRITICAL,HIGH' }}
-          skip-dirs: '.git,.github/workflows'
           trivy-config: '.trivy.yaml'
 
       - name: Run Trivy vulnerability scanner - Filesystem (Table)
@@ -68,7 +69,6 @@ jobs:
           scan-ref: '.'
           format: 'table'
           severity: ${{ github.event.inputs.scan_severity || 'CRITICAL,HIGH' }}
-          skip-dirs: '.git,.github/workflows'
           trivy-config: '.trivy.yaml'
 
       - name: Upload Trivy scan results to GitHub Security tab
@@ -89,6 +89,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # Standardized Trivy config scan using centralized .trivy.yaml configuration
       - name: Run Trivy vulnerability scanner - Configuration files
         uses: aquasecurity/trivy-action@0.30.0
         with:
@@ -97,7 +98,6 @@ jobs:
           format: 'sarif'
           output: 'trivy-config-results.sarif'
           severity: ${{ github.event.inputs.scan_severity || 'CRITICAL,HIGH' }}
-          skip-dirs: '.git'
           trivy-config: '.trivy.yaml'
 
       - name: Run Trivy vulnerability scanner - Configuration files (Table)
@@ -107,7 +107,6 @@ jobs:
           scan-ref: '.'
           format: 'table'
           severity: ${{ github.event.inputs.scan_severity || 'CRITICAL,HIGH' }}
-          skip-dirs: '.git'
           trivy-config: '.trivy.yaml'
 
       - name: Upload Trivy scan results to GitHub Security tab
@@ -128,6 +127,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # Standardized Trivy secret scan using centralized .trivy.yaml configuration
+      # Note: scanners parameter overrides the config file scanner settings for this specific scan
       - name: Run Trivy secret scanner
         uses: aquasecurity/trivy-action@0.30.0
         with:
@@ -137,7 +138,7 @@ jobs:
           output: 'trivy-secret-results.sarif'
           scanners: 'secret'
           severity: ${{ github.event.inputs.scan_severity || 'CRITICAL,HIGH' }}
-          skip-dirs: '.git'
+          trivy-config: '.trivy.yaml'
 
       - name: Run Trivy secret scanner (Table)
         uses: aquasecurity/trivy-action@0.30.0
@@ -147,7 +148,7 @@ jobs:
           format: 'table'
           scanners: 'secret'
           severity: ${{ github.event.inputs.scan_severity || 'CRITICAL,HIGH' }}
-          skip-dirs: '.git'
+          trivy-config: '.trivy.yaml'
 
       - name: Upload Trivy secret scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v3

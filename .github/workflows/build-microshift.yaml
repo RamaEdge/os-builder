@@ -129,9 +129,9 @@ jobs:
         uses: ./.github/actions/security-scan
         with:
           image-ref: ${{ steps.build.outputs.image-ref }}
-          sbom-file: ${{ steps.build.outputs.sbom-file }}
-          scan-type: container
+          severity: 'CRITICAL,HIGH'
           build-mode: ${{ needs.determine-microshift-version.outputs.build-mode }}
+          sha: ${{ needs.calculate-version.outputs.sha }}
 
       - name: Test MicroShift Container Image
         run: |
