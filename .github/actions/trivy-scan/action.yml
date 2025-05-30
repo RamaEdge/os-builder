@@ -10,7 +10,7 @@ inputs:
     description: 'Type of scan to perform (fs, config, secret, image)'
     required: true
   scan-ref:
-    description: 'Scan target (filesystem path, image reference, etc.)'
+    description: 'Scan target (filesystem path, image reference, tar file path, etc.)'
     required: true
   output-format:
     description: 'Output format for scan results (sarif, table, json)'
@@ -23,9 +23,6 @@ inputs:
     description: 'Vulnerability severity levels to scan for'
     required: false
     default: 'CRITICAL,HIGH'
-  docker-host:
-    description: 'Docker/Podman socket for container scanning'
-    required: false
 
 outputs:
   results-file:
@@ -61,6 +58,13 @@ runs:
         
         echo "output_file=${OUTPUT_FILE}" >> $GITHUB_OUTPUT
         echo "Using output file: ${OUTPUT_FILE}"
+        
+        # Log scan details
+        echo "🔍 Trivy scan configuration:"
+        echo "  Type: ${{ inputs.scan-type }}"
+        echo "  Target: ${{ inputs.scan-ref }}"
+        echo "  Format: ${{ inputs.output-format }}"
+        echo "  Severity: ${{ inputs.severity }}"
 
     - name: Run Trivy scan
       id: scan
@@ -72,11 +76,10 @@ runs:
         output: ${{ steps.setup.outputs.output_file }}
         severity: ${{ inputs.severity }}
         trivy-config: '.trivy.yaml'
-        docker-host: ${{ inputs.docker-host }}
       env:
-        # Ensure container runtime compatibility when docker-host is provided
-        CONTAINER_HOST: ${{ inputs.docker-host }}
-        DOCKER_HOST: ${{ inputs.docker-host }}
+        # Clear any container runtime environment variables for tar file scanning
+        CONTAINER_HOST: ""
+        DOCKER_HOST: ""
 
     - name: Set output
       shell: bash

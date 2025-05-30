@@ -71,7 +71,7 @@ This directory contains reusable GitHub Actions for the OS Builder project.
 
 ### 🛡️ security-scan
 
-**Purpose**: Run comprehensive security scans on container images.
+**Purpose**: Run comprehensive security scans on container images via tar export.
 
 **Usage**:
 ```yaml
@@ -92,16 +92,27 @@ This directory contains reusable GitHub Actions for the OS Builder project.
 
 **Outputs**:
 - `sbom-artifact`: SBOM artifact name
+- `tar-file`: Exported tar file path
 
 **Features**:
-- Trivy vulnerability scanning (SARIF and table formats)
-- SBOM generation with Anchore Syft
-- Automatic container runtime detection
-- Artifact upload for SBOM files
+- **Tar-based scanning**: Exports container images to tar files before scanning for better reproducibility
+- **Trivy vulnerability scanning**: SARIF and table formats for comprehensive reporting
+- **SBOM generation**: Software Bill of Materials with Anchore Syft
+- **Automatic cleanup**: Removes tar files after scanning to save disk space
+- **Optional archival**: Can optionally upload tar files as artifacts (disabled by default)
+- **Multi-runtime support**: Works with both Podman and Docker
+
+**Scanning Process**:
+1. Detects available container runtime (Podman preferred, Docker fallback)
+2. Exports container image to tar file with clean filename
+3. Runs Trivy scans on tar file (SARIF + table output)
+4. Generates SBOM from tar file
+5. Uploads SBOM artifact
+6. Cleans up tar file to save space
 
 ### 🔍 trivy-scan
 
-**Purpose**: Standardized Trivy security scanning for multiple scan types.
+**Purpose**: Standardized Trivy security scanning for multiple scan types and tar files.
 
 **Usage**:
 ```yaml
@@ -109,15 +120,16 @@ This directory contains reusable GitHub Actions for the OS Builder project.
   uses: ./.github/actions/trivy-scan
   with:
     scan-type: 'image'
-    scan-ref: '${{ steps.build.outputs.local-tag }}'
+    scan-ref: 'container-image.tar'
     output-format: 'sarif'
     severity: 'CRITICAL,HIGH'
 ```
 
 **Features**:
 - Supports filesystem, configuration, secret, and image scans
+- **Enhanced tar support**: Optimized for scanning exported container tar files
 - Multiple output formats (SARIF, table, JSON)
-- Container runtime auto-detection
+- **Runtime-agnostic**: Works without container runtime dependencies for tar files
 - Used by both security-scan action and security workflows
 
 ## Workflow Integration

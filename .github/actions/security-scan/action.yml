@@ -1,5 +1,5 @@
 name: 'Security Scan'
-description: 'Run comprehensive security scans on container images'
+description: 'Run comprehensive security scans on container images via tar export'
 author: 'os-builder'
 branding:
   icon: 'shield'
@@ -24,83 +24,89 @@ outputs:
   sbom-artifact:
     description: 'SBOM artifact name'
     value: ${{ steps.scan.outputs.sbom_artifact }}
+  tar-file:
+    description: 'Exported tar file path'
+    value: ${{ steps.export.outputs.tar_file }}
 
 runs:
   using: 'composite'
   steps:
-    # Fix for Podman compatibility: Trivy Action uses Docker by default, but our build system uses Podman.
-    # This step automatically detects the available container runtime socket and configures Trivy accordingly.
-    # This resolves the error: "scan error: unable to initialize a scanner: failed to parse the image name"
     - name: Detect container runtime configuration
       id: runtime-config
       shell: bash
       run: |
         echo "🔍 Detecting container runtime configuration..."
         
-        # Initialize socket variable
-        PODMAN_SOCKET=""
-        
-        # Check container runtime sockets in order of preference:
-        # 1. User Podman socket (rootless Podman) - most common in CI
-        # 2. System Podman socket (rootful Podman)
-        # 3. Docker socket (fallback compatibility)
-        # 4. Default to user Podman if none found
-        if [ -S "/run/user/$(id -u)/podman/podman.sock" ]; then
-          PODMAN_SOCKET="unix:///run/user/$(id -u)/podman/podman.sock"
-          echo "Found user Podman socket: $PODMAN_SOCKET"
-        elif [ -S "/run/podman/podman.sock" ]; then
-          PODMAN_SOCKET="unix:///run/podman/podman.sock"
-          echo "Found system Podman socket: $PODMAN_SOCKET"
-        elif [ -S "/var/run/docker.sock" ]; then
-          PODMAN_SOCKET="unix:///var/run/docker.sock"
-          echo "Found Docker socket, using as fallback: $PODMAN_SOCKET"
+        # Check for available container runtime
+        if command -v podman >/dev/null 2>&1; then
+          echo "runtime=podman" >> $GITHUB_OUTPUT
+          echo "Using Podman runtime"
+        elif command -v docker >/dev/null 2>&1; then
+          echo "runtime=docker" >> $GITHUB_OUTPUT
+          echo "Using Docker runtime"
         else
-          echo "No container runtime socket found, trying Podman default"
-          PODMAN_SOCKET="unix:///run/user/$(id -u)/podman/podman.sock"
+          echo "❌ No container runtime found!"
+          exit 1
+        fi
+
+    - name: Export container image to tar
+      id: export
+      shell: bash
+      run: |
+        echo "📦 Exporting container image to tar file..."
+        
+        # Create clean tar filename from image reference
+        TAR_FILE="$(echo '${{ inputs.image-ref }}' | sed 's|[:/]|-|g')-${{ inputs.sha }}.tar"
+        echo "tar_file=${TAR_FILE}" >> $GITHUB_OUTPUT
+        
+        # Export image using detected runtime
+        RUNTIME="${{ steps.runtime-config.outputs.runtime }}"
+        echo "Exporting ${{ inputs.image-ref }} to ${TAR_FILE} using ${RUNTIME}..."
+        
+        if [ "$RUNTIME" = "podman" ]; then
+          podman save --output "${TAR_FILE}" "${{ inputs.image-ref }}"
+        else
+          docker save --output "${TAR_FILE}" "${{ inputs.image-ref }}"
         fi
         
-        # Export socket path for use in subsequent steps
-        echo "container_socket=$PODMAN_SOCKET" >> $GITHUB_OUTPUT
-        echo "Using container socket: $PODMAN_SOCKET"
+        # Verify tar file was created
+        if [ ! -f "${TAR_FILE}" ]; then
+          echo "❌ Failed to create tar file: ${TAR_FILE}"
+          exit 1
+        fi
+        
+        TAR_SIZE=$(du -h "${TAR_FILE}" | cut -f1)
+        echo "✅ Successfully exported image to tar file: ${TAR_FILE} (${TAR_SIZE})"
 
-    - name: Run security scans
+    - name: Set scan outputs
       id: scan
       shell: bash
       run: |
-        echo "🔍 Starting security scans for image: ${{ inputs.image-ref }}"
-        
         # Set SBOM artifact name for upload
         SBOM_ARTIFACT="sbom-${{ inputs.build-mode }}-${{ inputs.sha }}"
         echo "sbom_artifact=${SBOM_ARTIFACT}" >> $GITHUB_OUTPUT
+        echo "Using SBOM artifact name: ${SBOM_ARTIFACT}"
 
-    # Configure Trivy to use the detected container socket instead of default Docker socket
-    # The docker-host parameter tells Trivy which container runtime to connect to
-    # Environment variables provide additional configuration for container runtime detection
-    - name: Run Trivy vulnerability scanner - Container Image
-      id: trivy-scan-sarif
+    - name: Run Trivy vulnerability scanner - SARIF output
       uses: ./.github/actions/trivy-scan
       with:
         scan-type: 'image'
-        scan-ref: '${{ inputs.image-ref }}'
+        scan-ref: '${{ steps.export.outputs.tar_file }}'
         output-format: 'sarif'
         severity: ${{ inputs.severity }}
-        docker-host: '${{ steps.runtime-config.outputs.container_socket }}'
 
-    # Same configuration as above but for table output format
     - name: Run Trivy vulnerability scanner - Table output
       uses: ./.github/actions/trivy-scan
       with:
         scan-type: 'image'
-        scan-ref: '${{ inputs.image-ref }}'
+        scan-ref: '${{ steps.export.outputs.tar_file }}'
         output-format: 'table'
         severity: ${{ inputs.severity }}
-        docker-host: '${{ steps.runtime-config.outputs.container_socket }}'
 
-    # SBOM generation using Anchore action - this should work with any container runtime
-    - name: Generate container image SBOM
+    - name: Generate container image SBOM from tar
       uses: anchore/sbom-action@v0
       with:
-        image: '${{ inputs.image-ref }}'
+        image: '${{ steps.export.outputs.tar_file }}'
         format: spdx-json
         output-file: sbom.spdx.json
 
@@ -108,4 +114,19 @@ runs:
       uses: actions/upload-artifact@v4
       with:
         name: ${{ steps.scan.outputs.sbom_artifact }}
-        path: sbom.spdx.json 
+        path: sbom.spdx.json
+
+    - name: Upload tar file artifact (optional)
+      uses: actions/upload-artifact@v4
+      if: ${{ false }}  # Disabled by default due to size, enable if needed
+      with:
+        name: container-tar-${{ inputs.build-mode }}-${{ inputs.sha }}
+        path: ${{ steps.export.outputs.tar_file }}
+        retention-days: 7
+
+    - name: Cleanup tar file
+      shell: bash
+      run: |
+        echo "🧹 Cleaning up tar file..."
+        rm -f "${{ steps.export.outputs.tar_file }}"
+        echo "✅ Tar file cleanup completed" 

@@ -50,7 +50,7 @@ ifeq ($(shell command -v $(CONTAINER_RUNTIME) 2>/dev/null),)
 	$(error Container runtime '$(CONTAINER_RUNTIME)' not found. Available: $(shell command -v docker >/dev/null && echo docker) $(shell command -v podman >/dev/null && echo podman))
 endif
 
-.PHONY: help build build-microshift test clean push pull info install-deps disk-image scan install-trivy
+.PHONY: help build build-microshift test clean push pull info install-deps disk-image scan sbom install-trivy install-syft
 
 # Default target
 help:
@@ -60,7 +60,8 @@ help:
 	@echo "  build         - Build K3s edge OS image (default)"
 	@echo "  build-microshift - Build MicroShift edge OS image"
 	@echo "  test          - Test the built image"
-	@echo "  scan          - Run trivy security scan on built image"
+	@echo "  scan          - Run trivy security scan via tar export"
+	@echo "  sbom          - Generate SBOM (Software Bill of Materials)"
 	@echo "  clean         - Clean up images and containers"
 	@echo "  push          - Push image to registry"
 	@echo "  info          - Show image information"
@@ -68,6 +69,7 @@ help:
 	@echo "Setup targets:"
 	@echo "  install-deps  - Install build dependencies"
 	@echo "  install-trivy - Install trivy security scanner"
+	@echo "  install-syft  - Install syft SBOM generator"
 	@echo "  disk-image    - Convert to disk image"
 	@echo ""
 	@echo "Environment:"
@@ -83,7 +85,8 @@ help:
 	@echo "  make build-microshift         # Build MicroShift image"
 	@echo "  make build IMAGE_TAG=v1.0.0   # Build with custom tag"
 	@echo "  make test                     # Test the image"
-	@echo "  make scan                     # Security scan with trivy"
+	@echo "  make scan                     # Security scan via tar export"
+	@echo "  make sbom                     # Generate SBOM from tar export"
 	@echo "  make scan TRIVY_SEVERITY=CRITICAL,HIGH,MEDIUM  # Scan with more severities"
 	@echo "  make scan TRIVY_FORMAT=json TRIVY_OUTPUT_FILE=scan.json  # JSON output"
 	@echo ""
@@ -229,9 +232,9 @@ build-iso:
 		--type iso \
 		$(IMAGE_NAME):$(IMAGE_TAG) 
 
-# Run trivy security scan on built image
+# Run trivy security scan on built image via tar export
 scan:
-	@echo "🔍 Running trivy security scan on $(IMAGE_NAME):$(IMAGE_TAG)..."
+	@echo "🔍 Running trivy security scan on $(IMAGE_NAME):$(IMAGE_TAG) via tar export..."
 	@# Check if trivy is installed first
 	@if ! command -v trivy >/dev/null 2>&1; then \
 		echo "❌ Trivy not found! Installing..."; \
@@ -255,30 +258,61 @@ scan:
 		fi; \
 	fi; \
 	echo "🎯 Scanning: $$SCAN_IMAGE"; \
+	TAR_FILE="$$(echo "$$SCAN_IMAGE" | sed 's|[:/]|-|g')-$(IMAGE_TAG).tar"; \
+	echo "📦 Exporting image to tar file: $$TAR_FILE..."; \
+	$(CONTAINER_RUNTIME) save --output "scan-results/$$TAR_FILE" "$$SCAN_IMAGE"; \
+	TAR_SIZE=$$(du -h "scan-results/$$TAR_FILE" | cut -f1); \
+	echo "✅ Image exported to tar file: scan-results/$$TAR_FILE ($$TAR_SIZE)"; \
 	if [[ "$(TRIVY_FORMAT)" == "table" ]]; then \
-		echo "📊 Scanning with table output..."; \
-		DOCKER_HOST=""; \
-		if [[ "$(CONTAINER_RUNTIME)" == "podman" ]]; then \
-			if [ -S "/run/user/$(shell id -u)/podman/podman.sock" ]; then \
-				export DOCKER_HOST="unix:///run/user/$(shell id -u)/podman/podman.sock"; \
-			elif [ -S "/run/podman/podman.sock" ]; then \
-				export DOCKER_HOST="unix:///run/podman/podman.sock"; \
-			fi; \
-		fi; \
-		trivy image --config .trivy.yaml --severity $(TRIVY_SEVERITY) --format table $$SCAN_IMAGE; \
+		echo "📊 Scanning tar file with table output..."; \
+		trivy image --config .trivy.yaml --severity $(TRIVY_SEVERITY) --format table "scan-results/$$TAR_FILE"; \
 	else \
-		echo "📄 Scanning with $(TRIVY_FORMAT) output to scan-results/$(TRIVY_OUTPUT_FILE)..."; \
-		DOCKER_HOST=""; \
-		if [[ "$(CONTAINER_RUNTIME)" == "podman" ]]; then \
-			if [ -S "/run/user/$(shell id -u)/podman/podman.sock" ]; then \
-				export DOCKER_HOST="unix:///run/user/$(shell id -u)/podman/podman.sock"; \
-			elif [ -S "/run/podman/podman.sock" ]; then \
-				export DOCKER_HOST="unix:///run/podman/podman.sock"; \
+		echo "📄 Scanning tar file with $(TRIVY_FORMAT) output to scan-results/$(TRIVY_OUTPUT_FILE)..."; \
+		trivy image --config .trivy.yaml --severity $(TRIVY_SEVERITY) --format $(TRIVY_FORMAT) --output scan-results/$(TRIVY_OUTPUT_FILE) "scan-results/$$TAR_FILE"; \
+		echo "✅ Scan results saved to scan-results/$(TRIVY_OUTPUT_FILE)"; \
+	fi; \
+	echo "🧹 Cleaning up tar file..."; \
+	rm -f "scan-results/$$TAR_FILE"; \
+	echo "✅ Tar-based security scan completed!"
+
+# Generate SBOM (Software Bill of Materials) from built image via tar export
+sbom:
+	@echo "📋 Generating SBOM for $(IMAGE_NAME):$(IMAGE_TAG) via tar export..."
+	@# Check if syft is installed first
+	@if ! command -v syft >/dev/null 2>&1; then \
+		echo "❌ Syft not found! Installing..."; \
+		$(MAKE) install-syft; \
+	fi
+	@# Create output directory
+	@mkdir -p scan-results
+	@# Find the image to scan (flexible tag resolution like test target)
+	@SCAN_IMAGE="$(IMAGE_NAME):$(IMAGE_TAG)"; \
+	if ! $(CONTAINER_RUNTIME) inspect $$SCAN_IMAGE >/dev/null 2>&1; then \
+		echo "Image $$SCAN_IMAGE not found, looking for alternatives..."; \
+		CLEAN_TAG=$$(echo "$(IMAGE_TAG)" | sed 's/-dirty$$//'); \
+		if $(CONTAINER_RUNTIME) inspect $(IMAGE_NAME):$$CLEAN_TAG >/dev/null 2>&1; then \
+			SCAN_IMAGE="$(IMAGE_NAME):$$CLEAN_TAG"; \
+		else \
+			SCAN_IMAGE=$$($(CONTAINER_RUNTIME) images $(IMAGE_NAME) --format "{{.Repository}}:{{.Tag}}" | head -1); \
+			if [ -z "$$SCAN_IMAGE" ]; then \
+				echo "❌ No $(IMAGE_NAME) images found! Run 'make build' first."; \
+				exit 1; \
 			fi; \
 		fi; \
-		trivy image --config .trivy.yaml --severity $(TRIVY_SEVERITY) --format $(TRIVY_FORMAT) --output scan-results/$(TRIVY_OUTPUT_FILE) $$SCAN_IMAGE; \
-		echo "✅ Scan results saved to scan-results/$(TRIVY_OUTPUT_FILE)"; \
-	fi
+	fi; \
+	echo "🎯 Generating SBOM for: $$SCAN_IMAGE"; \
+	TAR_FILE="$$(echo "$$SCAN_IMAGE" | sed 's|[:/]|-|g')-$(IMAGE_TAG).tar"; \
+	echo "📦 Exporting image to tar file: $$TAR_FILE..."; \
+	$(CONTAINER_RUNTIME) save --output "scan-results/$$TAR_FILE" "$$SCAN_IMAGE"; \
+	TAR_SIZE=$$(du -h "scan-results/$$TAR_FILE" | cut -f1); \
+	echo "✅ Image exported to tar file: scan-results/$$TAR_FILE ($$TAR_SIZE)"; \
+	echo "📋 Generating SBOM from tar file..."; \
+	SBOM_FILE="sbom-$$(echo "$$SCAN_IMAGE" | sed 's|[:/]|-|g')-$(IMAGE_TAG).spdx.json"; \
+	syft "scan-results/$$TAR_FILE" -o spdx-json="scan-results/$$SBOM_FILE"; \
+	echo "✅ SBOM saved to scan-results/$$SBOM_FILE"; \
+	echo "🧹 Cleaning up tar file..."; \
+	rm -f "scan-results/$$TAR_FILE"; \
+	echo "✅ SBOM generation completed!"
 
 # Install trivy if not available  
 install-trivy:
@@ -303,4 +337,29 @@ else
 		exit 1; \
 	fi
 endif
-	@echo "✅ Trivy installation completed!" 
+	@echo "✅ Trivy installation completed!"
+
+# Install syft if not available
+install-syft:
+	@echo "📦 Installing syft..."
+ifeq ($(UNAME_S),Darwin)
+	@if command -v brew >/dev/null 2>&1; then \
+		brew install syft || echo "Syft may already be installed"; \
+	else \
+		echo "❌ Install Homebrew first: https://brew.sh"; \
+		exit 1; \
+	fi
+else
+	@if command -v dnf >/dev/null 2>&1; then \
+		sudo dnf install -y syft; \
+	elif command -v apt >/dev/null 2>&1; then \
+		sudo apt update && sudo apt install -y syft; \
+	elif command -v apk >/dev/null 2>&1; then \
+		sudo apk add syft; \
+	else \
+		echo "❌ Unsupported package manager. Install syft manually."; \
+		echo "See: https://github.com/anchore/syft#installation"; \
+		exit 1; \
+	fi
+endif
+	@echo "✅ Syft installation completed!" 

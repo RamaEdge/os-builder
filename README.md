@@ -202,7 +202,7 @@ gh workflow run build-and-security-scan.yaml -f iso_config=production
 
 ## 🔒 Security Features
 
-- **Automated Scanning**: Vulnerability detection in builds and dependencies
+- **Automated Scanning**: Vulnerability detection via tar-based image export for reproducible scans
 - **SBOM Generation**: Software Bill of Materials for supply chain security
 - **Version Pinning**: Reproducible builds with pinned dependencies
 - **Security Updates**: Automated dependency monitoring and updates
