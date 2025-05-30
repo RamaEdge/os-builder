@@ -88,6 +88,4 @@ output:
 ignore-unfixed: true
 
 # Performance settings
-timeout: 10m
-cache:
-  clear: false 
+timeout: 10m 
