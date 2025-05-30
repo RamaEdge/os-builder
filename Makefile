@@ -84,7 +84,22 @@ build:
 	@echo "Building Fedora bootc container image (K3s)..."
 	@echo "Using: $(CONTAINER_RUNTIME)"
 	@chmod +x os/build.sh
-	@cd os && CONTAINER_RUNTIME=$(CONTAINER_RUNTIME) IMAGE_NAME=$(IMAGE_NAME) IMAGE_TAG=$(IMAGE_TAG) CONTAINERFILE=$(notdir $(CONTAINERFILE)) ./build.sh
+	@# Ensure Containerfile path is relative to os/ directory
+	@if [ -f "$(CONTAINERFILE)" ]; then \
+		CONTAINERFILE_RELATIVE=$$(realpath --relative-to=os "$(CONTAINERFILE)" 2>/dev/null || echo "$$(basename "$(CONTAINERFILE)")"); \
+	elif [ -f "os/$(CONTAINERFILE)" ]; then \
+		CONTAINERFILE_RELATIVE="$$(basename "$(CONTAINERFILE)")"; \
+	else \
+		echo "❌ Error: Containerfile not found: $(CONTAINERFILE)"; \
+		echo "   Looked in: $(CONTAINERFILE) and os/$(CONTAINERFILE)"; \
+		exit 1; \
+	fi; \
+	cd os && \
+	CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" \
+	IMAGE_NAME="$(IMAGE_NAME)" \
+	IMAGE_TAG="$(IMAGE_TAG)" \
+	CONTAINERFILE="$$CONTAINERFILE_RELATIVE" \
+	./build.sh
 
 # Build MicroShift image
 build-microshift:
@@ -92,7 +107,20 @@ build-microshift:
 	@echo "Using: $(CONTAINER_RUNTIME)"
 	@echo "MicroShift version: $(MICROSHIFT_VERSION)"
 	@chmod +x os/build.sh
-	@cd os && CONTAINER_RUNTIME=$(CONTAINER_RUNTIME) IMAGE_NAME=$(IMAGE_NAME) IMAGE_TAG=$(IMAGE_TAG) CONTAINERFILE=Containerfile.fedora.optimized MICROSHIFT_VERSION=$(MICROSHIFT_VERSION) ./build.sh
+	@# Verify MicroShift Containerfile exists
+	@if [ -f "os/Containerfile.fedora.optimized" ]; then \
+		cd os && \
+		CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" \
+		IMAGE_NAME="$(IMAGE_NAME)" \
+		IMAGE_TAG="$(IMAGE_TAG)" \
+		CONTAINERFILE="Containerfile.fedora.optimized" \
+		MICROSHIFT_VERSION="$(MICROSHIFT_VERSION)" \
+		MICROSHIFT_IMAGE_BASE="$(REGISTRY)/$(subst localhost,ramaedge,$(word 1,$(subst /, ,$(IMAGE_NAME))))/microshift-builder" \
+		./build.sh; \
+	else \
+		echo "❌ Error: MicroShift Containerfile not found: os/Containerfile.fedora.optimized"; \
+		exit 1; \
+	fi
 
 # Test the built image
 test:

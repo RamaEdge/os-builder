@@ -58,22 +58,21 @@ runs:
         
         echo "Building versioned image: $LOCAL_TAG"
         
-        # Get build metadata
-        BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+        # Get build metadata (removed BUILD_DATE for better caching)
         VCS_REF="${{ inputs.sha }}"
         VERSION="${{ inputs.version }}"
         
-        # Prepare build arguments (core metadata that Containerfile expects)
-        BUILD_ARGS="--build-arg BUILD_DATE=${BUILD_DATE} --build-arg VCS_REF=${VCS_REF} --build-arg VERSION=${VERSION}"
+        # Prepare build arguments (core metadata that Containerfile expects, removed BUILD_DATE)
+        BUILD_ARGS="--build-arg VCS_REF=${VCS_REF} --build-arg VERSION=${VERSION}"
         
         # Add MicroShift-specific build arguments if needed
         if [ -n "${{ inputs.microshift-version }}" ]; then
-          BUILD_ARGS="$BUILD_ARGS --build-arg MICROSHIFT_VERSION=${{ inputs.microshift-version }} --build-arg MICROSHIFT_IMAGE_BASE=${{ inputs.registry }}/${{ inputs.repository-owner }}/microshift-builder"
+          BUILD_ARGS="$BUILD_ARGS --build-arg MICROSHIFT_VERSION=\"${{ inputs.microshift-version }}\" --build-arg MICROSHIFT_IMAGE_BASE=\"${{ inputs.registry }}/${{ inputs.repository-owner }}/microshift-builder\""
         fi
         
         echo "🔧 Build arguments: $BUILD_ARGS"
         
-        # Build image with Podman (local only)
+        # Build image with Podman (local only, removed created label for better caching)
         podman build \
           -f ${{ inputs.containerfile }} \
           -t "$LOCAL_TAG" \
@@ -81,7 +80,6 @@ runs:
           $BUILD_ARGS \
           --label "org.opencontainers.image.version=${{ inputs.version }}" \
           --label "org.opencontainers.image.revision=${{ inputs.sha }}" \
-          --label "org.opencontainers.image.created=${BUILD_DATE}" \
           --label "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
           .
         

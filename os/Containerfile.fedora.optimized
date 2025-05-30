@@ -1,16 +1,15 @@
 # Optimized multi-stage build for MicroShift edge OS
 # Uses pre-built MicroShift binaries for faster builds
-ARG MICROSHIFT_VERSION=main
 ARG MICROSHIFT_REPO=https://github.com/openshift/microshift.git
 ARG MICROSHIFT_IMAGE_BASE=ghcr.io/ramaedge/microshift-builder
 
 # Build arguments for version information
-ARG BUILD_DATE
 ARG VCS_REF
 ARG VERSION
 ARG OTEL_VERSION="0.127.0"
 
-# Stage 1: Get pre-built MicroShift binary
+# Stage 1: Get pre-built MicroShift binary - ARG declared here for FROM usage
+ARG MICROSHIFT_VERSION=main
 FROM ${MICROSHIFT_IMAGE_BASE}:${MICROSHIFT_VERSION} AS microshift-prebuilt
 
 # Stage 2: Final bootc image
@@ -18,7 +17,6 @@ FROM quay.io/fedora/fedora-bootc:42
 
 ARG MICROSHIFT_VERSION=main
 ARG MICROSHIFT_REPO=https://github.com/openshift/microshift.git
-ARG BUILD_DATE
 ARG VCS_REF
 ARG VERSION
 ARG OTEL_VERSION="0.127.0"
@@ -27,7 +25,6 @@ ARG OTEL_VERSION="0.127.0"
 LABEL org.opencontainers.image.title="Edge OS - Fedora bootc (Optimized)" \
       org.opencontainers.image.description="Fedora bootc with pre-built MicroShift for edge computing" \
       org.opencontainers.image.version="${VERSION}" \
-      org.opencontainers.image.created="${BUILD_DATE}" \
       org.opencontainers.image.revision="${VCS_REF}" \
       org.opencontainers.image.vendor="RamaEdge" \
       org.opencontainers.image.licenses="MIT" \
@@ -55,16 +52,19 @@ RUN --mount=type=cache,target=/var/cache/dnf \
         chrony \
         curl \
         jq && \
-    # Security hardening - remove setuid/setgid from unnecessary binaries
-    find /usr -type f \( -perm -4000 -o -perm -2000 \) \
-        \( -name chfn -o -name chsh -o -name newgrp \) \
+    # Security hardening - remove setuid/setgid from unnecessary binaries (explicit AND grouping)
+    find /usr -type f \( \( -perm -4000 -o -perm -2000 \) -a \( -name chfn -o -name chsh -o -name newgrp \) \) \
         -exec chmod u-s {} \; && \
-    # Pre-load MicroShift container images
+    # Pre-load MicroShift container images (optimized with parallel pulls)
     mkdir -p /usr/share/microshift /usr/share/containers/storage && \
     if [ -f "/usr/share/microshift/release-images.json" ] && [ -s "/usr/share/microshift/release-images.json" ]; then \
-        jq -r '.images[]?' /usr/share/microshift/release-images.json | while read -r image; do \
-            podman pull --root /usr/share/containers/storage "$image" 2>/dev/null || true; \
-        done; \
+        echo "📦 Pre-loading MicroShift container images in parallel..."; \
+        # Use xargs with parallel processing (4 concurrent pulls) for better performance
+        jq -r '.images[]?' /usr/share/microshift/release-images.json | \
+        xargs -r -n 1 -P 4 -I {} sh -c 'echo "Pulling: {}" && podman pull --root /usr/share/containers/storage "{}" 2>/dev/null || echo "Failed to pull: {}"'; \
+        echo "✅ Container image pre-loading completed"; \
+    else \
+        echo "⚠️  No release images found, skipping container pre-loading"; \
     fi && \
     # Configure offline container storage
     mkdir -p /etc/containers/storage.conf.d && \

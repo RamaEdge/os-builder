@@ -69,7 +69,7 @@ This directory contains reusable GitHub Actions for the OS Builder project.
 - Adds OCI-compliant labels
 - Supports both K3s and MicroShift builds
 - Uses Podman for container building
-- Passes build metadata as build arguments (BUILD_DATE, VCS_REF, VERSION)
+- Passes build metadata as build arguments (VCS_REF, VERSION) - BUILD_DATE removed for better caching
 - Automatically handles MicroShift build arguments when needed
 - Installs OpenTelemetry Collector via official RPM packages for better integration
 

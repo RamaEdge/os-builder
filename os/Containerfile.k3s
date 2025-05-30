@@ -5,7 +5,6 @@ FROM quay.io/fedora/fedora-bootc:42
 # Build arguments for version information
 ARG K3S_VERSION="latest"
 ARG OTEL_VERSION="0.127.0"
-ARG BUILD_DATE
 ARG VCS_REF
 ARG VERSION
 
@@ -13,7 +12,6 @@ ARG VERSION
 LABEL org.opencontainers.image.title="Edge OS - Fedora bootc with K3s" \
       org.opencontainers.image.description="Fedora bootc with K3s Kubernetes for edge computing" \
       org.opencontainers.image.version="${VERSION}" \
-      org.opencontainers.image.created="${BUILD_DATE}" \
       org.opencontainers.image.revision="${VCS_REF}" \
       org.opencontainers.image.vendor="RamaEdge" \
       org.opencontainers.image.licenses="MIT" \
@@ -40,9 +38,8 @@ RUN --mount=type=cache,target=/var/cache/dnf \
         skopeo \
         containerd \
         jq && \
-    # Security hardening - remove setuid/setgid from unnecessary binaries
-    find /usr -type f \( -perm -4000 -o -perm -2000 \) \
-        -name chfn -o -name chsh -o -name newgrp \
+    # Security hardening - remove setuid/setgid from unnecessary binaries (fixed grouping)
+    find /usr -type f \( \( -perm -4000 -o -perm -2000 \) -a \( -name chfn -o -name chsh -o -name newgrp \) \) \
         -exec chmod u-s {} \; && \
     # Clean up package cache
     dnf clean all && \
