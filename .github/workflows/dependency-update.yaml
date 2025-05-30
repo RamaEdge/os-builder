@@ -166,7 +166,7 @@ jobs:
       - name: Generate and upload summary
         run: |
           cat > security-summary.md << EOF
-          # 🔒 Weekly Security Review - $(date -u +"%Y-%m-%d")
+          # 🔒 Weekly Security Review
           
           ## Summary
           Automated security review of Fedora bootc container images.

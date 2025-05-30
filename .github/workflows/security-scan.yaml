@@ -77,7 +77,6 @@ jobs:
           
           **Trigger**: ${{ github.event_name }}  
           **Severity**: ${{ github.event.inputs.severity || 'CRITICAL,HIGH' }}  
-          **Time**: $(date -u +'%Y-%m-%d %H:%M:%S UTC')
           
           ### Scans Completed
           - ✅ **Filesystem**: Source code and dependencies
