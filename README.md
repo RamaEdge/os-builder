@@ -89,6 +89,44 @@ make build-microshift
 
 # Test the image
 make test
+
+# Get help with all available targets
+make help
+```
+
+## 🛠️ Build Targets
+
+The simplified Makefile provides essential targets:
+
+### Core Targets
+- `make build` - Build K3s edge OS image (default)
+- `make build-microshift` - Build MicroShift edge OS image
+- `make test` - Test the built image
+- `make clean` - Clean up images and containers
+- `make push` - Push image to registry
+- `make info` - Show image information
+
+### Setup Targets
+- `make install-deps` - Install build dependencies
+- `make disk-image` - Convert to disk image
+- `make build-iso` - Build bootable ISO
+
+### Container Runtime Selection
+
+The build system automatically detects available container runtimes:
+- **Default on macOS**: Prefers `podman`, falls back to `docker`
+- **Default on Linux**: Prefers `podman`, falls back to `docker`
+- **User Override**: You can force a specific runtime:
+
+```bash
+# Force Docker usage
+make build CONTAINER_RUNTIME=docker
+
+# Force Podman usage  
+make build CONTAINER_RUNTIME=podman
+
+# Check current runtime
+make help | grep CONTAINER_RUNTIME
 ```
 
 ## 📋 Build Options
@@ -123,7 +161,7 @@ cd os && CONTAINERFILE=Containerfile.fedora.optimized ./build.sh
 ```bash
 cd os-builder
 
-# K3s build
+# K3s build (using auto-detected runtime)
 podman build -f os/Containerfile.k3s -t localhost/fedora-edge-os:latest os/
 
 # MicroShift build
@@ -136,7 +174,6 @@ podman build -f os/Containerfile.fedora.optimized -t localhost/fedora-edge-os:la
 
 ```bash
 # Build K3s image locally
-cd os-builder/os
 make build
 
 # Build MicroShift image locally (using pre-built binaries)
@@ -170,6 +207,9 @@ make build IMAGE_NAME=my-edge-os IMAGE_TAG=v2.0.0
 
 # MicroShift with specific version
 make build-microshift MICROSHIFT_VERSION=release-4.18
+
+# Use specific container runtime
+make build CONTAINER_RUNTIME=docker
 
 # Different Containerfile
 make build CONTAINERFILE=Containerfile.custom
@@ -249,16 +289,26 @@ Instead of converting container images to disk images, we embed **bootc containe
 ### Quick ISO Creation
 
 ```bash
-# Interactive ISO - user chooses K3s or MicroShift during installation
+# Build ISO from your current image
 make build-iso
+
+# Build with specific image
+make build-iso IMAGE_NAME=my-edge-os IMAGE_TAG=v1.0.0
+
+# Force specific container runtime
+make build-iso CONTAINER_RUNTIME=docker
 ```
 
 ### How it Works
 
-1. **ISO Creation**: Creates bootable ISO with Fedora bootc base + unified kickstart
-2. **User Choice**: During installation, user selects K3s or MicroShift distribution
-3. **Installation**: Kickstart runs `bootc switch` to selected container image:
-   - K3s: `ghcr.io/ramaedge/os-builder:latest`
-   - MicroShift: `ghcr.io/ramaedge/os-builder:microshift-latest`
-4. **First Boot**: System starts with chosen edge OS configuration
-5. **Updates**: Use `bootc upgrade` to update to newer container image versions
+1. **ISO Creation**: Creates bootable ISO using bootc-image-builder
+2. **Installation**: ISO installs the container image as a bootable OS
+3. **First Boot**: System starts with your edge OS configuration
+4. **Updates**: Use `bootc upgrade` to update to newer container image versions
+
+### Output
+
+The ISO will be created in the `iso-output/` directory and can be used to:
+- Boot physical edge devices
+- Create VMs for testing
+- Deploy to cloud instances that support custom ISOs

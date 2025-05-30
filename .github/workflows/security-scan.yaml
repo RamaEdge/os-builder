@@ -44,118 +44,100 @@ jobs:
     runs-on: self-hosted
     permissions:
       contents: read
-      actions: read
       security-events: write
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Standardized Trivy scan using centralized .trivy.yaml configuration
-      # Skip-dirs and other settings are defined in .trivy.yaml to reduce duplication
-      - name: Run Trivy vulnerability scanner - Filesystem
-        uses: aquasecurity/trivy-action@0.30.0
+      - name: Run Trivy filesystem scan (SARIF)
+        id: fs-scan-sarif
+        uses: ./.github/actions/trivy-scan
         with:
           scan-type: 'fs'
           scan-ref: '.'
-          format: 'sarif'
-          output: 'trivy-fs-results.sarif'
-          severity: ${{ github.event.inputs.scan_severity || 'CRITICAL,HIGH' }}
-          trivy-config: '.trivy.yaml'
+          output-format: 'sarif'
+          severity: 'CRITICAL,HIGH'
 
-      - name: Run Trivy vulnerability scanner - Filesystem (Table)
-        uses: aquasecurity/trivy-action@0.30.0
+      - name: Run Trivy filesystem scan (Table)
+        uses: ./.github/actions/trivy-scan
         with:
           scan-type: 'fs'
           scan-ref: '.'
-          format: 'table'
-          severity: ${{ github.event.inputs.scan_severity || 'CRITICAL,HIGH' }}
-          trivy-config: '.trivy.yaml'
+          output-format: 'table'
+          severity: 'CRITICAL,HIGH'
 
-      - name: Upload Trivy scan results to GitHub Security tab
+      - name: Upload filesystem scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v3
-        if: github.event.inputs.upload_results == 'true'
+        if: always()
         with:
-          sarif_file: 'trivy-fs-results.sarif'
-          category: 'filesystem'
+          sarif_file: ${{ steps.fs-scan-sarif.outputs.results-file }}
+          category: 'trivy-filesystem'
 
   config-scan:
     name: Configuration Security Scan
     runs-on: self-hosted
     permissions:
       contents: read
-      actions: read
       security-events: write
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Standardized Trivy config scan using centralized .trivy.yaml configuration
-      - name: Run Trivy vulnerability scanner - Configuration files
-        uses: aquasecurity/trivy-action@0.30.0
+      - name: Run Trivy configuration scan (SARIF)
+        id: config-scan-sarif
+        uses: ./.github/actions/trivy-scan
         with:
           scan-type: 'config'
           scan-ref: '.'
-          format: 'sarif'
-          output: 'trivy-config-results.sarif'
-          severity: ${{ github.event.inputs.scan_severity || 'CRITICAL,HIGH' }}
-          trivy-config: '.trivy.yaml'
+          output-format: 'sarif'
+          severity: 'CRITICAL,HIGH'
 
-      - name: Run Trivy vulnerability scanner - Configuration files (Table)
-        uses: aquasecurity/trivy-action@0.30.0
+      - name: Run Trivy configuration scan (Table)
+        uses: ./.github/actions/trivy-scan
         with:
           scan-type: 'config'
           scan-ref: '.'
-          format: 'table'
-          severity: ${{ github.event.inputs.scan_severity || 'CRITICAL,HIGH' }}
-          trivy-config: '.trivy.yaml'
+          output-format: 'table'
+          severity: 'CRITICAL,HIGH'
 
-      - name: Upload Trivy scan results to GitHub Security tab
+      - name: Upload configuration scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v3
-        if: github.event.inputs.upload_results == 'true'
+        if: always()
         with:
-          sarif_file: 'trivy-config-results.sarif'
-          category: 'configuration'
+          sarif_file: ${{ steps.config-scan-sarif.outputs.results-file }}
+          category: 'trivy-config'
 
   secret-scan:
-    name: Secret Security Scan
+    name: Secret Detection Scan
     runs-on: self-hosted
     permissions:
       contents: read
-      actions: read
       security-events: write
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Standardized Trivy secret scan using centralized .trivy.yaml configuration
-      # Note: scanners parameter overrides the config file scanner settings for this specific scan
-      - name: Run Trivy secret scanner
-        uses: aquasecurity/trivy-action@0.30.0
+      - name: Run Trivy secret scan (SARIF)
+        id: secret-scan-sarif
+        uses: ./.github/actions/trivy-scan
         with:
-          scan-type: 'fs'
+          scan-type: 'secret'
           scan-ref: '.'
-          format: 'sarif'
-          output: 'trivy-secret-results.sarif'
-          scanners: 'secret'
-          severity: ${{ github.event.inputs.scan_severity || 'CRITICAL,HIGH' }}
-          trivy-config: '.trivy.yaml'
+          output-format: 'sarif'
 
-      - name: Run Trivy secret scanner (Table)
-        uses: aquasecurity/trivy-action@0.30.0
+      - name: Run Trivy secret scan (Table)
+        uses: ./.github/actions/trivy-scan
         with:
-          scan-type: 'fs'
+          scan-type: 'secret'
           scan-ref: '.'
-          format: 'table'
-          scanners: 'secret'
-          severity: ${{ github.event.inputs.scan_severity || 'CRITICAL,HIGH' }}
-          trivy-config: '.trivy.yaml'
+          output-format: 'table'
 
-      - name: Upload Trivy secret scan results to GitHub Security tab
+      - name: Upload secret scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v3
-        if: github.event.inputs.upload_results == 'true'
+        if: always()
         with:
-          sarif_file: 'trivy-secret-results.sarif'
-          category: 'secrets'
+          sarif_file: ${{ steps.secret-scan-sarif.outputs.results-file }}
+          category: 'trivy-secrets'
 
   security-summary:
     name: Security Scan Summary

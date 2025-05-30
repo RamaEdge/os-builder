@@ -1,0 +1,84 @@
+name: 'Standardized Trivy Security Scan'
+description: 'Standardized Trivy security scanning with consistent configuration across all workflows'
+author: 'os-builder'
+branding:
+  icon: 'shield'
+  color: 'blue'
+
+inputs:
+  scan-type:
+    description: 'Type of scan to perform (fs, config, secret, image)'
+    required: true
+  scan-ref:
+    description: 'Scan target (filesystem path, image reference, etc.)'
+    required: true
+  output-format:
+    description: 'Output format for scan results (sarif, table, json)'
+    required: false
+    default: 'sarif'
+  output-file:
+    description: 'Output file path (required for sarif/json formats)'
+    required: false
+  severity:
+    description: 'Vulnerability severity levels to scan for'
+    required: false
+    default: 'CRITICAL,HIGH'
+  docker-host:
+    description: 'Docker/Podman socket for container scanning'
+    required: false
+
+outputs:
+  results-file:
+    description: 'Path to scan results file'
+    value: ${{ steps.scan.outputs.results_file }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set output file path
+      id: setup
+      shell: bash
+      run: |
+        # Generate default output file if not provided
+        if [ -z "${{ inputs.output-file }}" ]; then
+          case "${{ inputs.output-format }}" in
+            sarif)
+              OUTPUT_FILE="trivy-${{ inputs.scan-type }}-results.sarif"
+              ;;
+            json)
+              OUTPUT_FILE="trivy-${{ inputs.scan-type }}-results.json"
+              ;;
+            table)
+              OUTPUT_FILE=""  # Table format doesn't need output file
+              ;;
+            *)
+              OUTPUT_FILE="trivy-${{ inputs.scan-type }}-results.${{ inputs.output-format }}"
+              ;;
+          esac
+        else
+          OUTPUT_FILE="${{ inputs.output-file }}"
+        fi
+        
+        echo "output_file=${OUTPUT_FILE}" >> $GITHUB_OUTPUT
+        echo "Using output file: ${OUTPUT_FILE}"
+
+    - name: Run Trivy scan
+      id: scan
+      uses: aquasecurity/trivy-action@0.30.0
+      with:
+        scan-type: ${{ inputs.scan-type }}
+        scan-ref: ${{ inputs.scan-ref }}
+        format: ${{ inputs.output-format }}
+        output: ${{ steps.setup.outputs.output_file }}
+        severity: ${{ inputs.severity }}
+        trivy-config: '.trivy.yaml'
+        docker-host: ${{ inputs.docker-host }}
+      env:
+        # Ensure container runtime compatibility when docker-host is provided
+        CONTAINER_HOST: ${{ inputs.docker-host }}
+        DOCKER_HOST: ${{ inputs.docker-host }}
+
+    - name: Set output
+      shell: bash
+      run: |
+        echo "results_file=${{ steps.setup.outputs.output_file }}" >> $GITHUB_OUTPUT 

@@ -1,5 +1,6 @@
 # Trivy Configuration for os-builder repository
-# Optimized for edge OS container building
+# Centralized configuration to ensure consistency across all workflows
+# This eliminates duplication and standardizes security scanning settings
 
 # General settings
 format: table
@@ -20,16 +21,33 @@ misconfig-scanners:
   - yaml          # General YAML configuration checks
   - json          # General JSON configuration checks
 
-# Severity levels to scan for
+# Skip cloud-specific policies since we're building edge OS containers, not cloud infrastructure
+misconfig:
+  exclude-policies:
+    - 'AVD-AWS-*'      # Skip all AWS policies
+    - 'AVD-AZU-*'      # Skip all Azure policies  
+    - 'AVD-GCP-*'      # Skip all Google Cloud policies
+    - 'AVD-DIG-*'      # Skip all DigitalOcean policies
+    - 'AVD-OCI-*'      # Skip all Oracle Cloud policies
+
+# Severity levels to scan for (can be overridden by workflow inputs)
 severity:
   - CRITICAL
   - HIGH
   - MEDIUM
 
-# Skip unnecessary directories to improve performance
+# Standardized skip directories for all scan types
+# These directories are commonly excluded across all workflows
 skip-dirs:
   - .git/
   - .github/
+  - node_modules/
+  - .vscode/
+  - .idea/
+  - dist/
+  - build/
+  - target/
+  - vendor/
 
 # Skip files that don't need scanning
 skip-files:
@@ -37,7 +55,14 @@ skip-files:
   - "*.txt"
   - "*.log"
   - "*.tar.gz"
+  - "*.tar.xz"
+  - "*.tar.zst"
   - "*.zip"
+  - "*.rpm"
+  - "*.deb"
+  - "LICENSE*"
+  - "NOTICE*"
+  - "CHANGELOG*"
 
 # Vulnerability scanning settings
 vuln:
@@ -45,9 +70,24 @@ vuln:
     - os
     - library
 
+# Secret scanning settings
+secret:
+  skip-dirs:
+    - .git/
+    - .github/actions/
+  skip-files:
+    - "*.md"
+    - "*.example"
+    - "*.template"
+
 # Output configuration
 output:
   clean: true
   
 # Ignore unfixed vulnerabilities for better signal-to-noise ratio
-ignore-unfixed: true 
+ignore-unfixed: true
+
+# Performance settings
+timeout: 10m
+cache:
+  clear: false 

@@ -37,19 +37,19 @@ jobs:
           echo "Current digest: ${DIGEST}"
 
       - name: Scan base image for vulnerabilities
-        uses: aquasecurity/trivy-action@0.30.0
+        id: base-image-scan
+        uses: ./.github/actions/trivy-scan
         with:
-          image-ref: ${{ steps.base-image.outputs.base-image }}
-          format: 'sarif'
-          output: 'base-image-scan.sarif'
+          scan-type: 'image'
+          scan-ref: ${{ steps.base-image.outputs.base-image }}
+          output-format: 'sarif'
           severity: 'CRITICAL,HIGH'
-          trivy-config: '.trivy.yaml'
 
       - name: Upload base image scan results
         uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
-          sarif_file: 'base-image-scan.sarif'
+          sarif_file: ${{ steps.base-image-scan.outputs.results-file }}
           category: 'base-image-scan'
 
   analyze-packages:

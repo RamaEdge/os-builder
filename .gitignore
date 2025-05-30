@@ -80,4 +80,11 @@ secrets/
 .env.local
 local.yaml
 local.yml
-*-local.* 
+*-local.*
+
+# bootc-image-builder artifacts (anaconda-iso focus)
+bootc-config.toml
+*.qcow2
+*.vmdk
+*.vhd
+*.ami 

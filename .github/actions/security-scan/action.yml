@@ -77,35 +77,24 @@ runs:
     # The docker-host parameter tells Trivy which container runtime to connect to
     # Environment variables provide additional configuration for container runtime detection
     - name: Run Trivy vulnerability scanner - Container Image
-      uses: aquasecurity/trivy-action@0.30.0
+      id: trivy-scan-sarif
+      uses: ./.github/actions/trivy-scan
       with:
-        image-ref: '${{ inputs.image-ref }}'
-        format: 'sarif'
-        output: 'trivy-image-results.sarif'
+        scan-type: 'image'
+        scan-ref: '${{ inputs.image-ref }}'
+        output-format: 'sarif'
         severity: ${{ inputs.severity }}
-        vuln-type: 'os,library'
-        trivy-config: '.trivy.yaml'
-        # Use detected container socket for Podman compatibility
         docker-host: '${{ steps.runtime-config.outputs.container_socket }}'
-      env:
-        # Set multiple environment variables to ensure Trivy connects to the correct container runtime
-        CONTAINER_HOST: '${{ steps.runtime-config.outputs.container_socket }}'  # Standard container runtime host
-        DOCKER_HOST: '${{ steps.runtime-config.outputs.container_socket }}'     # Docker API compatibility
 
     # Same configuration as above but for table output format
     - name: Run Trivy vulnerability scanner - Table output
-      uses: aquasecurity/trivy-action@0.30.0
+      uses: ./.github/actions/trivy-scan
       with:
-        image-ref: '${{ inputs.image-ref }}'
-        format: 'table'
+        scan-type: 'image'
+        scan-ref: '${{ inputs.image-ref }}'
+        output-format: 'table'
         severity: ${{ inputs.severity }}
-        trivy-config: '.trivy.yaml'
-        # Use detected container socket for Podman compatibility
         docker-host: '${{ steps.runtime-config.outputs.container_socket }}'
-      env:
-        # Set multiple environment variables to ensure Trivy connects to the correct container runtime
-        CONTAINER_HOST: '${{ steps.runtime-config.outputs.container_socket }}'  # Standard container runtime host
-        DOCKER_HOST: '${{ steps.runtime-config.outputs.container_socket }}'     # Docker API compatibility
 
     # SBOM generation using Anchore action - this should work with any container runtime
     - name: Generate container image SBOM

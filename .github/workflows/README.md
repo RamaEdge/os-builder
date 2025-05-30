@@ -151,3 +151,80 @@ gh run download <run-id>
 - **Container Building**: See [../actions/README.md](../actions/README.md) for common action documentation
 - **ISO Building**: See [../../docs/ISO_BUILDING.md](../../docs/ISO_BUILDING.md) for ISO configuration details
 - **K3s Documentation**: [K3s Official Docs](https://k3s.io/) 
+
+## 🔒 Security Scanning
+
+### Standardized Security Scanning Architecture
+
+The repository now uses a **standardized security scanning approach** that eliminates duplication and ensures consistency across all workflows:
+
+#### 🎯 **Centralized Configuration**
+- **`.trivy.yaml`**: Single source of truth for all Trivy configurations
+- **Standardized skip-dirs**: Consistent across all scan types and workflows
+- **Unified severity levels**: CRITICAL, HIGH, MEDIUM by default
+- **Performance settings**: Optimized timeout and cache settings
+
+#### 🔧 **Reusable Actions**
+
+**`.github/actions/trivy-scan/`**: Standardized Trivy scanning action
+- **Supports all scan types**: `fs`, `config`, `secret`, `image`
+- **Multiple output formats**: `sarif`, `table`, `json`
+- **Consistent configuration**: Uses centralized `.trivy.yaml`
+- **Container runtime agnostic**: Works with Docker and Podman
+
+**Usage Example:**
+```yaml
+- name: Scan container image
+  uses: ./.github/actions/trivy-scan
+  with:
+    scan-type: 'image'
+    scan-ref: 'my-image:latest'
+    output-format: 'sarif'
+    severity: 'CRITICAL,HIGH'
+```
+
+#### 📋 **Workflow Integration**
+
+**Security Scan Workflow (`.github/workflows/security-scan.yaml`)**:
+- Filesystem scanning
+- Configuration scanning  
+- Secret detection
+- Uploads results to GitHub Security tab
+
+**Build & Security Scan Workflow**:
+- Container image vulnerability scanning
+- SBOM generation
+- Integrated with build process
+
+**Dependency Update Workflow**:
+- Base image vulnerability scanning
+- Automated security updates
+
+### 🚀 **Benefits of Standardization**
+
+1. **⚡ Reduced Duplication**: Single trivy-scan action used across all workflows
+2. **🔧 Consistent Configuration**: All scans use same skip-dirs and settings
+3. **📊 Better Maintainability**: Changes to scan settings in one place
+4. **🎯 Improved Reliability**: Standardized error handling and output formats
+5. **🔄 Easy Updates**: Update Trivy version in one place affects all workflows
+
+### 🛠️ **Configuration Customization**
+
+**Global Settings** (`.trivy.yaml`):
+- Skip directories and files
+- Scanner types and settings
+- Performance configuration
+- Secret scanning rules
+
+**Per-Workflow Overrides**:
+- Severity levels (via workflow inputs)
+- Output formats (sarif, table, json)
+- Container runtime settings (for image scans)
+
+### 📈 **Security Metrics**
+
+All security scans automatically:
+- Generate SARIF files for GitHub Security tab
+- Provide table output in workflow logs
+- Upload results for centralized tracking
+- Support both scheduled and on-demand execution

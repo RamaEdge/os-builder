@@ -51,18 +51,48 @@ os/
 
 ### Prerequisites
 
-- Container runtime: Docker (macOS) or Podman (Linux)
+- Container runtime: Podman (recommended) or Docker
 - At least 4GB free disk space
 
 ### Quick Build Examples
 
 ```bash
-# From repository root
-make build                    # K3s build
+# From repository root - simplified targets
+make build                    # K3s build (default)
 make build-microshift         # MicroShift build  
 make test                     # Test built image
-make build-iso-interactive    # Create bootable ISO
+make build-iso               # Create bootable ISO
+make clean                   # Clean up images
+make info                    # Show image information
+
+# With runtime override
+make build CONTAINER_RUNTIME=docker
+make build CONTAINER_RUNTIME=podman
+
+# Get help with all targets
+make help
 ```
+
+### Available Make Targets
+
+The build system provides these essential targets:
+
+**Core Targets:**
+- `build` - Build K3s edge OS image (default)
+- `build-microshift` - Build MicroShift edge OS image
+- `test` - Test the built image with comprehensive validation
+- `clean` - Clean up images and containers
+- `push` - Push image to registry
+- `info` - Show image information
+
+**Setup Targets:**
+- `install-deps` - Install build dependencies
+- `disk-image` - Convert to disk image
+- `build-iso` - Build bootable ISO
+
+**Container Runtime:**
+- Automatically detects available runtime (podman preferred)
+- Override with `CONTAINER_RUNTIME=docker` or `CONTAINER_RUNTIME=podman`
 
 ## Configuration
 
@@ -71,7 +101,8 @@ make build-iso-interactive    # Create bootable ISO
 - `IMAGE_NAME`: Container image name (default: localhost/fedora-edge-os)
 - `IMAGE_TAG`: Container image tag (default: auto-detected via git)
 - `CONTAINERFILE`: Containerfile to use (default: Containerfile.k3s)
-- `CONTAINER_RUNTIME`: Container runtime (auto-detected: docker on macOS, podman on Linux)
+- `CONTAINER_RUNTIME`: Container runtime (auto-detected: prefers podman, fallback to docker)
+- `MICROSHIFT_VERSION`: MicroShift version for MicroShift builds (default: release-4.19)
 
 ### Installed Packages
 
@@ -132,33 +163,27 @@ See [`examples/README.md`](examples/README.md) for detailed usage instructions a
 
 ### 🔍 Image Testing
 
-The repository includes comprehensive testing to validate that OpenTelemetry auto-deployment is properly configured:
+The repository includes comprehensive testing to validate that the edge OS is properly configured:
 
 ```bash
-# Basic image testing with OTEL auto-deployment validation
+# Comprehensive image testing with auto-detection
 make test
 
-# Detailed observability stack testing
-make test-observability
+# Test with specific runtime
+make test CONTAINER_RUNTIME=docker
 ```
 
 ### ✅ What the Tests Verify
 
-**Basic Test (`make test`):**
-- ✅ Container image functionality (bootc, systemctl, dnf)
+**Unified Test (`make test`):**
+- ✅ Container image functionality (bootc, systemctl)
 - ✅ Kubernetes components (kubectl, k3s binaries)
 - ✅ OpenTelemetry Collector installation and configuration
 - ✅ K3s manifest auto-deploy setup (`/etc/rancher/k3s/manifests/`)
 - ✅ OTEL manifest content validation (deployments, services, endpoints)
-- ✅ Service port configuration (NodePorts 30317, 30318, 30464, 30888)
+- ✅ Service port configuration and accessibility
 - ✅ Systemd service enablement (k3s, otelcol)
-
-**Detailed Test (`make test-observability`):**
-- 📊 OpenTelemetry Collector version and configuration details
-- 🚀 Complete K3s manifest analysis (229 lines, 9 Kubernetes resources)
-- 🔌 Detailed service port mappings and NodePort configurations
-- 🎯 Host-level OTEL configuration validation
-- 📁 File structure and permissions verification
+- ✅ Automatic image detection (tries exact tag, clean tag, then latest available)
 
 ### 🎯 Auto-Deployment Verification
 
@@ -338,4 +363,19 @@ For issues related to:
 
 ## 🔧 Build Process
 
-The build process uses a **Makefile** (located at the repository root) that provides multiple targets for different build scenarios.
+The build process uses a **simplified Makefile** (located at the repository root) that provides essential targets for container image building and testing.
+
+### Key Features:
+- **Smart Runtime Detection**: Automatically detects and uses available container runtime
+- **User Override**: Force specific runtime with `CONTAINER_RUNTIME=docker/podman`
+- **Intelligent Testing**: Automatically finds the best available image to test
+- **Essential Targets**: Focused on core functionality without complexity
+
+### Quick Reference:
+```bash
+make help           # Show all available targets
+make build          # Build K3s image
+make test          # Test the image
+make clean         # Clean up
+make info          # Show image information
+```

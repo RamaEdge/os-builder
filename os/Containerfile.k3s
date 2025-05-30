@@ -112,11 +112,14 @@ COPY scripts/ /usr/local/bin/
 # Final configuration and permissions
 RUN chmod +x /usr/local/bin/*.sh 2>/dev/null || true && \
     # Enable services that depend on copied service files
-    systemctl enable k3s.service \
-                    k3s-load-images.service \
-                    edge-setup.service \
-                    k3s-kubeconfig-setup.service \
-                    observability-deploy.service 2>/dev/null || true && \
+    # Enable each service individually to catch missing/malformed service files
+    for service in k3s.service k3s-load-images.service edge-setup.service k3s-kubeconfig-setup.service observability-deploy.service; do \
+        if [ -f "/usr/lib/systemd/system/$service" ]; then \
+            systemctl enable "$service" || echo "Warning: Failed to enable $service"; \
+        else \
+            echo "Warning: Service file $service not found, skipping"; \
+        fi; \
+    done && \
     # SELinux context restoration
     restorecon -R /etc /usr/local/bin 2>/dev/null || true && \
     # Create non-root user for container security compliance

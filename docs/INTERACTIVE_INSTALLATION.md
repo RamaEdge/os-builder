@@ -13,11 +13,14 @@ The interactive installation provides a user-friendly wizard that prompts for:
 ## Building Interactive ISOs
 
 ```bash
-# Build interactive ISO (recommended method)
-make build-iso-interactive
+# Build ISO from your current image
+make build-iso
 
-# Alternative: Build from configuration file
-make build-iso CONFIG_FILE=config-examples/interactive-config.toml
+# Build with specific image and tag
+make build-iso IMAGE_NAME=my-edge-os IMAGE_TAG=v1.0.0
+
+# Force specific container runtime
+make build-iso CONTAINER_RUNTIME=docker
 ```
 
 ## Installation Process
