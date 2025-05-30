@@ -49,9 +49,5 @@ vuln:
 output:
   clean: true
   
-# Cache settings for better performance
-cache:
-  clear: false
-  
 # Ignore unfixed vulnerabilities for better signal-to-noise ratio
 ignore-unfixed: true 
