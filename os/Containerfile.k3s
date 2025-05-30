@@ -3,7 +3,7 @@
 FROM quay.io/fedora/fedora-bootc:42
 
 # Build arguments
-ARG K3S_VERSION="latest"
+ARG K3S_VERSION="v1.33.1+k3s1"
 ARG OTEL_VERSION="0.127.0"
 ARG VCS_REF
 ARG VERSION
@@ -41,14 +41,13 @@ RUN --mount=type=cache,target=/tmp/downloads \
     mkdir -p /var/lib/rancher/k3s/agent/images /etc/rancher/k3s /usr/local/bin \
              /etc/containers/systemd /etc/otelcol /etc/rancher/k3s/manifests \
              /var/lib/k3s /var/log/k3s && \
-    # Download K3s
-    K3S_RELEASE=$(curl -sL https://api.github.com/repos/k3s-io/k3s/releases/latest | jq -r .tag_name) && \
-    curl -sL "https://github.com/k3s-io/k3s/releases/download/${K3S_RELEASE}/k3s-${ARCH}" \
+    # Download K3s (using pinned version)
+    curl -sL "https://github.com/k3s-io/k3s/releases/download/${K3S_VERSION}/k3s-${ARCH}" \
         -o /usr/local/bin/k3s && \
     chmod +x /usr/local/bin/k3s && \
     ln -sf /usr/local/bin/k3s /usr/local/bin/kubectl && \
     # Download K3s airgap images
-    curl -sL "https://github.com/k3s-io/k3s/releases/download/${K3S_RELEASE}/k3s-airgap-images-${ARCH}.tar.zst" \
+    curl -sL "https://github.com/k3s-io/k3s/releases/download/${K3S_VERSION}/k3s-airgap-images-${ARCH}.tar.zst" \
         -o "/var/lib/rancher/k3s/agent/images/k3s-airgap-images-${ARCH}.tar.zst" && \
     # Download and install OTEL Collector
     curl -fsSL "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v${OTEL_VERSION}/otelcol_${OTEL_VERSION}_linux_${ARCH}.rpm" \

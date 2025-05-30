@@ -52,27 +52,20 @@ runs:
       shell: bash
       working-directory: ${{ inputs.working-path }}
       run: |
-        # Create version-based local tag
         LOCAL_TAG="${{ inputs.image-name }}:${{ inputs.version }}"
         LATEST_TAG="${{ inputs.image-name }}:latest"
         
-        echo "Building versioned image: $LOCAL_TAG"
+        echo "🔨 Building image: $LOCAL_TAG"
         
-        # Get build metadata (removed BUILD_DATE for better caching)
-        VCS_REF="${{ inputs.sha }}"
-        VERSION="${{ inputs.version }}"
+        # Build arguments
+        BUILD_ARGS="--build-arg VCS_REF=${{ inputs.sha }} --build-arg VERSION=${{ inputs.version }}"
         
-        # Prepare build arguments (core metadata that Containerfile expects, removed BUILD_DATE)
-        BUILD_ARGS="--build-arg VCS_REF=${VCS_REF} --build-arg VERSION=${VERSION}"
-        
-        # Add MicroShift-specific build arguments if needed
+        # Add MicroShift-specific arguments if needed
         if [ -n "${{ inputs.microshift-version }}" ]; then
           BUILD_ARGS="$BUILD_ARGS --build-arg MICROSHIFT_VERSION=\"${{ inputs.microshift-version }}\" --build-arg MICROSHIFT_IMAGE_BASE=\"${{ inputs.registry }}/${{ inputs.repository-owner }}/microshift-builder\""
         fi
         
-        echo "🔧 Build arguments: $BUILD_ARGS"
-        
-        # Build image with Podman (local only, removed created label for better caching)
+        # Build with Podman
         podman build \
           -f ${{ inputs.containerfile }} \
           -t "$LOCAL_TAG" \
@@ -83,12 +76,10 @@ runs:
           --label "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
           .
         
-        # Get image ID for scanning and testing
+        # Get image ID and set outputs
         IMAGE_ID=$(podman images --filter reference="$LOCAL_TAG" -q)
         echo "image_id=${IMAGE_ID}" >> $GITHUB_OUTPUT
         echo "local_tag=${LOCAL_TAG}" >> $GITHUB_OUTPUT
         echo "version_tag=${{ inputs.version }}" >> $GITHUB_OUTPUT
         
-        echo "✅ Container image built locally: $LOCAL_TAG"
-        echo "📦 Image ID: $IMAGE_ID"
-        echo "🏷️ Version: ${{ inputs.version }}" 
+        echo "✅ Built image: $LOCAL_TAG (ID: $IMAGE_ID)" 

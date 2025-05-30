@@ -22,84 +22,49 @@ outputs:
 runs:
   using: 'composite'
   steps:
-    - name: Get repository owner in lowercase
+    - name: Get repository owner
       id: repo
       shell: bash
       run: |
         OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
         echo "owner=${OWNER}" >> $GITHUB_OUTPUT
-        echo "Repository owner (lowercase): ${OWNER}"
 
-    - name: Generate Version
+    - name: Generate version
       id: version
       shell: bash
       run: |
         # Get git information
         SHA=$(git rev-parse --short HEAD)
         BRANCH=$(git rev-parse --abbrev-ref HEAD)
-        
-        # Try to get version from latest tag
         LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.1.0")
-        
-        # Extract version number from tag (remove 'v' prefix if present)
         VERSION_BASE=$(echo "$LATEST_TAG" | sed 's/^v//')
-        
-        # Count commits since last tag
         COMMITS_SINCE_TAG=$(git rev-list --count ${LATEST_TAG}..HEAD 2>/dev/null || echo "0")
         
-        # Special handling for pull requests
+        # Generate version based on context
         if [ "${{ github.event_name }}" = "pull_request" ]; then
+          # PR format: base.version-pr.number.safe-branch
           PR_NUMBER="${{ github.event.number }}"
-          # Get the source branch name from the PR
           SOURCE_BRANCH="${{ github.head_ref }}"
-          # Clean branch name for version tag
           SAFE_BRANCH=$(echo "$SOURCE_BRANCH" | sed 's/[^a-zA-Z0-9]/-/g' | sed 's/^-//' | sed 's/-$//')
-          
-          # Create clean PR version: base.version-pr.number.safe-branch
           VERSION="$VERSION_BASE-pr.$PR_NUMBER.$SAFE_BRANCH"
-          
-          echo "🔀 Pull Request Build Detected"
-          echo "  PR Number: #$PR_NUMBER"
-          echo "  Source Branch: $SOURCE_BRANCH"
-          echo "  Safe Branch: $SAFE_BRANCH"
-          echo "  Generated Version: $VERSION"
-        else
-          # Generate version based on branch context (existing logic)
-          if [ "$BRANCH" = "main" ]; then
-            if [ "$COMMITS_SINCE_TAG" = "0" ]; then
-              # On main, at a tag - this is a release
-              VERSION="$VERSION_BASE"
-            else
-              # On main, ahead of tag - this is a pre-release
-              VERSION="$VERSION_BASE-dev.$COMMITS_SINCE_TAG+$SHA"
-            fi
-          elif [[ "$BRANCH" =~ ^release/.* ]]; then
-            # Release branch
-            RELEASE_VERSION=$(echo "$BRANCH" | sed 's/release\///')
-            VERSION="$RELEASE_VERSION-rc.$COMMITS_SINCE_TAG+$SHA"
+        elif [ "$BRANCH" = "main" ]; then
+          if [ "$COMMITS_SINCE_TAG" = "0" ]; then
+            VERSION="$VERSION_BASE"  # Release
           else
-            # Feature/other branch
-            SAFE_BRANCH=$(echo "$BRANCH" | sed 's/[^a-zA-Z0-9]/-/g')
-            VERSION="$VERSION_BASE-$SAFE_BRANCH.$COMMITS_SINCE_TAG+$SHA"
+            VERSION="$VERSION_BASE-dev.$COMMITS_SINCE_TAG+$SHA"  # Pre-release
           fi
+        elif [[ "$BRANCH" =~ ^release/.* ]]; then
+          RELEASE_VERSION=$(echo "$BRANCH" | sed 's/release\///')
+          VERSION="$RELEASE_VERSION-rc.$COMMITS_SINCE_TAG+$SHA"
+        else
+          # Feature branch
+          SAFE_BRANCH=$(echo "$BRANCH" | sed 's/[^a-zA-Z0-9]/-/g')
+          VERSION="$VERSION_BASE-$SAFE_BRANCH.$COMMITS_SINCE_TAG+$SHA"
         fi
         
+        # Set outputs
         echo "version=$VERSION" >> $GITHUB_OUTPUT
         echo "branch=$BRANCH" >> $GITHUB_OUTPUT
         echo "sha=$SHA" >> $GITHUB_OUTPUT
-        echo "base_version=$VERSION_BASE" >> $GITHUB_OUTPUT
-        echo "commits_since_tag=$COMMITS_SINCE_TAG" >> $GITHUB_OUTPUT
         
-        echo "## 📋 Version Information" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "**Generated Version**: \`$VERSION\`" >> $GITHUB_STEP_SUMMARY
-        if [ "${{ github.event_name }}" = "pull_request" ]; then
-          echo "**Context**: Pull Request #${{ github.event.number }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Source Branch**: \`${{ github.head_ref }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Target Branch**: \`${{ github.base_ref }}\`" >> $GITHUB_STEP_SUMMARY
-        else
-          echo "**Branch**: \`$BRANCH\`" >> $GITHUB_STEP_SUMMARY
-        fi
-        echo "**Commit**: \`$SHA\`" >> $GITHUB_STEP_SUMMARY
-        echo "**Base Version**: \`$VERSION_BASE\`" >> $GITHUB_STEP_SUMMARY
-        echo "**Commits Since Tag**: $COMMITS_SINCE_TAG" >> $GITHUB_STEP_SUMMARY 
+        echo "📋 Generated version: $VERSION" 

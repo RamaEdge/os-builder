@@ -3,184 +3,91 @@ name: 'Security Scan'
 on:
   push:
     branches: ['main']
-    paths:
-      - 'os/**'
-      - '.github/workflows/**'
-      - 'configs/**'
-      - 'scripts/**'
+    paths: ['os/**', '.github/workflows/**', 'configs/**', 'scripts/**']
   pull_request:
-    branches: ['main']
-    paths:
-      - 'os/**'
-      - '.github/workflows/**'
-      - 'configs/**'
-      - 'scripts/**'
+    branches: ['main'] 
+    paths: ['os/**', '.github/workflows/**', 'configs/**', 'scripts/**']
   schedule:
-    # Run daily security scans at 2 AM UTC
-    - cron: '0 2 * * *'
+    - cron: '0 2 * * *'  # Daily at 2 AM UTC
   workflow_dispatch:
     inputs:
-      scan_severity:
-        description: 'Scan severity level'
-        required: false
+      severity:
+        description: 'Scan severity'
         default: 'CRITICAL,HIGH'
         type: choice
-        options:
-          - CRITICAL,HIGH
-          - CRITICAL,HIGH,MEDIUM
-          - CRITICAL,HIGH,MEDIUM,LOW
-      upload_results:
-        description: 'Upload SARIF results'
-        required: false
-        default: false
-        type: boolean
-
-env:
-  WORKING_PATH: ./os
+        options: ['CRITICAL,HIGH', 'CRITICAL,HIGH,MEDIUM', 'CRITICAL,HIGH,MEDIUM,LOW']
 
 jobs:
-  filesystem-scan:
-    name: Filesystem Security Scan
+  security-scan:
+    name: Security Scan
     runs-on: self-hosted
     permissions:
       contents: read
       security-events: write
+    strategy:
+      matrix:
+        scan-type:
+          - type: 'fs'
+            name: 'Filesystem'
+            category: 'trivy-filesystem'
+          - type: 'config'
+            name: 'Configuration'
+            category: 'trivy-config'
+          - type: 'secret'
+            name: 'Secret Detection'
+            category: 'trivy-secrets'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Run Trivy filesystem scan (SARIF)
-        id: fs-scan-sarif
+      - name: Run ${{ matrix.scan-type.name }} scan
+        id: scan
         uses: ./.github/actions/trivy-scan
         with:
-          scan-type: 'fs'
+          scan-type: ${{ matrix.scan-type.type }}
           scan-ref: '.'
           output-format: 'sarif'
-          severity: 'CRITICAL,HIGH'
+          severity: ${{ github.event.inputs.severity || 'CRITICAL,HIGH' }}
 
-      - name: Run Trivy filesystem scan (Table)
+      - name: Display scan results
         uses: ./.github/actions/trivy-scan
         with:
-          scan-type: 'fs'
+          scan-type: ${{ matrix.scan-type.type }}
           scan-ref: '.'
           output-format: 'table'
-          severity: 'CRITICAL,HIGH'
+          severity: ${{ github.event.inputs.severity || 'CRITICAL,HIGH' }}
 
-      - name: Upload filesystem scan results to GitHub Security tab
+      - name: Upload results to Security tab
         uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
-          sarif_file: ${{ steps.fs-scan-sarif.outputs.results-file }}
-          category: 'trivy-filesystem'
+          sarif_file: ${{ steps.scan.outputs.results-file }}
+          category: ${{ matrix.scan-type.category }}
 
-  config-scan:
-    name: Configuration Security Scan
+  summary:
+    name: Scan Summary
     runs-on: self-hosted
-    permissions:
-      contents: read
-      security-events: write
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Run Trivy configuration scan (SARIF)
-        id: config-scan-sarif
-        uses: ./.github/actions/trivy-scan
-        with:
-          scan-type: 'config'
-          scan-ref: '.'
-          output-format: 'sarif'
-          severity: 'CRITICAL,HIGH'
-
-      - name: Run Trivy configuration scan (Table)
-        uses: ./.github/actions/trivy-scan
-        with:
-          scan-type: 'config'
-          scan-ref: '.'
-          output-format: 'table'
-          severity: 'CRITICAL,HIGH'
-
-      - name: Upload configuration scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v3
-        if: always()
-        with:
-          sarif_file: ${{ steps.config-scan-sarif.outputs.results-file }}
-          category: 'trivy-config'
-
-  secret-scan:
-    name: Secret Detection Scan
-    runs-on: self-hosted
-    permissions:
-      contents: read
-      security-events: write
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Run Trivy secret scan (SARIF)
-        id: secret-scan-sarif
-        uses: ./.github/actions/trivy-scan
-        with:
-          scan-type: 'secret'
-          scan-ref: '.'
-          output-format: 'sarif'
-
-      - name: Run Trivy secret scan (Table)
-        uses: ./.github/actions/trivy-scan
-        with:
-          scan-type: 'secret'
-          scan-ref: '.'
-          output-format: 'table'
-
-      - name: Upload secret scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v3
-        if: always()
-        with:
-          sarif_file: ${{ steps.secret-scan-sarif.outputs.results-file }}
-          category: 'trivy-secrets'
-
-  security-summary:
-    name: Security Scan Summary
-    runs-on: self-hosted
-    needs: [filesystem-scan, config-scan, secret-scan]
+    needs: security-scan
     if: always()
-    permissions:
-      contents: read
     steps:
-      - name: Security Scan Summary
+      - name: Generate summary
         run: |
-          echo "## 🔒 Repository Security Scan Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Completed Scans:" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ **Filesystem vulnerability scan**: Checks for vulnerabilities in source code and dependencies" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ **Configuration security scan**: Validates security configurations (Dockerfiles, YAML, etc.)" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ **Secret detection scan**: Scans for exposed secrets, API keys, and credentials" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Scan Details:" >> $GITHUB_STEP_SUMMARY
-          echo "- **Severity Level**: ${{ github.event.inputs.scan_severity || 'CRITICAL,HIGH' }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Trigger**: ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Scan Time**: $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
-          echo "- **Upload to Security Tab**: ${{ github.event.inputs.upload_results || 'false' }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Results Location:" >> $GITHUB_STEP_SUMMARY
-          echo "- **Workflow Summary**: Security scan results are displayed in this workflow summary" >> $GITHUB_STEP_SUMMARY
-          echo "- **Console Output**: Detailed scan results available in workflow logs" >> $GITHUB_STEP_SUMMARY
-          echo "- **GitHub Security Tab**: Results uploaded if upload_results=true" >> $GITHUB_STEP_SUMMARY
-          echo "- **SARIF Files**: Raw security scan results generated but kept local (unless uploaded)" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Security Tools Used:" >> $GITHUB_STEP_SUMMARY
-          echo "- **Trivy**: Multi-purpose vulnerability scanner" >> $GITHUB_STEP_SUMMARY
-          echo "  - Filesystem vulnerability scanning" >> $GITHUB_STEP_SUMMARY
-          echo "  - Configuration security validation" >> $GITHUB_STEP_SUMMARY
-          echo "  - Secret detection and analysis" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 🎯 Automation Schedule:" >> $GITHUB_STEP_SUMMARY
-          echo "- **Daily Scans**: 2:00 AM UTC (scheduled)" >> $GITHUB_STEP_SUMMARY
-          echo "- **Code Changes**: On push to main and pull requests" >> $GITHUB_STEP_SUMMARY
-          echo "- **Manual Trigger**: Available via workflow_dispatch" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 🔐 Best Practices:" >> $GITHUB_STEP_SUMMARY
-          echo "- Regular automated scanning keeps the repository secure" >> $GITHUB_STEP_SUMMARY
-          echo "- Container image scanning is handled in the build workflow" >> $GITHUB_STEP_SUMMARY
-          echo "- SARIF results can be uploaded to GitHub Security tab for tracking" >> $GITHUB_STEP_SUMMARY
-          echo "- Different severity levels available for different scanning needs" >> $GITHUB_STEP_SUMMARY 
+          cat >> $GITHUB_STEP_SUMMARY << EOF
+          ## 🔒 Security Scan Results
+          
+          **Trigger**: ${{ github.event_name }}  
+          **Severity**: ${{ github.event.inputs.severity || 'CRITICAL,HIGH' }}  
+          **Time**: $(date -u +'%Y-%m-%d %H:%M:%S UTC')
+          
+          ### Scans Completed
+          - ✅ **Filesystem**: Source code and dependencies
+          - ✅ **Configuration**: Dockerfiles, YAML files, etc.
+          - ✅ **Secrets**: API keys, credentials, tokens
+          
+          ### Results
+          - **Console**: Detailed results in workflow logs
+          - **Security Tab**: SARIF results uploaded for tracking
+          - **Schedule**: Daily scans at 2:00 AM UTC
+          
+          Check the Security tab for vulnerability details and trends.
+          EOF 

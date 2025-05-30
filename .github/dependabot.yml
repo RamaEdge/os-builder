@@ -42,4 +42,8 @@ updates:
       - "dependencies"
       - "docker"
       - "security"
-      - "container-image" 
+      - "container-image"
+
+# Note: Dependabot doesn't natively support GitHub release tracking for K3s versions.
+# K3s version updates are handled by the automated workflow in .github/workflows/dependency-update.yaml
+# which checks for new K3s releases and creates PRs to update the pinned version in Containerfiles. 
