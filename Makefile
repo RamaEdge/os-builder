@@ -12,6 +12,11 @@ CONTAINERFILE ?= os/Containerfile.k3s
 REGISTRY ?= localhost
 MICROSHIFT_VERSION ?= release-4.19
 
+# Configuration for trivy scanning
+TRIVY_SEVERITY ?= CRITICAL,HIGH
+TRIVY_FORMAT ?= table
+TRIVY_OUTPUT_FILE ?= trivy-scan-results.json
+
 # Detect OS and architecture
 UNAME_S := $(shell uname -s)
 UNAME_M := $(shell uname -m)
@@ -45,7 +50,7 @@ ifeq ($(shell command -v $(CONTAINER_RUNTIME) 2>/dev/null),)
 	$(error Container runtime '$(CONTAINER_RUNTIME)' not found. Available: $(shell command -v docker >/dev/null && echo docker) $(shell command -v podman >/dev/null && echo podman))
 endif
 
-.PHONY: help build build-microshift test clean push pull info install-deps disk-image
+.PHONY: help build build-microshift test clean push pull info install-deps disk-image scan install-trivy
 
 # Default target
 help:
@@ -55,12 +60,14 @@ help:
 	@echo "  build         - Build K3s edge OS image (default)"
 	@echo "  build-microshift - Build MicroShift edge OS image"
 	@echo "  test          - Test the built image"
+	@echo "  scan          - Run trivy security scan on built image"
 	@echo "  clean         - Clean up images and containers"
 	@echo "  push          - Push image to registry"
 	@echo "  info          - Show image information"
 	@echo ""
 	@echo "Setup targets:"
 	@echo "  install-deps  - Install build dependencies"
+	@echo "  install-trivy - Install trivy security scanner"
 	@echo "  disk-image    - Convert to disk image"
 	@echo ""
 	@echo "Environment:"
@@ -68,12 +75,17 @@ help:
 	@echo "  IMAGE_TAG         = $(IMAGE_TAG)"
 	@echo "  CONTAINER_RUNTIME = $(CONTAINER_RUNTIME)"
 	@echo "  OS/ARCH           = $(UNAME_S)/$(UNAME_M)"
+	@echo "  TRIVY_SEVERITY    = $(TRIVY_SEVERITY)"
+	@echo "  TRIVY_FORMAT      = $(TRIVY_FORMAT)"
 	@echo ""
 	@echo "Examples:"
 	@echo "  make build                    # Build K3s image"
 	@echo "  make build-microshift         # Build MicroShift image"
 	@echo "  make build IMAGE_TAG=v1.0.0   # Build with custom tag"
 	@echo "  make test                     # Test the image"
+	@echo "  make scan                     # Security scan with trivy"
+	@echo "  make scan TRIVY_SEVERITY=CRITICAL,HIGH,MEDIUM  # Scan with more severities"
+	@echo "  make scan TRIVY_FORMAT=json TRIVY_OUTPUT_FILE=scan.json  # JSON output"
 	@echo ""
 	@echo "Runtime override:"
 	@echo "  make build CONTAINER_RUNTIME=docker   # Force Docker"
@@ -216,3 +228,79 @@ build-iso:
 		quay.io/centos-bootc/bootc-image-builder:latest \
 		--type iso \
 		$(IMAGE_NAME):$(IMAGE_TAG) 
+
+# Run trivy security scan on built image
+scan:
+	@echo "🔍 Running trivy security scan on $(IMAGE_NAME):$(IMAGE_TAG)..."
+	@# Check if trivy is installed first
+	@if ! command -v trivy >/dev/null 2>&1; then \
+		echo "❌ Trivy not found! Installing..."; \
+		$(MAKE) install-trivy; \
+	fi
+	@# Create output directory
+	@mkdir -p scan-results
+	@# Find the image to scan (flexible tag resolution like test target)
+	@SCAN_IMAGE="$(IMAGE_NAME):$(IMAGE_TAG)"; \
+	if ! $(CONTAINER_RUNTIME) inspect $$SCAN_IMAGE >/dev/null 2>&1; then \
+		echo "Image $$SCAN_IMAGE not found, looking for alternatives..."; \
+		CLEAN_TAG=$$(echo "$(IMAGE_TAG)" | sed 's/-dirty$$//'); \
+		if $(CONTAINER_RUNTIME) inspect $(IMAGE_NAME):$$CLEAN_TAG >/dev/null 2>&1; then \
+			SCAN_IMAGE="$(IMAGE_NAME):$$CLEAN_TAG"; \
+		else \
+			SCAN_IMAGE=$$($(CONTAINER_RUNTIME) images $(IMAGE_NAME) --format "{{.Repository}}:{{.Tag}}" | head -1); \
+			if [ -z "$$SCAN_IMAGE" ]; then \
+				echo "❌ No $(IMAGE_NAME) images found! Run 'make build' first."; \
+				exit 1; \
+			fi; \
+		fi; \
+	fi; \
+	echo "🎯 Scanning: $$SCAN_IMAGE"; \
+	if [[ "$(TRIVY_FORMAT)" == "table" ]]; then \
+		echo "📊 Scanning with table output..."; \
+		DOCKER_HOST=""; \
+		if [[ "$(CONTAINER_RUNTIME)" == "podman" ]]; then \
+			if [ -S "/run/user/$(shell id -u)/podman/podman.sock" ]; then \
+				export DOCKER_HOST="unix:///run/user/$(shell id -u)/podman/podman.sock"; \
+			elif [ -S "/run/podman/podman.sock" ]; then \
+				export DOCKER_HOST="unix:///run/podman/podman.sock"; \
+			fi; \
+		fi; \
+		trivy image --config .trivy.yaml --severity $(TRIVY_SEVERITY) --format table $$SCAN_IMAGE; \
+	else \
+		echo "📄 Scanning with $(TRIVY_FORMAT) output to scan-results/$(TRIVY_OUTPUT_FILE)..."; \
+		DOCKER_HOST=""; \
+		if [[ "$(CONTAINER_RUNTIME)" == "podman" ]]; then \
+			if [ -S "/run/user/$(shell id -u)/podman/podman.sock" ]; then \
+				export DOCKER_HOST="unix:///run/user/$(shell id -u)/podman/podman.sock"; \
+			elif [ -S "/run/podman/podman.sock" ]; then \
+				export DOCKER_HOST="unix:///run/podman/podman.sock"; \
+			fi; \
+		fi; \
+		trivy image --config .trivy.yaml --severity $(TRIVY_SEVERITY) --format $(TRIVY_FORMAT) --output scan-results/$(TRIVY_OUTPUT_FILE) $$SCAN_IMAGE; \
+		echo "✅ Scan results saved to scan-results/$(TRIVY_OUTPUT_FILE)"; \
+	fi
+
+# Install trivy if not available  
+install-trivy:
+	@echo "📦 Installing trivy..."
+ifeq ($(UNAME_S),Darwin)
+	@if command -v brew >/dev/null 2>&1; then \
+		brew install trivy || echo "Trivy may already be installed"; \
+	else \
+		echo "❌ Install Homebrew first: https://brew.sh"; \
+		exit 1; \
+	fi
+else
+	@if command -v dnf >/dev/null 2>&1; then \
+		sudo dnf install -y trivy; \
+	elif command -v apt >/dev/null 2>&1; then \
+		sudo apt update && sudo apt install -y trivy; \
+	elif command -v apk >/dev/null 2>&1; then \
+		sudo apk add trivy; \
+	else \
+		echo "❌ Unsupported package manager. Install trivy manually."; \
+		echo "See: https://aquasecurity.github.io/trivy/latest/getting-started/installation/"; \
+		exit 1; \
+	fi
+endif
+	@echo "✅ Trivy installation completed!" 

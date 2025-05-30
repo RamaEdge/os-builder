@@ -87,4 +87,26 @@ bootc-config.toml
 *.qcow2
 *.vmdk
 *.vhd
-*.ami 
+*.ami
+
+# Trivy scan results
+scan-results/
+
+# OS and editor files
+.DS_Store
+.vscode/
+.idea/
+*~
+*.swp
+*.swo
+
+# Container runtime files
+.containers/
+.local/share/containers/
+
+# Log files
+*.log
+
+# Temporary files
+*.tmp
+*.temp 
