@@ -1,14 +1,12 @@
-# Optimized multi-stage build for MicroShift edge OS
-# Uses pre-built MicroShift binaries for faster builds
+# Optimized multi-stage MicroShift edge OS
+# Simplified build with pre-built binaries
 ARG MICROSHIFT_REPO=https://github.com/openshift/microshift.git
 ARG MICROSHIFT_IMAGE_BASE=ghcr.io/ramaedge/microshift-builder
-
-# Build arguments for version information
 ARG VCS_REF
 ARG VERSION
 ARG OTEL_VERSION="0.127.0"
 
-# Stage 1: Get pre-built MicroShift binary - ARG declared here for FROM usage
+# Stage 1: Get pre-built MicroShift binary
 ARG MICROSHIFT_VERSION=main
 FROM ${MICROSHIFT_IMAGE_BASE}:${MICROSHIFT_VERSION} AS microshift-prebuilt
 
@@ -21,7 +19,7 @@ ARG VCS_REF
 ARG VERSION
 ARG OTEL_VERSION="0.127.0"
 
-# Metadata labels following OCI standards
+# Metadata labels
 LABEL org.opencontainers.image.title="Edge OS - Fedora bootc (Optimized)" \
       org.opencontainers.image.description="Fedora bootc with pre-built MicroShift for edge computing" \
       org.opencontainers.image.version="${VERSION}" \
@@ -33,83 +31,47 @@ LABEL org.opencontainers.image.title="Edge OS - Fedora bootc (Optimized)" \
       microshift.optimization="pre-built-binary" \
       otel.version="${OTEL_VERSION}"
 
-# Install packages and copy pre-built MicroShift in single layer with cleanup
+# Install packages and setup MicroShift in optimized layers
 COPY --from=microshift-prebuilt /microshift /usr/bin/microshift
 COPY --from=microshift-prebuilt /release-images.json /usr/share/microshift/release-images.json
 RUN --mount=type=cache,target=/var/cache/dnf \
     chmod +x /usr/bin/microshift && \
-    # Install essential packages
+    # Install system packages
     dnf install -y \
-        openssh-server \
-        sudo \
-        podman \
-        cri-o \
-        kubernetes-client \
-        NetworkManager \
-        firewalld \
-        policycoreutils-python-utils \
-        systemd-resolved \
-        chrony \
-        curl \
-        jq && \
-    # Security hardening - remove setuid/setgid from unnecessary binaries (explicit AND grouping)
+        openssh-server sudo podman cri-o kubernetes-client NetworkManager \
+        firewalld policycoreutils-python-utils systemd-resolved chrony curl jq && \
+    # Security hardening
     find /usr -type f \( \( -perm -4000 -o -perm -2000 \) -a \( -name chfn -o -name chsh -o -name newgrp \) \) \
         -exec chmod u-s {} \; && \
-    # Pre-load MicroShift container images (optimized with parallel pulls)
-    mkdir -p /usr/share/microshift /usr/share/containers/storage && \
+    # Clean up
+    dnf clean all && rm -rf /var/cache/dnf/* /tmp/* /var/tmp/*
+
+# Setup MicroShift images and OTEL
+RUN --mount=type=cache,target=/var/cache/dnf \
+    # Set architecture once
+    ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/') && \
+    # Create all directories at once
+    mkdir -p /usr/share/microshift /usr/share/containers/storage \
+             /etc/containers/systemd /etc/microshift /etc/otelcol \
+             /etc/microshift/manifests /var/lib/microshift /var/log/microshift /var/hpvolumes && \
+    # Pre-load MicroShift container images (parallel)
     if [ -f "/usr/share/microshift/release-images.json" ] && [ -s "/usr/share/microshift/release-images.json" ]; then \
-        echo "📦 Pre-loading MicroShift container images in parallel..."; \
-        # Use xargs with parallel processing (4 concurrent pulls) for better performance
+        echo "📦 Pre-loading MicroShift container images..."; \
         jq -r '.images[]?' /usr/share/microshift/release-images.json | \
-        xargs -r -n 1 -P 4 -I {} sh -c 'echo "Pulling: {}" && podman pull --root /usr/share/containers/storage "{}" 2>/dev/null || echo "Failed to pull: {}"'; \
+        xargs -r -n 1 -P 4 -I {} sh -c 'echo "Pulling: {}" && podman pull --root /usr/share/containers/storage "{}" 2>/dev/null || echo "Failed: {}"'; \
         echo "✅ Container image pre-loading completed"; \
     else \
-        echo "⚠️  No release images found, skipping container pre-loading"; \
+        echo "⚠️  No release images found, skipping pre-loading"; \
     fi && \
     # Configure offline container storage
     mkdir -p /etc/containers/storage.conf.d && \
     echo -e '[storage]\nadditionalImageStores = ["/usr/share/containers/storage"]' > /etc/containers/storage.conf.d/offline.conf && \
-    # Clean up package cache
-    dnf clean all && \
-    rm -rf /var/cache/dnf/* /tmp/* /var/tmp/*
-
-# Install OpenTelemetry Collector via official RPM package
-RUN --mount=type=cache,target=/var/cache/dnf \
-    ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/') && \
-    # Download and install OpenTelemetry Collector RPM
+    # Download and install OTEL Collector
     curl -fsSL "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v${OTEL_VERSION}/otelcol_${OTEL_VERSION}_linux_${ARCH}.rpm" \
         -o /tmp/otelcol.rpm && \
-    dnf install -y /tmp/otelcol.rpm && \
-    rm -f /tmp/otelcol.rpm
+    dnf install -y /tmp/otelcol.rpm && rm -f /tmp/otelcol.rpm
 
-# Configure services and directories
-RUN mkdir -p /etc/containers/systemd \
-             /etc/microshift \
-             /etc/otelcol \
-             /etc/microshift/manifests \
-             /var/lib/microshift \
-             /var/log/microshift \
-             /var/hpvolumes && \
-    # Enable essential services
-    systemctl enable sshd \
-                    chronyd \
-                    systemd-resolved \
-                    podman.socket \
-                    crio \
-                    otelcol && \
-    # Enable bootc auto-updates with our custom timer
-    systemctl enable bootc-fetch-apply-updates.timer && \
-    # Configure firewall for MicroShift and observability
-    firewall-offline-cmd --add-service=ssh && \
-    firewall-offline-cmd --add-port=6443/tcp \
-                        --add-port=8080/tcp \
-                        --add-port=10250/tcp \
-                        --add-port=4317/tcp \
-                        --add-port=4318/tcp \
-                        --add-port=9090/tcp \
-                        --add-port=8888/tcp
-
-# Copy configuration files (optimized order for better caching)
+# Copy all configuration files
 COPY configs/containers/ /etc/containers/
 COPY configs/otelcol/ /etc/otelcol/
 COPY configs/microshift/ /etc/microshift/
@@ -119,22 +81,22 @@ COPY systemd/microshift/ /usr/lib/systemd/system/
 COPY systemd/bootc-fetch-apply-updates.timer.d/ /usr/lib/systemd/system/bootc-fetch-apply-updates.timer.d/
 COPY scripts/ /usr/local/bin/
 
-# Final configuration and permissions
+# Final configuration
 RUN chmod +x /usr/local/bin/*.sh 2>/dev/null || true && \
-    # Enable additional services (including microshift now that service file is copied)
-    systemctl enable microshift.service \
-                    microshift-kubeconfig-setup.service \
-                    edge-setup.service \
-                    observability-deploy.service 2>/dev/null || true && \
-    # SELinux context restoration
+    # Enable all services (simplified)
+    systemctl enable sshd chronyd systemd-resolved podman.socket crio otelcol \
+                    bootc-fetch-apply-updates.timer \
+                    microshift.service microshift-kubeconfig-setup.service \
+                    edge-setup.service observability-deploy.service 2>/dev/null || true && \
+    # Configure firewall (consolidated)
+    firewall-offline-cmd --add-service=ssh \
+                        --add-port=6443/tcp --add-port=8080/tcp --add-port=10250/tcp \
+                        --add-port=4317/tcp --add-port=4318/tcp --add-port=9090/tcp --add-port=8888/tcp && \
+    # Final setup
     restorecon -R /etc /usr/local/bin 2>/dev/null || true && \
-    # Create non-root user for container security compliance
     useradd -r -s /sbin/nologin -d /var/empty -c "Container user" containeruser && \
-    # Validate bootc container
     bootc container lint
 
-# Switch to non-root user for container security compliance
-# Note: This is for container image security; bootc will use system users when booted
 USER containeruser
 
 # This is a bootc image - no CMD needed as it will be converted to a bootable OS
