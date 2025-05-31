@@ -1,199 +1,230 @@
-# GitHub Actions Workflows
+# GitHub Workflows Documentation
 
-This directory contains GitHub Actions workflows for building, testing, and securing the Fedora bootc container image.
+This directory contains automated CI/CD workflows for building and testing K3s edge OS container images.
 
-## 🚀 Workflows Overview
+## 🔄 Available Workflows
 
-### 1. Build and Security Scan (`build-and-security-scan.yaml`)
+- **🔧 K3s Builds**: Automated builds triggered on code changes (8-12 minutes)
+- **🔒 Security Scanning**: Automated security vulnerability scanning
 
-**Main workflow for building and securing the container image.**
+## 📋 Workflow Details
 
-**Triggers:**
-- Push to `main` branch with changes to `os/**`
-- Pull requests to `main` branch with changes to `os/**`
-- Weekly scheduled runs (Mondays at 2 AM UTC)
-- Manual dispatch with ISO configuration options
+### 1. Build and Security Scan - `build-and-security-scan.yaml`
 
-**Features:**
-- ✅ GitVersion-based semantic versioning
-- ✅ Multi-platform container builds (AMD64/ARM64)
-- ✅ Comprehensive Trivy security scanning
-- ✅ SARIF upload to GitHub Advanced Security
-- ✅ SBOM (Software Bill of Materials) generation
-- ✅ Container image publishing to GitHub Container Registry with SHA digests
-- ✅ **Supply Chain Security**: Immutable SHA digest references for tamper-proof deployments
-- ✅ **ISO Building**: Automated ISO creation with multiple configurations
-- ✅ Automated testing on pull requests
+**🚀 Primary K3s workflow with automated triggers**
 
-**Jobs:**
-1. **GitVersion**: Determines semantic version
-2. **Security Scan Files**: Scans filesystem and configuration files
-3. **Build and Scan**: Builds container image, scans for vulnerabilities, and pushes with SHA digest
-4. **Test Container**: Runs functional tests on pull requests
-5. **Build ISO**: Creates bootable ISOs with minimal, user, advanced, and interactive configurations
-6. **Security Summary**: Generates comprehensive security report
+- **Triggers**: Push to `main`, pull requests, manual dispatch
+- **Duration**: ~8-12 minutes (optimized with layer caching)
+- **Outputs**: Container images, ISOs, security reports
+- **Features**:
+  - ✅ **Version Auto-Detection** - Semantic versioning with git tags
+  - ✅ **Fast Builds**: 8-12 minutes using optimized layer caching
+  - ✅ **Multi-Config ISO Generation** - Builds ISOs for different use cases
+  - ✅ **Security Scanning** - Trivy vulnerability scanning with SARIF reports
+  - ✅ **Artifact Management** - Automatic artifact uploads with retention
 
-**ISO Configurations Built:**
-- `minimal` - Basic pre-configured user account
-- `user` - Full pre-configured user and network settings
-- `advanced` - Guided installation with filesystem selection
-- `interactive` - Comprehensive interactive installation wizard
+### 2. Security Scan Only - `security-scan.yaml`
 
-### 2. Dependency Security Monitoring (`dependency-update.yaml`)
+**🔒 Standalone security scanning workflow**
 
-**Weekly security review of dependencies and base images.**
+- **Triggers**: Daily schedule, manual dispatch, workflow call
+- **Duration**: ~5-10 minutes  
+- **Outputs**: Security reports, SARIF files
+- **Features**:
+  - ✅ **Repository Scanning** - Source code security analysis
+  - ✅ **Dependency Scanning** - Third-party package vulnerability detection
+  - ✅ **SARIF Integration** - GitHub Security tab integration
 
-**Triggers:**
-- Weekly scheduled runs (Mondays at 6 AM UTC)
-- Manual dispatch
-- Changes to Containerfile or Dependabot config
+## 🎯 Workflow Selection Guide
 
-**Features:**
-- ✅ Base image vulnerability scanning
-- ✅ Package analysis and inventory
-- ✅ Security advisory generation
-- ✅ Automated reporting
-- ✅ Multi-architecture support
+| Workflow | Primary Use | Trigger | Duration | Artifacts |
+|----------|------------|---------|----------|-----------|
+| Build and Security Scan | Production builds | Auto on push | 8-12 min | ISOs, Images, Reports |
+| Security Scan | Security review | Daily/Manual | 5-10 min | Security Reports |
 
-## 🔒 Security Integration
+## 🏗️ Build Matrix
 
-### GitHub Advanced Security Integration
+The main workflow builds multiple ISO configurations:
 
-All workflows upload security scan results to GitHub Advanced Security:
+| Configuration | Description | Use Case |
+|--------------|-------------|----------|
+| `minimal` | Basic edge OS | Resource-constrained environments |
+| `user` | Pre-configured user setup | Quick deployment with user accounts |
+| `advanced` | Enhanced features | Full-featured edge deployments |
+| `interactive` | Interactive installation | Custom setup requirements |
 
-- **SARIF Format**: Compatible with GitHub Security tab
-- **Multiple Categories**: 
-  - `filesystem-scan`: File and dependency vulnerabilities
-  - `configuration-scan`: Infrastructure as Code security issues
-  - `container-image-scan`: Container vulnerabilities
+## 📊 Artifact Outputs
 
-### Viewing Security Results
+All workflows generate structured artifacts:
 
-1. **GitHub Security Tab**: Main dashboard for all security findings
-2. **Workflow Summaries**: Quick overview in Actions tab
-3. **Artifacts**: Detailed reports downloadable from workflow runs
-4. **Pull Request Comments**: Security findings on PRs
+### K3s Build Artifacts
+- `k3s-edge-os-iso-[config]-v[version]` - K3s bootable ISOs
+- `sbom-k3s-[sha]` - Software Bill of Materials
+- `security-scan-report-[sha]` - Vulnerability scan results
 
-## 📊 Artifacts Generated
+## 🚀 Quick Start
 
-### Security Artifacts
-- `trivy-fs-results.sarif` - Filesystem scan results
-- `trivy-config-results.sarif` - Configuration scan results
-- `trivy-image-results.sarif` - Container image scan results
-- `sbom.spdx.json` - Software Bill of Materials
+### Use K3s Build When:
 
-### Build Artifacts
-- `fedora-edge-os-iso-*` - Bootable ISO files (minimal, user, advanced, interactive)
-- Container images with SHA digest references for supply chain security
+- 🎯 Building for production edge deployments
+- ⚡ Need fast, automated builds
+- 🔧 Want lightweight Kubernetes distribution
 
-### Dependency Monitoring Artifacts
-- `security-advisory.md` - Weekly security review
-- Package analysis reports
-
-## 🛠️ Manual Workflow Execution
-
-### Trigger Build and Security Scan
+### Trigger K3s Build
 
 ```bash
-# Via GitHub CLI
+# Automatic trigger (recommended)
+git push origin main
+
+# Manual trigger
 gh workflow run build-and-security-scan.yaml
 
-# With custom ISO configuration
+# With custom image name
 gh workflow run build-and-security-scan.yaml \
-  -f iso_config=interactive \
-  -f build_iso=true
+  -f image_name=my-custom-edge-os
 ```
 
-### Trigger Dependency Monitoring
+## ⚙️ Environment Variables
 
-```bash
-gh workflow run dependency-update.yaml
-```
+Common environment variables used across workflows:
 
-### View Workflow Status
+| Variable | Description | Default | Used In |
+|----------|-------------|---------|---------|
+| `IMAGE_NAME` | K3s container image name | `ramaedge-os-k3s` | K3s workflow |
+| `REGISTRY` | Container registry URL | `ghcr.io` | All workflows |
+| `REPO_OWNER` | Repository owner for tagging | `ramaedge` | All workflows |
 
-```bash
-# List workflow runs
-gh run list
-
-# View specific run
-gh run view <run-id>
-
-# Download artifacts (ISOs, SBOM, security reports)
-gh run download <run-id>
-```
-
-## 🔧 Configuration
-
-### Environment Variables
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `IMAGE_NAME` | Container image name | `ramaedge-os` |
-| `REGISTRY` | Container registry | `ghcr.io` |
-| `WORKING_PATH` | Build context path | `./os` |
-
-### Required Permissions
+## 🔐 Required Permissions
 
 Workflows require the following GitHub token permissions:
 
 - `contents: read` - Repository access
-- `packages: write` - Container registry push
-- `security-events: write` - SARIF upload
-- `actions: read` - Workflow artifacts access
+- `packages: write` - Container registry push (K3s workflow)
+- `security-events: write` - Security scan uploads
 
-### Repository Settings
+## 🛠️ Workflow Configuration
 
-Enable the following in repository settings:
+### Build Environment
 
-1. **GitHub Actions**: Allow workflows to run
-2. **Advanced Security**: Enable for SARIF uploads
-3. **Container Registry**: Enable GitHub Packages
-4. **Dependabot**: Enable for automated updates
+- **Runner**: `ubuntu-22.04` (GitHub-hosted)
+- **Container Runtime**: Podman (Linux optimized)
+- **Storage**: Container layer caching enabled
+- **Memory**: 8GB RAM minimum
+- **Disk**: 20GB available space
 
-## 📅 Schedule Overview
+### Performance Optimizations
 
-| Workflow | Schedule | Purpose |
-|----------|----------|---------|
-| Build & Security Scan | Weekly (Mon 2 AM) | CI/CD pipeline with security and ISO building |
-| Dependency Monitoring | Weekly (Mon 6 AM) | Dependency security review |
-| Dependabot | Weekly (Various days) | Automated dependency updates |
+- **Layer Caching**: Significantly reduces build times
+- **Parallel Builds**: ISO configs built concurrently
+- **Optimized Base Images**: Pre-cached Fedora bootc images
 
-## 🚨 Security Best Practices
+## 📈 Build Times
 
-### Supply Chain Security
+| Build Type | Typical Duration | Factors |
+|------------|------------------|---------|
+| K3s Build | 8-12 min | Layer caching, base image availability |
+| Security Scan | 5-10 min | Repository size, dependency count |
 
-- **SHA Digests**: All container images use immutable SHA digest references
-- **Tamper Protection**: Cannot modify images after security scanning
-- **ISO Security**: ISOs built from exact same scanned container image
+## 🚨 Troubleshooting
 
-### Immediate Action Required
+### Common Issues
 
-When security issues are found:
+1. **Build timeout**: Check if base images are accessible
+2. **Cache miss**: First builds take longer, subsequent builds are faster
+3. **Storage space**: Ensure runner has sufficient disk space
 
-1. **Critical/High Vulnerabilities**: Address within 24-48 hours
-2. **Medium Vulnerabilities**: Address within 1 week
-3. **Low Vulnerabilities**: Address in next planned maintenance
+### Debugging
 
-### Security Workflow
+```bash
+# Check workflow status
+gh workflow list
 
-1. **Detection**: Automated scans identify vulnerabilities
-2. **Notification**: Results appear in Security tab and workflow summaries
-3. **Triage**: Review findings and prioritize based on severity
-4. **Remediation**: Update dependencies, packages, or configurations
-5. **Verification**: Re-run scans to confirm fixes
+# View workflow run details
+gh run view <run-id>
 
-### Monitoring
+# Download build artifacts
+gh run download <run-id>
+```
 
-- **Security Tab**: Weekly review of all findings
-- **Workflow Alerts**: Subscribe to workflow failure notifications
-- **Dependabot PRs**: Review and merge dependency updates promptly
-- **Security Advisories**: Monitor upstream security notifications
+## 📚 Related Documentation
 
-## 🔗 Related Documentation
+- **Container Building**: See [../actions/README.md](../actions/README.md) for common action documentation
+- **ISO Building**: See [../../docs/ISO_BUILDING.md](../../docs/ISO_BUILDING.md) for ISO configuration details
+- **K3s Documentation**: [K3s Official Docs](https://k3s.io/) 
 
-- [GitHub Advanced Security](https://docs.github.com/en/code-security)
-- [Trivy Documentation](https://aquasecurity.github.io/trivy/)
-- [SARIF Format](https://docs.github.com/en/code-security/code-scanning/integrating-with-code-scanning/sarif-support-for-code-scanning)
-- [Container Security Best Practices](https://docs.docker.com/develop/security-best-practices/)
-- [Dependabot Configuration](https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file) 
+## 🔒 Security Scanning
+
+### Standardized Security Scanning Architecture
+
+The repository now uses a **standardized security scanning approach** that eliminates duplication and ensures consistency across all workflows:
+
+#### 🎯 **Centralized Configuration**
+- **`.trivy.yaml`**: Single source of truth for all Trivy configurations
+- **Standardized skip-dirs**: Consistent across all scan types and workflows
+- **Unified severity levels**: CRITICAL, HIGH, MEDIUM by default
+- **Performance settings**: Optimized timeout and cache settings
+
+#### 🔧 **Reusable Actions**
+
+**`.github/actions/trivy-scan/`**: Standardized Trivy scanning action
+- **Supports all scan types**: `fs`, `config`, `secret`, `image`
+- **Multiple output formats**: `sarif`, `table`, `json`
+- **Consistent configuration**: Uses centralized `.trivy.yaml`
+- **Container runtime agnostic**: Works with Docker and Podman
+
+**Usage Example:**
+```yaml
+- name: Scan container image
+  uses: ./.github/actions/trivy-scan
+  with:
+    scan-type: 'image'
+    scan-ref: 'my-image:latest'
+    output-format: 'sarif'
+    severity: 'CRITICAL,HIGH'
+```
+
+#### 📋 **Workflow Integration**
+
+**Security Scan Workflow (`.github/workflows/security-scan.yaml`)**:
+- Filesystem scanning
+- Configuration scanning  
+- Secret detection
+- Uploads results to GitHub Security tab
+
+**Build & Security Scan Workflow**:
+- Container image vulnerability scanning
+- SBOM generation
+- Integrated with build process
+
+**Dependency Update Workflow**:
+- Base image vulnerability scanning
+- Automated security updates
+
+### 🚀 **Benefits of Standardization**
+
+1. **⚡ Reduced Duplication**: Single trivy-scan action used across all workflows
+2. **🔧 Consistent Configuration**: All scans use same skip-dirs and settings
+3. **📊 Better Maintainability**: Changes to scan settings in one place
+4. **🎯 Improved Reliability**: Standardized error handling and output formats
+5. **🔄 Easy Updates**: Update Trivy version in one place affects all workflows
+
+### 🛠️ **Configuration Customization**
+
+**Global Settings** (`.trivy.yaml`):
+- Skip directories and files
+- Scanner types and settings
+- Performance configuration
+- Secret scanning rules
+
+**Per-Workflow Overrides**:
+- Severity levels (via workflow inputs)
+- Output formats (sarif, table, json)
+- Container runtime settings (for image scans)
+
+### 📈 **Security Metrics**
+
+All security scans automatically:
+- Generate SARIF files for GitHub Security tab
+- Provide table output in workflow logs
+- Upload results for centralized tracking
+- Support both scheduled and on-demand execution

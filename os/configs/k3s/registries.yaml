@@ -1,0 +1,60 @@
+# K3s Container Registry Configuration
+# Supports offline/air-gap deployments with local registry mirrors
+
+mirrors:
+  # Docker Hub mirror for offline support
+  docker.io:
+    endpoint:
+      - "https://registry-1.docker.io"
+    rewrite:
+      "^docker.io/(.*)": "docker.io/$1"
+  
+  # Kubernetes registry mirror
+  registry.k8s.io:
+    endpoint:
+      - "https://registry.k8s.io"
+    rewrite:
+      "^registry.k8s.io/(.*)": "registry.k8s.io/$1"
+  
+  # Quay.io mirror
+  quay.io:
+    endpoint:
+      - "https://quay.io"
+    rewrite:
+      "^quay.io/(.*)": "quay.io/$1"
+
+# Local registry configuration (uncomment for air-gap)
+# Add your local registry here if you have one
+# Example:
+#  "local-registry.example.com":
+#    endpoint:
+#      - "https://local-registry.example.com"
+#    auth:
+#      username: ""
+#      password: ""
+
+configs:
+  # Authentication configuration for private registries
+  # Uncomment and configure as needed
+  
+  # Example for GitHub Container Registry
+  # "ghcr.io":
+  #   auth:
+  #     username: "your-username"
+  #     password: "your-token"
+  
+  # Example for local registry with TLS
+  # "local-registry.example.com":
+  #   tls:
+  #     cert_file: "/etc/ssl/certs/local-registry.crt"
+  #     key_file: "/etc/ssl/private/local-registry.key"
+  #     ca_file: "/etc/ssl/certs/local-ca.crt"
+  #     insecure_skip_verify: false
+
+# Default registry configuration
+"docker.io":
+  auth:
+    username: ""
+    password: ""
+  tls:
+    insecure_skip_verify: false 

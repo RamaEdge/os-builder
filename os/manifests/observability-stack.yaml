@@ -1,4 +1,4 @@
-# Simplified observability stack for MicroShift edge deployments
+# Simplified observability stack for K3s edge deployments
 # Only includes OpenTelemetry Collector for metrics, traces, and logs collection
 
 ---
@@ -116,56 +116,45 @@ spec:
       labels:
         app: otel-collector
     spec:
-      serviceAccountName: otel-collector
       containers:
       - name: otel-collector
-        image: otel/opentelemetry-collector-contrib:0.126.0
-        command:
-          - "/otelcol-contrib"
-          - "--config=/etc/otel-collector-config/config.yaml"
+        image: otel/opentelemetry-collector-contrib:latest
+        ports:
+        - containerPort: 4317
+          name: otlp-grpc
+        - containerPort: 4318
+          name: otlp-http
+        - containerPort: 8888
+          name: metrics
         env:
+        - name: GOMEMLIMIT
+          value: "120MiB"
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
         - name: NODE_NAME
           valueFrom:
             fieldRef:
               fieldPath: spec.nodeName
-        - name: NODE_IP
-          valueFrom:
-            fieldRef:
-              fieldPath: status.hostIP
-        ports:
-        - containerPort: 4317   # OTLP gRPC
-        - containerPort: 4318   # OTLP HTTP
-        - containerPort: 9464   # Prometheus metrics
-        - containerPort: 8888   # Internal metrics
+        - name: CLUSTER_NAME
+          value: "k3s-edge"
+        resources:
+          limits:
+            memory: 128Mi
+          requests:
+            memory: 64Mi
         volumeMounts:
         - name: config
-          mountPath: /etc/otel-collector-config
-        - name: tmp-traces
-          mountPath: /tmp
-        securityContext:
-          runAsNonRoot: true
-          runAsUser: 10001
-          runAsGroup: 10001
-          readOnlyRootFilesystem: true
-          allowPrivilegeEscalation: false
-          seccompProfile:
-            type: RuntimeDefault
-          capabilities:
-            drop:
-            - ALL
-        resources:
-          requests:
-            memory: "128Mi"
-            cpu: "100m"
-          limits:
-            memory: "256Mi"
-            cpu: "200m"
+          mountPath: /etc/otelcol-contrib
       volumes:
       - name: config
         configMap:
           name: otel-collector-config
-      - name: tmp-traces
-        emptyDir: {}
 
 ---
 # OpenTelemetry Collector Service

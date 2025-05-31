@@ -8,18 +8,17 @@ text
 lang en_US.UTF-8
 keyboard us
 
-# Network configuration - interactive
-# This will prompt user for network configuration during installation
-network --bootproto=dhcp --device=link --activate --onboot=on --hostname=fedora-bootc
+# Network configuration - configured during installation
+%include /tmp/network-include
 
 # Time zone (can be changed during installation)
 timezone --utc America/New_York
 
-# Interactive user creation
-# The installer will prompt for user details during installation
-user --name=bootc-user --groups=wheel --plaintext --password=changeme
+# Interactive user creation - configured during installation
+# User details will be prompted during installation process
+%include /tmp/user-include
 
-# Root password (will be prompted during installation)
+# Root password (disabled for security)
 rootpw --lock
 
 # Security and authentication
@@ -49,12 +48,121 @@ clearpart --all --initlabel --disklabel=gpt
 # Create boot partitions
 reqpart --add-boot
 
-# Interactive partitioning menu will be presented here
-# Users can choose from predefined layouts or custom partitioning
-
 # Default layout if no interaction
 part / --grow --fstype=xfs --label=root
 EOF
+
+# Interactive user configuration
+clear
+echo "==================================="
+echo "Fedora bootc Interactive Installer"
+echo "==================================="
+echo ""
+
+# Distribution selection
+echo "🚀 Kubernetes Distribution Selection"
+echo "-------------------------------------"
+echo ""
+echo "Choose your Kubernetes distribution:"
+echo ""
+echo "1) K3s (Recommended)"
+echo "   - Lightweight Kubernetes"
+echo "   - Fast startup, minimal resources"
+echo "   - Great for edge/IoT deployments"
+echo ""
+echo "2) MicroShift"
+echo "   - OpenShift-based edge Kubernetes"
+echo "   - Enterprise features"
+echo "   - Red Hat ecosystem integration"
+echo ""
+
+while true; do
+    echo -n "Enter your choice (1-2): "
+    read DISTRO_CHOICE
+    case $DISTRO_CHOICE in
+        1)
+            BOOTC_IMAGE_DEFAULT="ghcr.io/ramaedge/os-builder:latest"
+            HOSTNAME_DEFAULT="fedora-k3s"
+            DISTRO_NAME="K3s"
+            KUBECONFIG_PATH="/etc/rancher/k3s/k3s.yaml"
+            SERVICE_NAME="k3s"
+            echo "✅ Selected: K3s (Lightweight Kubernetes)"
+            break
+            ;;
+        2)
+            BOOTC_IMAGE_DEFAULT="ghcr.io/ramaedge/os-builder:microshift-latest"
+            HOSTNAME_DEFAULT="fedora-microshift"
+            DISTRO_NAME="MicroShift"
+            KUBECONFIG_PATH="/var/lib/microshift/resources/kubeadmin/kubeconfig"
+            SERVICE_NAME="microshift"
+            echo "✅ Selected: MicroShift (OpenShift-based)"
+            break
+            ;;
+        *)
+            echo "❌ Invalid choice. Please enter 1 or 2."
+            ;;
+    esac
+done
+
+echo ""
+
+# User account configuration
+echo "👤 User Account Setup"
+echo "---------------------"
+echo ""
+
+while true; do
+    echo -n "Enter username: "
+    read USERNAME
+    if [[ "$USERNAME" =~ ^[a-z_][a-z0-9_-]*$ ]] && [[ ${#USERNAME} -le 32 ]]; then
+        break
+    else
+        echo "❌ Invalid username. Use lowercase letters, numbers, underscore, and hyphen only (max 32 chars)"
+    fi
+done
+
+while true; do
+    echo -n "Enter password: "
+    read -s PASSWORD
+    echo ""
+    echo -n "Confirm password: "
+    read -s PASSWORD_CONFIRM
+    echo ""
+    if [[ "$PASSWORD" == "$PASSWORD_CONFIRM" ]] && [[ ${#PASSWORD} -ge 8 ]]; then
+        break
+    else
+        echo "❌ Passwords don't match or too short (minimum 8 characters)"
+    fi
+done
+
+echo ""
+echo "✅ User account configured: $USERNAME"
+echo ""
+
+# Create user configuration for kickstart
+cat > /tmp/user-include << EOF
+user --name=$USERNAME --groups=wheel --plaintext --password=$PASSWORD
+EOF
+
+# Create network configuration with selected hostname
+cat > /tmp/network-include << EOF
+network --bootproto=dhcp --device=link --activate --onboot=on --hostname=$HOSTNAME_DEFAULT
+EOF
+
+# Store distribution choice for post-install
+cat > /tmp/distro-config << EOF
+BOOTC_IMAGE_DEFAULT="$BOOTC_IMAGE_DEFAULT"
+DISTRO_NAME="$DISTRO_NAME"
+KUBECONFIG_PATH="$KUBECONFIG_PATH"
+SERVICE_NAME="$SERVICE_NAME"
+EOF
+
+echo ""
+echo "✅ Configuration complete!"
+echo "   User: $USERNAME"
+echo "   Distribution: $DISTRO_NAME"
+echo "   Hostname: $HOSTNAME_DEFAULT"
+echo ""
 
 # Display partitioning options to user
 clear
@@ -143,6 +251,39 @@ echo ""
 %post --interpreter=/bin/bash
 #!/bin/bash
 
+echo "Starting bootc container image installation..."
+
+# Load distribution configuration from pre-install
+source /tmp/distro-config
+
+# Install our custom bootc container image
+# This switches from the base Fedora bootc to our customized edge OS image
+echo "Switching to custom bootc container image..."
+
+# Use selected image, but allow override via kernel parameter
+BOOTC_IMAGE="$BOOTC_IMAGE_DEFAULT"
+
+# Check for custom image in kernel command line
+if grep -q "bootc.image=" /proc/cmdline; then
+    BOOTC_IMAGE=$(grep -o 'bootc\.image=[^ ]*' /proc/cmdline | cut -d= -f2)
+    echo "Using custom bootc image from kernel parameter: $BOOTC_IMAGE"
+fi
+
+# Install bootc if not already available
+if ! command -v bootc &> /dev/null; then
+    echo "Installing bootc..."
+    dnf install -y bootc
+fi
+
+# Switch to our custom container image
+echo "Switching to bootc image: $BOOTC_IMAGE"
+if bootc switch --transport registry "$BOOTC_IMAGE"; then
+    echo "Successfully switched to custom bootc image: $BOOTC_IMAGE"
+else
+    echo "Warning: Failed to switch to custom bootc image, using base image"
+    echo "The system will use the default Fedora bootc image"
+fi
+
 # Security hardening - deployment-specific configuration
 echo "Applying security hardening..."
 
@@ -200,7 +341,7 @@ sed -i 's/#MaxAuthTries 6/MaxAuthTries 3/' /etc/ssh/sshd_config
 echo "AllowGroups wheel" >> /etc/ssh/sshd_config
 
 # Create welcome message
-cat > /etc/motd << 'EOF'
+cat > /etc/motd << EOF
 ==========================================
 Welcome to Fedora bootc Edge OS
 ==========================================
@@ -208,19 +349,19 @@ Welcome to Fedora bootc Edge OS
 This system was installed using an interactive
 Kickstart configuration with your custom settings.
 
-Default user: bootc-user (member of wheel group)
+User account: Created during installation (member of wheel group)
 SSH access: Enabled
 Container runtime: Podman (pre-installed)
-Kubernetes: MicroShift (available)
+Kubernetes: $DISTRO_NAME
 
 For more information:
 - Check system status: bootc status
 - View container images: podman images
-- MicroShift status: systemctl status microshift
+- Service status: systemctl status $SERVICE_NAME
 
 To get started:
-- sudo systemctl enable --now microshift
-- export KUBECONFIG=/var/lib/microshift/resources/kubeadmin/kubeconfig
+- sudo systemctl enable --now $SERVICE_NAME
+- export KUBECONFIG=$KUBECONFIG_PATH
 
 ==========================================
 EOF

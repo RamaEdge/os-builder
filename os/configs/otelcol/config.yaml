@@ -1,59 +1,20 @@
-# OpenTelemetry Collector configuration for edge OS
-# This collector runs on the host OS and forwards telemetry to the MicroShift cluster
-
+# This collector runs on the host OS and forwards telemetry to the K3s cluster
 receivers:
-  # Host metrics receiver
   hostmetrics:
-    collection_interval: 30s
+    collection_interval: 10s
     scrapers:
       cpu:
         metrics:
           system.cpu.utilization:
             enabled: true
-      memory:
-        metrics:
-          system.memory.utilization:
-            enabled: true
       disk:
-        metrics:
-          system.disk.io:
-            enabled: true
-          system.disk.operations:
-            enabled: true
       filesystem:
-        metrics:
-          system.filesystem.utilization:
-            enabled: true
-      network:
-        metrics:
-          system.network.io:
-            enabled: true
       load:
-        metrics:
-          system.cpu.load_average.1m:
-            enabled: true
-          system.cpu.load_average.5m:
-            enabled: true
-          system.cpu.load_average.15m:
-            enabled: true
+      memory:
+      network:
+      paging:
       processes:
-        metrics:
-          system.processes.count:
-            enabled: true
-          system.processes.created:
-            enabled: true
 
-  # System logs receiver
-  journald:
-    directory: /var/log/journal
-    units:
-      - microshift
-      - crio
-      - podman
-      - bootc-fetch-apply-updates
-    priority: info
-
-  # OTLP receiver for application traces/metrics
   otlp:
     protocols:
       grpc:
@@ -61,78 +22,91 @@ receivers:
       http:
         endpoint: 0.0.0.0:4318
 
+  prometheus:
+    config:
+      scrape_configs:
+        - job_name: 'otel-collector'
+          scrape_interval: 10s
+          static_configs:
+            - targets: ['0.0.0.0:8888']
+        - job_name: 'node-exporter'
+          scrape_interval: 15s
+          static_configs:
+            - targets: ['localhost:9100']
+        - job_name: 'k3s'
+          scrape_interval: 30s
+          static_configs:
+            - targets: ['localhost:10250']
+          metrics_path: '/metrics'
+        - job_name: 'k3s-cadvisor'
+          scrape_interval: 30s
+          static_configs:
+            - targets: ['localhost:10250']
+          metrics_path: '/metrics/cadvisor'
+
 processors:
-  # Resource processor to add host information
+  batch:
+    timeout: 5s
+    send_batch_size: 256
+
   resource:
     attributes:
+      - key: service.name
+        value: "edge-device"
+        action: insert
+      - key: service.version
+        value: "1.0.0"
+        action: insert
       - key: host.name
         from_attribute: host.name
         action: upsert
-      - key: deployment.environment
-        value: "edge"
-        action: upsert
-      - key: service.name
-        value: "edge-host-system"
-        action: upsert
-      - key: service.version
-        value: "1.0.0"
-        action: upsert
 
-  # Batch processor for performance
-  batch:
-    timeout: 10s
-    send_batch_size: 1024
-    send_batch_max_size: 2048
+  resourcedetection:
+    detectors: [env, system]
+    timeout: 2s
+    override: false
 
-  # Memory limiter to prevent OOM
   memory_limiter:
-    limit_mib: 128
-    spike_limit_mib: 32
+    limit_mib: 256
 
 exporters:
-  # Export to OpenTelemetry Collector in MicroShift cluster
-  otlp/cluster:
-    endpoint: "localhost:30317"  # NodePort service endpoint
-    tls:
-      insecure: true
-    retry_on_failure:
-      enabled: true
-      initial_interval: 5s
-      max_interval: 30s
-      max_elapsed_time: 300s
-
-  # Local debugging/logging exporter
+  # Local debugging
   logging:
     loglevel: info
-    sampling_initial: 5
-    sampling_thereafter: 200
 
-  # Prometheus metrics exporter for local scraping
-  prometheus:
-    endpoint: "0.0.0.0:9090"
-    namespace: "edge_host"
+  # Export to OpenTelemetry Collector in K3s cluster
+  otlp/k3s:
+    endpoint: "http://localhost:4317"
+    tls:
+      insecure: true
+
+  # Export to external OTLP endpoint (if configured)
+  otlp/external:
+    endpoint: "${OTEL_EXPORTER_OTLP_ENDPOINT}"
+    headers:
+      authorization: "Bearer ${OTEL_EXPORTER_OTLP_HEADERS_AUTHORIZATION}"
+    tls:
+      insecure: true
 
 service:
-  pipelines:
-    metrics:
-      receivers: [hostmetrics, otlp]
-      processors: [memory_limiter, resource, batch]
-      exporters: [otlp/cluster, prometheus]
-    
-    logs:
-      receivers: [journald, otlp]
-      processors: [memory_limiter, resource, batch]
-      exporters: [otlp/cluster, logging]
-    
-    traces:
-      receivers: [otlp]
-      processors: [memory_limiter, resource, batch]
-      exporters: [otlp/cluster]
-
-  extensions: []
-  
   telemetry:
     logs:
       level: "info"
     metrics:
-      address: "0.0.0.0:8888" 
+      address: 0.0.0.0:8888
+
+  pipelines:
+    metrics:
+      receivers: [hostmetrics, prometheus]
+      processors: [memory_limiter, resourcedetection, resource, batch]
+      exporters: [logging, otlp/k3s]
+
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, resourcedetection, resource, batch]
+      exporters: [logging, otlp/k3s]
+
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, resourcedetection, resource, batch]
+      exporters: [logging, otlp/k3s] 

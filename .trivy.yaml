@@ -1,0 +1,91 @@
+# Trivy Configuration for os-builder repository
+# Centralized configuration to ensure consistency across all workflows
+# This eliminates duplication and standardizes security scanning settings
+
+# General settings
+format: table
+exit-code: 1
+quiet: false
+
+# Scanner configuration - Enable all scanners for comprehensive security
+scanners:
+  - vuln      # Vulnerability scanning
+  - misconfig # Misconfiguration scanning  
+  - secret    # Secret detection
+
+# Misconfiguration scanner settings
+misconfig-scanners:
+  - dockerfile    # Containerfile/Dockerfile security checks
+  - kubernetes    # Kubernetes manifest security checks
+  - helm          # Helm chart security checks
+  - yaml          # General YAML configuration checks
+  - json          # General JSON configuration checks
+
+# Skip cloud-specific policies since we're building edge OS containers, not cloud infrastructure
+misconfig:
+  exclude-policies:
+    - 'AVD-AWS-*'      # Skip all AWS policies
+    - 'AVD-AZU-*'      # Skip all Azure policies  
+    - 'AVD-GCP-*'      # Skip all Google Cloud policies
+    - 'AVD-DIG-*'      # Skip all DigitalOcean policies
+    - 'AVD-OCI-*'      # Skip all Oracle Cloud policies
+
+# Severity levels to scan for (can be overridden by workflow inputs)
+severity:
+  - CRITICAL
+  - HIGH
+  - MEDIUM
+
+# Standardized skip directories for all scan types
+# These directories are commonly excluded across all workflows
+skip-dirs:
+  - .git/
+  - .github/
+  - node_modules/
+  - .vscode/
+  - .idea/
+  - dist/
+  - build/
+  - target/
+  - vendor/
+
+# Skip files that don't need scanning
+skip-files:
+  - "*.md"
+  - "*.txt"
+  - "*.log"
+  - "*.tar.gz"
+  - "*.tar.xz"
+  - "*.tar.zst"
+  - "*.zip"
+  - "*.rpm"
+  - "*.deb"
+  - "LICENSE*"
+  - "NOTICE*"
+  - "CHANGELOG*"
+
+# Vulnerability scanning settings
+vuln:
+  type:
+    - os
+    - library
+
+# Secret scanning settings
+secret:
+  skip-dirs:
+    - .git/
+    - .github/actions/
+  skip-files:
+    - "*.md"
+    - "*.example"
+    - "*.template"
+
+# Output configuration
+output:
+  clean: true
+  
+# Ignore unfixed vulnerabilities for better signal-to-noise ratio
+ignore-unfixed: true
+
+# Performance settings
+timeout: 10m 

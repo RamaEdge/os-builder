@@ -1,6 +1,6 @@
 # Fedora bootc Container Image for Edge OS
 
-This directory contains the configuration and build scripts for creating a Fedora-based bootc container image designed for edge computing deployments.
+This directory contains the configuration and build scripts for creating Fedora-based bootc container images designed for edge computing deployments with K3s.
 
 ## Overview
 
@@ -8,117 +8,114 @@ This bootc (boot container) image is based on Fedora and provides:
 
 - Immutable OS updates via container images
 - Container runtime (Podman) pre-installed
-- **MicroShift Kubernetes built from source** for edge workloads
-- **Offline Container Support**: Pre-loaded MicroShift container images for air-gapped deployments
-- **Supply Chain Security**: SHA digest-based immutable container references
+- **K3s Kubernetes Distribution**: Lightweight Kubernetes for edge deployments
+- **Offline Container Support**: Pre-loaded container images for air-gapped deployments
 - **Observability Stack**: OpenTelemetry Collector for metrics, logs, and traces
 - SSH access with security hardening
 - Automatic updates capability
 - Edge-specific optimizations
 
+## K3s Edge OS Features
+
+**Features:**
+- **Lightweight**: ~50MB binary, minimal resource footprint
+- **Offline Ready**: All container images embedded for air-gapped operation
+- **Simple**: Single binary, easy maintenance
+- **Fast Builds**: 8-12 minutes consistently
+- **Truly Open Source**: No subscription required
+
 ## Files Structure
 
 ```
 os/
-├── Containerfile.fedora       # Multi-stage Containerfile for Fedora bootc image
-├── build.sh                   # Build script with error handling
-├── Makefile                   # Make targets for building and ISO creation
+├── Containerfile.k3s               # K3s Kubernetes build
+├── build.sh                        # Enhanced build script
+├── Makefile                        # Build automation
 ├── configs/
-│   ├── containers/            # Container runtime configuration
-│   ├── microshift/            # MicroShift configuration
-│   └── otelcol/               # OpenTelemetry Collector configuration
+│   ├── containers/                 # Container runtime configuration
+│   └── otelcol/                    # OpenTelemetry Collector configuration
 ├── manifests/
-│   └── observability-stack.yaml # Kubernetes observability manifests
+│   └── observability-stack.yaml    # Kubernetes observability manifests
 ├── scripts/
-│   ├── edge-setup.sh         # Edge-specific setup script
-│   └── create-custom-iso.sh  # Interactive ISO configuration creator
-├── systemd/                   # Systemd service files
-├── config-examples/           # ISO configuration examples
-├── kickstart*.ks             # Interactive installation Kickstart files
-└── README.md                 # This file
+│   ├── edge-setup.sh               # Edge-specific setup script
+├── systemd/                        # Systemd service files
+├── examples/                       # Configuration examples and test scripts
+│   ├── cloud-init.yaml            # Post-installation configuration (K3s/MicroShift)
+│   ├── test-observability.sh      # Observability stack validator
+│   └── README.md                   # Examples documentation
+├── kickstart.ks                   # Interactive installation Kickstart file
+└── README.md                       # This file
 ```
 
 ## Quick Start
 
 ### Prerequisites
 
-- Container runtime: Docker (macOS) or Podman (Linux)
+- Container runtime: Podman (recommended) or Docker
 - At least 4GB free disk space
 
-### Platform-Specific Setup
-
-- **macOS**: See [macOS Limitations and Solutions](../docs/MACOS_LIMITATIONS.md) for detailed instructions
-- **Linux**: Native Podman support with standard package managers
-
-### Building the Image
-
-#### Using Make (Recommended)
+### Quick Build Examples
 
 ```bash
-# Show available targets
+# From repository root - simplified targets
+make build                    # K3s build (default)
+make build-microshift         # MicroShift build  
+make test                     # Test built image
+make build-iso               # Create bootable ISO
+make clean                   # Clean up images
+make info                    # Show image information
+
+# With runtime override
+make build CONTAINER_RUNTIME=docker
+make build CONTAINER_RUNTIME=podman
+
+# Get help with all targets
 make help
-
-# Check container runtime availability
-make check-runtime
-
-# Install dependencies (auto-detects macOS/Linux)
-make install-deps
-
-# Build the image
-make build
-
-# Test the image
-make test
-
-# Clean up
-make clean
 ```
 
-#### Using the Build Script
+### Available Make Targets
 
-```bash
-# Make the script executable
-chmod +x build.sh
+The build system provides these essential targets:
 
-# Build with default settings
-./build.sh
+**Core Targets:**
+- `build` - Build K3s edge OS image (default)
+- `build-microshift` - Build MicroShift edge OS image
+- `test` - Test the built image with comprehensive validation
+- `clean` - Clean up images and containers
+- `push` - Push image to registry
+- `info` - Show image information
 
-# Build with custom image name and tag
-IMAGE_NAME=my-registry/edge-os IMAGE_TAG=v1.0.0 ./build.sh
-```
+**Setup Targets:**
+- `install-deps` - Install build dependencies
+- `disk-image` - Convert to disk image
+- `build-iso` - Build bootable ISO
 
-#### Manual Build
-
-```bash
-podman build -t localhost/fedora-edge-os:latest -f Containerfile.fedora .
-```
+**Container Runtime:**
+- Automatically detects available runtime (podman preferred)
+- Override with `CONTAINER_RUNTIME=docker` or `CONTAINER_RUNTIME=podman`
 
 ## Configuration
 
 ### Environment Variables
 
 - `IMAGE_NAME`: Container image name (default: localhost/fedora-edge-os)
-- `IMAGE_TAG`: Container image tag (default: latest)
-- `CONTAINERFILE`: Containerfile to use (default: Containerfile.fedora)
+- `IMAGE_TAG`: Container image tag (default: auto-detected via git)
+- `CONTAINERFILE`: Containerfile to use (default: Containerfile.k3s)
+- `CONTAINER_RUNTIME`: Container runtime (auto-detected: prefers podman, fallback to docker)
+- `MICROSHIFT_VERSION`: MicroShift version for MicroShift builds (default: release-4.19)
 
 ### Installed Packages
 
-The image includes essential packages for edge computing:
-
+**System Components:**
 - **System Tools**: openssh-server, sudo, systemd-resolved, chrony
-- **Container Runtime**: podman, cri-o
-- **Kubernetes**: MicroShift (built from source), kubernetes-client (kubectl)
-- **Observability**: OpenTelemetry Collector (otelcol)
+- **Container Runtime**: podman, containerd (K3s embedded), cri-o (MicroShift)
+- **Observability**: OpenTelemetry Collector (otelcol) via official RPM package
 - **Networking**: NetworkManager, firewalld
 - **Security**: policycoreutils-python-utils
 
-### Security Features
-
-- **Multi-stage Build**: Build dependencies isolated from runtime image
-- **Non-root Container User**: containeruser (UID-based) for container security compliance
-- **Supply Chain Security**: Immutable SHA digest references
-- **Pre-loaded Container Images**: MicroShift images available offline
-- **Security Hardening**: Setuid binary removal, minimal attack surface
+**K3s Components:**
+- **Kubernetes**: K3s binary, kubectl
+- **Container Images**: Pre-loaded with skopeo for offline operation
 
 ### Default User
 
@@ -128,11 +125,82 @@ The image includes essential packages for edge computing:
 - Shell: `/bin/bash`
 - Password: Disabled (SSH key authentication only)
 
+## Examples and Templates
+
+The [`examples/`](examples/) directory contains ready-to-use configuration templates and testing scripts:
+
+### 📋 Available Examples
+
+- **`cloud-init.yaml`**: Post-installation system configuration
+  - Works with both K3s and MicroShift
+  - Automatic kubeconfig setup based on detected distribution
+  - Pre-configured aliases and helpful commands
+  - SSH key management and user setup
+
+- **`test-observability.sh`**: Comprehensive observability stack validator
+  - Auto-detects K3s or MicroShift distributions
+  - Tests all observability endpoints and services
+  - Provides troubleshooting guidance
+  - Colored output for easy reading
+
+### 🚀 Quick Usage
+
+```bash
+# Test your observability stack
+cd os/examples
+chmod +x test-observability.sh
+./test-observability.sh
+
+# Use cloud-init for post-installation setup
+cp examples/cloud-init.yaml my-config.yaml
+# Edit my-config.yaml with your settings
+# Deploy with ISO using cloud-init URL
+```
+
+See [`examples/README.md`](examples/README.md) for detailed usage instructions and customization guide.
+
+## Testing and Validation
+
+### 🔍 Image Testing
+
+The repository includes comprehensive testing to validate that the edge OS is properly configured:
+
+```bash
+# Comprehensive image testing with auto-detection
+make test
+
+# Test with specific runtime
+make test CONTAINER_RUNTIME=docker
+```
+
+### ✅ What the Tests Verify
+
+**Unified Test (`make test`):**
+- ✅ Container image functionality (bootc, systemctl)
+- ✅ Kubernetes components (kubectl, k3s binaries)
+- ✅ OpenTelemetry Collector installation and configuration
+- ✅ K3s manifest auto-deploy setup (`/etc/rancher/k3s/manifests/`)
+- ✅ OTEL manifest content validation (deployments, services, endpoints)
+- ✅ Service port configuration and accessibility
+- ✅ Systemd service enablement (k3s, otelcol)
+- ✅ Automatic image detection (tries exact tag, clean tag, then latest available)
+
+### 🎯 Auto-Deployment Verification
+
+The tests confirm that:
+1. **K3s will automatically deploy** OTEL manifests from `/etc/rancher/k3s/manifests/` on startup
+2. **All required endpoints** are configured and will be accessible:
+   - OTLP gRPC: `http://localhost:30317`
+   - OTLP HTTP: `http://localhost:30318`
+   - Prometheus metrics: `http://localhost:30464/metrics`
+   - OTEL internal metrics: `http://localhost:30888/metrics`
+   - Host OTEL metrics: `http://localhost:8888/metrics`
+3. **Both host-level and cluster-level** OpenTelemetry collectors are configured
+4. **All required Kubernetes resources** are included (Namespace, ConfigMap, Deployment, Service, RBAC)
+
 ## Deployment
 
 ### Converting to Disk Image
-
-To deploy the bootc image, you typically need to convert it to a disk image:
 
 ```bash
 # Using make target
@@ -155,62 +223,19 @@ sudo podman run --rm -it --privileged \
 - `raw` - Raw disk image
 - `iso` - ISO installer image
 
-### Cloud Deployment
-
-The generated disk images can be deployed to:
-
-- VMware vSphere
-- KVM/QEMU
-- OpenStack
-- Cloud providers (AWS, Azure, GCP with proper conversion)
-
 ## Features
-
-### Automatic Updates
-
-The image is configured for automatic updates:
-
-- `bootc-fetch-apply-updates.timer` enabled for OS updates
-- `podman-auto-update.timer` enabled for container updates
 
 ### Offline Container Support
 
-The image includes pre-loaded MicroShift container images for offline deployment:
+K3s images are embedded using skopeo for complete air-gapped operation:
 
 ```bash
-# Container images are pre-loaded to /usr/share/containers/storage
-# Container storage is configured with additionalImageStores for offline access
+# Container images are pre-loaded to /var/lib/rancher/k3s/agent/images/
+# K3s automatically uses these images when starting
 
-# Check pre-loaded images
-podman images --storage-driver=overlay --root=/usr/share/containers/storage
-
-# Images are automatically available when MicroShift starts
+# Check embedded images
+sudo ls -la /var/lib/rancher/k3s/agent/images/
 ```
-
-### Observability and Monitoring
-
-The system includes OpenTelemetry Collector for comprehensive observability:
-
-```bash
-# Check OpenTelemetry Collector status (host-level)
-sudo systemctl status otel-collector
-
-# View OpenTelemetry Collector logs
-sudo journalctl -u otel-collector -f
-
-# Check cluster observability components (after MicroShift is enabled)
-kubectl get all -n observability
-
-# OpenTelemetry metrics endpoint
-curl http://localhost:4317  # OTLP gRPC
-curl http://localhost:4318  # OTLP HTTP
-```
-
-**Observability Architecture:**
-
-- **Host Level**: OpenTelemetry Collector collecting system metrics, logs, and traces
-- **Cluster Level**: OpenTelemetry Collector in Kubernetes for cluster metrics and logs
-- **Integration**: Host collector can forward data to cluster collector
 
 ### System Updates
 
@@ -229,8 +254,6 @@ sudo bootc rollback
 
 ### SSH Access
 
-After deployment, access the system via SSH:
-
 ```bash
 # Copy your public key during deployment or use cloud-init
 ssh fedora@<ip-address>
@@ -245,45 +268,33 @@ podman run -d --name web-server -p 8080:80 httpd
 # Check container status
 podman ps
 
-# View logs
-podman logs web-server
-
 # Stop and remove container
 podman stop web-server
 podman rm web-server
 ```
 
-### MicroShift/Kubernetes Operations
+### Kubernetes Operations
 
 ```bash
 # Check cluster status
 kubectl get nodes
 
-# List all pods
-kubectl get pods -A
-
-# Deploy a simple test pod
-kubectl run test-pod --image=busybox --restart=Never -- sleep 3600
-
-# Check pod status
-kubectl get pods
-
-# Example: Deploy a simple web service
+# Deploy a simple web service
 kubectl create deployment hello-world --image=httpd --port=80
 kubectl expose deployment hello-world --type=NodePort --port=80
 
 # Check deployments and services
 kubectl get deployments,services
 
-# Check observability stack
-kubectl get pods -n observability
+# K3s-specific commands
+sudo systemctl status k3s
 ```
 
 ## Customization
 
 ### Adding Packages
 
-Edit `Containerfile.fedora` and add packages to the `dnf install` command:
+Edit the Containerfile and add packages to the `dnf install` command:
 
 ```dockerfile
 RUN dnf install -y \
@@ -301,12 +312,6 @@ RUN dnf install -y \
 COPY your-config.conf /etc/your-service/
 ```
 
-### Custom Scripts
-
-1. Add scripts to the `scripts/` directory
-2. Make them executable
-3. Copy and run them in the Containerfile
-
 ## Testing
 
 ### Running Tests
@@ -319,93 +324,33 @@ make test
 podman run --rm -it localhost/fedora-edge-os:latest /bin/bash
 ```
 
-### Verification
-
-The built image includes `bootc container lint` which validates:
-
-- Bootc compatibility
-- Required labels
-- System configuration
-
 ## Troubleshooting
 
 ### Build Issues
 
 1. **Permission denied**: Ensure build script is executable
-
    ```bash
    chmod +x build.sh
    ```
 
 2. **Out of space**: Clean up old images
-
    ```bash
    make clean
    podman system prune -a
    ```
 
-3. **Network issues**: Check container registry access
+### K3s-Specific Issues
 
+1. **K3s not starting**: Check systemd service status
    ```bash
-   podman pull quay.io/fedora/fedora-bootc:42
+   sudo systemctl status k3s
+   sudo journalctl -u k3s -f
    ```
 
-### Runtime Issues
-
-1. **SSH access denied**: Ensure SSH keys are properly configured
-2. **Container runtime issues**: Check podman service status
-3. **Update failures**: Check network connectivity and image registry access
-
-## Advanced Usage
-
-### Multi-architecture Builds
-
-```bash
-podman build --platform linux/amd64,linux/arm64 \
-  -t localhost/fedora-edge-os:latest \
-  -f Containerfile.fedora .
-```
-
-### Custom Base Image
-
-To use a different Fedora version, modify the FROM line in Containerfile.fedora:
-
-```dockerfile
-FROM quay.io/fedora/fedora-bootc:41  # or desired version
-```
-
-### Registry Push
-
-```bash
-# Tag for registry
-podman tag localhost/fedora-edge-os:latest myregistry.com/fedora-edge-os:latest
-
-# Push to registry
-podman push myregistry.com/fedora-edge-os:latest
-```
-
-## Security Considerations
-
-- **Container User**: Uses non-root containeruser for container security compliance
-- **Supply Chain**: SHA digest-based immutable references prevent tampering
-- **Offline Support**: Pre-loaded images reduce dependency on external registries
-- **Minimal Attack Surface**: Only essential packages and services included
-- **Security Hardening**: Setuid binaries removed, proper file permissions set
-- SSH keys should be managed via cloud-init or other secure methods
-- Regular updates should be tested before deployment
-- Consider implementing image signing for production deployments
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
-
-## License
-
-This project follows the same license as the main repository.
+2. **Images not loading**: Verify embedded images
+   ```bash
+   sudo ls -la /var/lib/rancher/k3s/agent/images/
+   ```
 
 ## Support
 
@@ -413,4 +358,24 @@ For issues related to:
 
 - **bootc**: Visit [bootc-dev/bootc](https://github.com/bootc-dev/bootc)
 - **Fedora bootc**: Visit [Fedora bootc documentation](https://docs.fedoraproject.org/en-US/bootc/)
-- **This configuration**: Open an issue in this repository 
+- **K3s**: Visit [K3s Documentation](https://docs.k3s.io/)
+- **This configuration**: Open an issue in this repository
+
+## 🔧 Build Process
+
+The build process uses a **simplified Makefile** (located at the repository root) that provides essential targets for container image building and testing.
+
+### Key Features:
+- **Smart Runtime Detection**: Automatically detects and uses available container runtime
+- **User Override**: Force specific runtime with `CONTAINER_RUNTIME=docker/podman`
+- **Intelligent Testing**: Automatically finds the best available image to test
+- **Essential Targets**: Focused on core functionality without complexity
+
+### Quick Reference:
+```bash
+make help           # Show all available targets
+make build          # Build K3s image
+make test          # Test the image
+make clean         # Clean up
+make info          # Show image information
+```
