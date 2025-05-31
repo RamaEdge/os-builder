@@ -47,22 +47,10 @@ jobs:
           scan-type: ${{ matrix.scan-type.type }}
           scan-ref: '.'
           output-format: 'sarif'
+          output-file: 'trivy-${{ matrix.scan-type.type }}-results.sarif'
           severity: ${{ github.event.inputs.severity || 'CRITICAL,HIGH' }}
-
-      - name: Display scan results
-        uses: ./.github/actions/trivy-scan
-        with:
-          scan-type: ${{ matrix.scan-type.type }}
-          scan-ref: '.'
-          output-format: 'table'
-          severity: ${{ github.event.inputs.severity || 'CRITICAL,HIGH' }}
-
-      - name: Upload results to Security tab
-        uses: github/codeql-action/upload-sarif@v3
-        if: always()
-        with:
-          sarif_file: ${{ steps.scan.outputs.results-file }}
-          category: ${{ matrix.scan-type.category }}
+          upload-sarif: 'true'
+          sarif-category: ${{ matrix.scan-type.category }}
 
   summary:
     name: Scan Summary

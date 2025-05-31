@@ -32,6 +32,14 @@ inputs:
     description: 'Working directory for build'
     required: false
     default: './os'
+  enable-cache:
+    description: 'Enable build cache (default: true)'
+    required: false
+    default: 'true'
+  cache-from:
+    description: 'Cache source images'
+    required: false
+    default: ''
 
 outputs:
   image-id:
@@ -47,6 +55,71 @@ outputs:
 runs:
   using: 'composite'
   steps:
+    - name: Setup build cache
+      if: inputs.enable-cache == 'true'
+      shell: bash
+      run: |
+        echo "🚀 Setting up build optimizations..."
+        
+        # Configure Podman for performance
+        mkdir -p ~/.config/containers
+        cat > ~/.config/containers/storage.conf << EOF
+        [storage]
+        driver = "overlay"
+        [storage.options.overlay]
+        mount_program = "/usr/bin/fuse-overlayfs"
+        mountopt = "nodev,metacopy=on"
+        EOF
+        
+        # Enable parallel layer downloads
+        cat > ~/.config/containers/registries.conf << EOF
+        [registries]
+        [registries.search]
+        registries = ['docker.io', 'quay.io']
+        [registries.insecure]
+        registries = []
+        [registries.block]
+        registries = []
+        EOF
+        
+        echo "✅ Build optimizations configured"
+
+    - name: Pull base image and setup cache
+      shell: bash
+      working-directory: ${{ inputs.working-path }}
+      run: |
+        echo "📦 Preparing base images and cache..."
+        
+        # Pre-pull base image for better layer caching
+        BASE_IMAGE=$(grep "^FROM " ${{ inputs.containerfile }} | head -1 | awk '{print $2}')
+        echo "Pre-pulling base image: $BASE_IMAGE"
+        podman pull "$BASE_IMAGE" || echo "Base image pull failed, continuing..."
+        
+        # Setup cache sources
+        CACHE_ARGS=""
+        if [ "${{ inputs.enable-cache }}" = "true" ]; then
+          # Try to pull previous version for cache
+          CACHE_TAG="${{ inputs.registry }}/${{ inputs.repository-owner }}/${{ inputs.image-name }}:latest"
+          echo "Setting up cache from: $CACHE_TAG"
+          if podman pull "$CACHE_TAG" 2>/dev/null; then
+            CACHE_ARGS="--cache-from $CACHE_TAG"
+            echo "✅ Cache source available"
+          else
+            echo "ℹ️  No cache source found, clean build"
+          fi
+          
+          # Additional cache sources if provided
+          if [ -n "${{ inputs.cache-from }}" ]; then
+            for CACHE_IMG in $(echo "${{ inputs.cache-from }}" | tr ',' ' '); do
+              if podman pull "$CACHE_IMG" 2>/dev/null; then
+                CACHE_ARGS="$CACHE_ARGS --cache-from $CACHE_IMG"
+              fi
+            done
+          fi
+        fi
+        
+        echo "cache_args=$CACHE_ARGS" >> $GITHUB_ENV
+
     - name: Build container image
       id: build
       shell: bash
@@ -56,6 +129,7 @@ runs:
         LATEST_TAG="${{ inputs.image-name }}:latest"
         
         echo "🔨 Building image: $LOCAL_TAG"
+        echo "⚡ Using cache: ${{ env.cache_args }}"
         
         # Build arguments
         BUILD_ARGS="--build-arg VCS_REF=${{ inputs.sha }} --build-arg VERSION=${{ inputs.version }}"
@@ -65,15 +139,21 @@ runs:
           BUILD_ARGS="$BUILD_ARGS --build-arg MICROSHIFT_VERSION=\"${{ inputs.microshift-version }}\" --build-arg MICROSHIFT_IMAGE_BASE=\"${{ inputs.registry }}/${{ inputs.repository-owner }}/microshift-builder\""
         fi
         
+        # Performance optimizations
+        PERF_ARGS="--jobs=4 --no-cache=false"
+        
         # Build with Podman
         podman build \
           -f ${{ inputs.containerfile }} \
           -t "$LOCAL_TAG" \
           -t "$LATEST_TAG" \
           $BUILD_ARGS \
+          ${{ env.cache_args }} \
+          $PERF_ARGS \
           --label "org.opencontainers.image.version=${{ inputs.version }}" \
           --label "org.opencontainers.image.revision=${{ inputs.sha }}" \
           --label "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
+          --label "org.opencontainers.image.created=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
           .
         
         # Get image ID and set outputs
@@ -82,4 +162,6 @@ runs:
         echo "local_tag=${LOCAL_TAG}" >> $GITHUB_OUTPUT
         echo "version_tag=${{ inputs.version }}" >> $GITHUB_OUTPUT
         
-        echo "✅ Built image: $LOCAL_TAG (ID: $IMAGE_ID)" 
+        # Show build summary
+        IMAGE_SIZE=$(podman images --format "{{.Size}}" --filter reference="$LOCAL_TAG")
+        echo "✅ Built image: $LOCAL_TAG (ID: $IMAGE_ID, Size: $IMAGE_SIZE)" 

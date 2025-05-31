@@ -265,10 +265,10 @@ scan:
 	echo "✅ Image exported to tar file: scan-results/$$TAR_FILE ($$TAR_SIZE)"; \
 	if [[ "$(TRIVY_FORMAT)" == "table" ]]; then \
 		echo "📊 Scanning tar file with table output..."; \
-		trivy image --config .trivy.yaml --severity $(TRIVY_SEVERITY) --format table "scan-results/$$TAR_FILE"; \
+		trivy archive --config .trivy.yaml --severity $(TRIVY_SEVERITY) --format table "scan-results/$$TAR_FILE"; \
 	else \
 		echo "📄 Scanning tar file with $(TRIVY_FORMAT) output to scan-results/$(TRIVY_OUTPUT_FILE)..."; \
-		trivy image --config .trivy.yaml --severity $(TRIVY_SEVERITY) --format $(TRIVY_FORMAT) --output scan-results/$(TRIVY_OUTPUT_FILE) "scan-results/$$TAR_FILE"; \
+		trivy archive --config .trivy.yaml --severity $(TRIVY_SEVERITY) --format $(TRIVY_FORMAT) --output scan-results/$(TRIVY_OUTPUT_FILE) "scan-results/$$TAR_FILE"; \
 		echo "✅ Scan results saved to scan-results/$(TRIVY_OUTPUT_FILE)"; \
 	fi; \
 	echo "🧹 Cleaning up tar file..."; \

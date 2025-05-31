@@ -56,25 +56,22 @@ jobs:
           microshift-version: ${{ steps.microshift.outputs.microshift-version }}
 
       - name: Security scan
-        uses: ./.github/actions/security-scan
+        uses: ./.github/actions/trivy-scan
         with:
-          image-ref: ${{ steps.build.outputs.image-ref }}
+          scan-type: 'container'
+          scan-ref: ${{ steps.build.outputs.image-ref }}
           severity: 'CRITICAL,HIGH'
-          build-mode: 'microshift'
-          sha: ${{ steps.version.outputs.sha }}
+          output-format: 'sarif'
+          generate-sbom: 'true'
+          upload-sarif: 'true'
+          sarif-category: 'trivy-container-microshift'
 
       - name: Test container image
-        run: |
-          echo "🧪 Testing MicroShift container..."
-          IMAGE_REF="${{ steps.build.outputs.image-ref }}"
-          
-          # Core functionality tests
-          podman run --rm "$IMAGE_REF" /bin/bash -c "bootc status || true"
-          podman run --rm "$IMAGE_REF" /bin/bash -c "microshift version || echo 'MicroShift binary found'"
-          podman run --rm "$IMAGE_REF" /bin/bash -c "kubectl version --client || echo 'kubectl binary found'"
-          podman run --rm "$IMAGE_REF" /bin/bash -c "ls -la /etc/microshift/manifests/observability-stack.yaml"
-          
-          echo "✅ MicroShift tests passed!"
+        uses: ./.github/actions/test-container
+        with:
+          image-ref: ${{ steps.build.outputs.image-ref }}
+          test-type: 'microshift'
+          parallel: 'true'
 
   build-iso:
     name: Build ISO
@@ -85,29 +82,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Build ISO
-        run: |
-          CONFIG="${{ github.event.inputs.iso_config || 'user' }}"
-          IMAGE_REF="${{ needs.build-and-scan.outputs.image-ref }}"
-          CONFIG_FILE="os/config-examples/${CONFIG}-config.toml"
-          
-          echo "🔨 Building MicroShift ISO with ${CONFIG} configuration..."
-          
-          mkdir -p iso-output
-          podman pull quay.io/centos-bootc/bootc-image-builder:latest
-          
-          podman run --rm --privileged \
-            --security-opt label=type:unconfined_t \
-            -v $(PWD)/iso-output:/output \
-            -v $(PWD)/${CONFIG_FILE}:/config.toml:ro \
-            quay.io/centos-bootc/bootc-image-builder:latest \
-            --type iso \
-            --config /config.toml \
-            "${IMAGE_REF}"
+      - name: Build MicroShift ISO
+        id: iso
+        uses: ./.github/actions/build-iso
+        with:
+          image-ref: ${{ needs.build-and-scan.outputs.image-ref }}
+          config: ${{ github.event.inputs.iso_config || 'user' }}
+          output-dir: 'iso-output'
+          working-path: './os'
 
       - name: Upload ISO artifact
         uses: actions/upload-artifact@v4
         with:
           name: microshift-os-iso-${{ github.event.inputs.iso_config }}-v${{ needs.build-and-scan.outputs.version }}
-          path: iso-output/
+          path: ${{ steps.iso.outputs.iso-path }}
           retention-days: 30 

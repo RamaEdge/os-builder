@@ -33,8 +33,8 @@ env:
   CONTAINERFILE: Containerfile.k3s
 
 jobs:
-  build-and-scan:
-    name: Build and Scan K3s OS
+  build:
+    name: Build K3s OS
     runs-on: self-hosted
     outputs:
       image-id: ${{ steps.build.outputs.image-id }}
@@ -65,33 +65,50 @@ jobs:
           registry: ${{ env.REGISTRY }}
           repository-owner: ${{ steps.version.outputs.repository-owner }}
           working-path: ${{ env.WORKING_PATH }}
+          enable-cache: ${{ github.event.inputs.force_rebuild != 'true' }}
+
+  security-scan:
+    name: Security Scan
+    runs-on: self-hosted
+    needs: build
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Security scan
-        uses: ./.github/actions/security-scan
+        uses: ./.github/actions/trivy-scan
         with:
-          image-ref: ${{ steps.build.outputs.local-tag }}
+          scan-type: 'container'
+          scan-ref: ${{ needs.build.outputs.image-ref }}
           severity: 'CRITICAL,HIGH'
-          build-mode: 'k3s'
-          sha: ${{ steps.version.outputs.sha }}
+          output-format: 'sarif'
+          generate-sbom: 'true'
+          upload-sarif: 'true'
+          sarif-category: 'trivy-container-k3s'
 
-      - name: Test K3s container (PRs only)
-        if: github.event_name == 'pull_request'
-        run: |
-          echo "🧪 Testing K3s container..."
-          IMAGE_REF="${{ steps.build.outputs.local-tag }}"
-          
-          # Core functionality tests
-          podman run --rm "$IMAGE_REF" /bin/bash -c "bootc status || true"
-          podman run --rm "$IMAGE_REF" /bin/bash -c "k3s --version || echo 'K3s binary found'"
-          podman run --rm "$IMAGE_REF" /bin/bash -c "kubectl version --client || echo 'kubectl binary found'"
-          podman run --rm "$IMAGE_REF" /bin/bash -c "/usr/bin/otelcol --version || echo 'OTEL binary found'"
-          
-          echo "✅ K3s tests passed!"
+  test:
+    name: Test K3s Container
+    runs-on: self-hosted
+    needs: build
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Test K3s container
+        uses: ./.github/actions/test-container
+        with:
+          image-ref: ${{ needs.build.outputs.image-ref }}
+          test-type: 'k3s'
+          parallel: 'true'
 
   build-iso:
     name: Build K3s ISO
     runs-on: self-hosted
-    needs: build-and-scan
+    needs: [build, security-scan]
     if: github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || github.event.inputs.build_iso == 'true')
     permissions:
       contents: read
@@ -102,30 +119,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Build ISO
-        run: |
-          CONFIG_FILE="${{ env.WORKING_PATH }}/config-examples/${{ matrix.config }}-config.toml"
-          IMAGE_REF="${{ needs.build-and-scan.outputs.image-ref }}"
-          
-          echo "🔨 Building K3s ISO with ${{ matrix.config }} configuration..."
-          
-          mkdir -p iso-output
-          podman pull quay.io/centos-bootc/bootc-image-builder:latest
-          
-          podman run --rm --privileged \
-            --security-opt label=type:unconfined_t \
-            -v $(pwd)/iso-output:/output \
-            -v ${CONFIG_FILE}:/config.toml:ro \
-            -v /run/user/$(id -u)/containers:/run/user/$(id -u)/containers:ro \
-            quay.io/centos-bootc/bootc-image-builder:latest \
-            --type iso \
-            --config /config.toml \
-            --local \
-            "$IMAGE_REF"
+      - name: Build K3s ISO
+        id: iso
+        uses: ./.github/actions/build-iso
+        with:
+          image-ref: ${{ needs.build.outputs.image-ref }}
+          config: ${{ matrix.config }}
+          output-dir: 'iso-output'
+          working-path: ${{ env.WORKING_PATH }}
 
       - name: Upload ISO artifact
         uses: actions/upload-artifact@v4
         with:
-          name: k3s-os-iso-${{ matrix.config }}-v${{ needs.build-and-scan.outputs.version }}
-          path: iso-output/
+          name: k3s-os-iso-${{ matrix.config }}-v${{ needs.build.outputs.version }}
+          path: ${{ steps.iso.outputs.iso-path }}
           retention-days: 30 

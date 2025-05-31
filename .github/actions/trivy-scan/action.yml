@@ -1,5 +1,5 @@
-name: 'Standardized Trivy Security Scan'
-description: 'Standardized Trivy security scanning with consistent configuration across all workflows'
+name: 'Unified Security Scan'
+description: 'Comprehensive security scanning with Trivy - handles filesystem, config, secrets, and container images with automatic tar export'
 author: 'os-builder'
 branding:
   icon: 'shield'
@@ -7,7 +7,7 @@ branding:
 
 inputs:
   scan-type:
-    description: 'Type of scan to perform (fs, config, secret, image)'
+    description: 'Type of scan to perform (fs, config, secret, image, container)'
     required: true
   scan-ref:
     description: 'Scan target (filesystem path, image reference, tar file path, etc.)'
@@ -23,19 +23,100 @@ inputs:
     description: 'Vulnerability severity levels to scan for'
     required: false
     default: 'CRITICAL,HIGH'
+  generate-sbom:
+    description: 'Generate SBOM for container images (default: false)'
+    required: false
+    default: 'false'
+  upload-sarif:
+    description: 'Upload SARIF results to GitHub Security tab (default: false)'
+    required: false
+    default: 'false'
+  sarif-category:
+    description: 'SARIF category for GitHub Security tab'
+    required: false
+    default: 'trivy-scan'
 
 outputs:
   results-file:
     description: 'Path to scan results file'
     value: ${{ steps.scan.outputs.results_file }}
+  sbom-file:
+    description: 'Path to SBOM file (if generated)'
+    value: ${{ steps.sbom.outputs.sbom_file }}
+  tar-file:
+    description: 'Path to exported tar file (for container scans)'
+    value: ${{ steps.export.outputs.tar_file }}
 
 runs:
   using: 'composite'
   steps:
-    - name: Set output file path
+    - name: Detect container runtime
+      id: runtime
+      if: inputs.scan-type == 'container'
+      shell: bash
+      run: |
+        echo "🔍 Detecting container runtime for image export..."
+        if command -v podman >/dev/null 2>&1; then
+          echo "runtime=podman" >> $GITHUB_OUTPUT
+          echo "Using Podman runtime"
+        elif command -v docker >/dev/null 2>&1; then
+          echo "runtime=docker" >> $GITHUB_OUTPUT
+          echo "Using Docker runtime"
+        else
+          echo "❌ No container runtime found!"
+          exit 1
+        fi
+
+    - name: Export container image to tar
+      id: export
+      if: inputs.scan-type == 'container'
+      shell: bash
+      run: |
+        echo "📦 Exporting container image to tar file..."
+        
+        # Create clean tar filename from image reference
+        TAR_FILE="$(echo '${{ inputs.scan-ref }}' | sed 's|[:/]|-|g')-$(date +%s).tar"
+        echo "tar_file=${TAR_FILE}" >> $GITHUB_OUTPUT
+        
+        # Export image using detected runtime
+        RUNTIME="${{ steps.runtime.outputs.runtime }}"
+        echo "Exporting ${{ inputs.scan-ref }} to ${TAR_FILE} using ${RUNTIME}..."
+        
+        if [ "$RUNTIME" = "podman" ]; then
+          podman save --output "${TAR_FILE}" "${{ inputs.scan-ref }}"
+        else
+          docker save --output "${TAR_FILE}" "${{ inputs.scan-ref }}"
+        fi
+        
+        # Verify tar file was created
+        if [ ! -f "${TAR_FILE}" ]; then
+          echo "❌ Failed to create tar file: ${TAR_FILE}"
+          exit 1
+        fi
+        
+        TAR_SIZE=$(du -h "${TAR_FILE}" | cut -f1)
+        echo "✅ Successfully exported image to tar file: ${TAR_FILE} (${TAR_SIZE})"
+        
+        # Set the scan reference to the tar file for archive scanning
+        echo "scan_target=${TAR_FILE}" >> $GITHUB_OUTPUT
+        echo "trivy_scan_type=archive" >> $GITHUB_OUTPUT
+
+    - name: Set scan parameters
       id: setup
       shell: bash
       run: |
+        # Determine scan target and type
+        if [ "${{ inputs.scan-type }}" = "container" ]; then
+          SCAN_TARGET="${{ steps.export.outputs.scan_target }}"
+          TRIVY_SCAN_TYPE="${{ steps.export.outputs.trivy_scan_type }}"
+        else
+          SCAN_TARGET="${{ inputs.scan-ref }}"
+          TRIVY_SCAN_TYPE="${{ inputs.scan-type }}"
+        fi
+        
+        echo "scan_target=${SCAN_TARGET}" >> $GITHUB_OUTPUT
+        echo "trivy_scan_type=${TRIVY_SCAN_TYPE}" >> $GITHUB_OUTPUT
+        
         # Generate default output file if not provided
         if [ -z "${{ inputs.output-file }}" ]; then
           case "${{ inputs.output-format }}" in
@@ -61,8 +142,9 @@ runs:
         
         # Log scan details
         echo "🔍 Trivy scan configuration:"
-        echo "  Type: ${{ inputs.scan-type }}"
-        echo "  Target: ${{ inputs.scan-ref }}"
+        echo "  Input Type: ${{ inputs.scan-type }}"
+        echo "  Trivy Type: ${TRIVY_SCAN_TYPE}"
+        echo "  Target: ${SCAN_TARGET}"
         echo "  Format: ${{ inputs.output-format }}"
         echo "  Severity: ${{ inputs.severity }}"
 
@@ -70,8 +152,8 @@ runs:
       id: scan
       uses: aquasecurity/trivy-action@0.30.0
       with:
-        scan-type: ${{ inputs.scan-type }}
-        scan-ref: ${{ inputs.scan-ref }}
+        scan-type: ${{ steps.setup.outputs.trivy_scan_type }}
+        scan-ref: ${{ steps.setup.outputs.scan_target }}
         format: ${{ inputs.output-format }}
         output: ${{ steps.setup.outputs.output_file }}
         severity: ${{ inputs.severity }}
@@ -81,7 +163,43 @@ runs:
         CONTAINER_HOST: ""
         DOCKER_HOST: ""
 
-    - name: Set output
+    - name: Generate SBOM
+      id: sbom
+      if: inputs.generate-sbom == 'true' && inputs.scan-type == 'container'
+      shell: bash
+      run: |
+        echo "📋 Generating SBOM for container image..."
+        
+        SBOM_FILE="sbom-$(echo '${{ inputs.scan-ref }}' | sed 's|[:/]|-|g')-$(date +%s).spdx.json"
+        echo "sbom_file=${SBOM_FILE}" >> $GITHUB_OUTPUT
+        
+        # Generate SBOM from tar file
+        if command -v syft >/dev/null 2>&1; then
+          syft "${{ steps.export.outputs.tar_file }}" -o spdx-json="${SBOM_FILE}"
+          echo "✅ SBOM generated: ${SBOM_FILE}"
+        else
+          echo "⚠️  Syft not found, using anchore/sbom-action fallback"
+          # Use GitHub action as fallback
+          echo "SBOM generation requires syft to be installed"
+          exit 1
+        fi
+
+    - name: Upload SARIF to Security tab
+      if: inputs.upload-sarif == 'true' && inputs.output-format == 'sarif'
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: ${{ steps.setup.outputs.output_file }}
+        category: ${{ inputs.sarif-category }}
+
+    - name: Cleanup tar file
+      if: inputs.scan-type == 'container'
+      shell: bash
+      run: |
+        echo "🧹 Cleaning up tar file..."
+        rm -f "${{ steps.export.outputs.tar_file }}"
+        echo "✅ Tar file cleanup completed"
+
+    - name: Set outputs
       shell: bash
       run: |
         echo "results_file=${{ steps.setup.outputs.output_file }}" >> $GITHUB_OUTPUT 
