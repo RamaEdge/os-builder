@@ -60,7 +60,7 @@ help:
 	@echo "  build         - Build K3s edge OS image (default)"
 	@echo "  build-microshift - Build MicroShift edge OS image"
 	@echo "  test          - Test the built image"
-	@echo "  scan          - Run trivy security scan via tar export"
+	@echo "  scan          - Run trivy security scan via tar export (vuln+secret only)"
 	@echo "  sbom          - Generate SBOM (Software Bill of Materials)"
 	@echo "  clean         - Clean up images and containers"
 	@echo "  push          - Push image to registry"
@@ -85,7 +85,7 @@ help:
 	@echo "  make build-microshift         # Build MicroShift image"
 	@echo "  make build IMAGE_TAG=v1.0.0   # Build with custom tag"
 	@echo "  make test                     # Test the image"
-	@echo "  make scan                     # Security scan via tar export"
+	@echo "  make scan                     # Security scan via tar export (vuln+secret only)"
 	@echo "  make sbom                     # Generate SBOM from tar export"
 	@echo "  make scan TRIVY_SEVERITY=CRITICAL,HIGH,MEDIUM  # Scan with more severities"
 	@echo "  make scan TRIVY_FORMAT=json TRIVY_OUTPUT_FILE=scan.json  # JSON output"
@@ -232,7 +232,7 @@ build-iso:
 		--type iso \
 		$(IMAGE_NAME):$(IMAGE_TAG) 
 
-# Run trivy security scan on built image via tar export
+# Run trivy security scan on built image via tar export (fixed: uses proper trivy image command)
 scan:
 	@echo "🔍 Running trivy security scan on $(IMAGE_NAME):$(IMAGE_TAG) via tar export..."
 	@# Check if trivy is installed first
@@ -265,10 +265,10 @@ scan:
 	echo "✅ Image exported to tar file: scan-results/$$TAR_FILE ($$TAR_SIZE)"; \
 	if [[ "$(TRIVY_FORMAT)" == "table" ]]; then \
 		echo "📊 Scanning tar file with table output..."; \
-		trivy archive --config .trivy.yaml --severity $(TRIVY_SEVERITY) --format table "scan-results/$$TAR_FILE"; \
+		TRIVY_SKIP_CHECK_UPDATE=true TRIVY_DISABLE_MISCONFIG=true trivy image --config .trivy.yaml --input "scan-results/$$TAR_FILE" --severity $(TRIVY_SEVERITY) --format table --scanners vuln,secret; \
 	else \
 		echo "📄 Scanning tar file with $(TRIVY_FORMAT) output to scan-results/$(TRIVY_OUTPUT_FILE)..."; \
-		trivy archive --config .trivy.yaml --severity $(TRIVY_SEVERITY) --format $(TRIVY_FORMAT) --output scan-results/$(TRIVY_OUTPUT_FILE) "scan-results/$$TAR_FILE"; \
+		TRIVY_SKIP_CHECK_UPDATE=true TRIVY_DISABLE_MISCONFIG=true trivy image --config .trivy.yaml --input "scan-results/$$TAR_FILE" --severity $(TRIVY_SEVERITY) --format $(TRIVY_FORMAT) --output scan-results/$(TRIVY_OUTPUT_FILE) --scanners vuln,secret; \
 		echo "✅ Scan results saved to scan-results/$(TRIVY_OUTPUT_FILE)"; \
 	fi; \
 	echo "🧹 Cleaning up tar file..."; \

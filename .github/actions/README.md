@@ -101,7 +101,7 @@ This directory contains reusable GitHub Actions for the OS Builder project.
 - `config` - Configuration files (Dockerfile, YAML, etc.)
 - `secret` - Secret detection (API keys, tokens)
 - `image` - Direct container image scanning
-- `container` - **NEW**: Container image with automatic tar export
+- `container` - **RECOMMENDED**: Container image with automatic tar export (avoids Docker daemon connection issues)
 
 **Key Inputs**:
 - `scan-type` (required): Type of scan to perform
@@ -111,13 +111,21 @@ This directory contains reusable GitHub Actions for the OS Builder project.
 - `upload-sarif` (optional): Upload to GitHub Security tab (default: `false`)
 - `sarif-category` (optional): Category for GitHub Security organization
 
+**Technical Notes**:
+- **Container scanning** exports images to tar files using `podman save` or `docker save`, then scans with `trivy image --input file.tar`
+- **No Docker daemon dependency** during scanning - works in CI environments without Docker
+- **Only scans for vulnerabilities and secrets** - cloud policies (AWS/Azure/GCP) are disabled to prevent parsing errors
+- **Automatic cleanup** removes tar files after scanning to conserve disk space
+
 **Features**:
 - **All-in-one solution**: Replaces separate security-scan action
-- **Automatic container handling**: Tar export, scanning, and cleanup
+- **Automatic container handling**: Tar export, scanning, and cleanup (avoids Docker daemon issues)
 - **SBOM generation**: Software Bill of Materials for containers
 - **SARIF integration**: Direct upload to GitHub Security tab
-- **Runtime detection**: Auto-detects podman/docker
+- **Runtime detection**: Auto-detects podman/docker for tar export
 - **Smart cleanup**: Automatic temp file removal
+- **Cloud policy exclusion**: Skips AWS/Azure/GCP policies to avoid parsing errors
+- **Vulnerability-focused**: Scans only for vulnerabilities and secrets (no misconfig)
 
 ### 🧪 test-container
 

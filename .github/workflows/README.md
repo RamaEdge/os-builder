@@ -164,23 +164,35 @@ The repository now uses a **standardized security scanning approach** that elimi
 - **Unified severity levels**: CRITICAL, HIGH, MEDIUM by default
 - **Performance settings**: Optimized timeout and cache settings
 
-#### 🔧 **Reusable Actions**
+#### 🔧 **Enhanced Reusable Actions**
 
-**`.github/actions/trivy-scan/`**: Standardized Trivy scanning action
-- **Supports all scan types**: `fs`, `config`, `secret`, `image`
+**`.github/actions/trivy-scan/`**: Advanced Trivy scanning action
+- **Supports all scan types**: `fs`, `config`, `secret`, `image`, `container` (with tar export)
 - **Multiple output formats**: `sarif`, `table`, `json`
-- **Consistent configuration**: Uses centralized `.trivy.yaml`
-- **Container runtime agnostic**: Works with Docker and Podman
+- **Container scanning**: Automatic tar export avoids Docker daemon dependency issues
+- **Cloud policy exclusion**: Skips AWS/Azure/GCP policies to prevent parsing errors
+- **Vulnerability-focused**: Scans only vulnerabilities and secrets (no misconfiguration)
+- **Container runtime agnostic**: Auto-detects Podman/Docker for tar export
 
-**Usage Example:**
+**Usage Examples:**
 ```yaml
-- name: Scan container image
+# Container scanning with tar export (recommended)
+- name: Scan container image  
   uses: ./.github/actions/trivy-scan
   with:
-    scan-type: 'image'
+    scan-type: 'container'
     scan-ref: 'my-image:latest'
     output-format: 'sarif'
     severity: 'CRITICAL,HIGH'
+    generate-sbom: 'true'
+    
+# Filesystem scanning
+- name: Scan source code
+  uses: ./.github/actions/trivy-scan
+  with:
+    scan-type: 'fs'
+    scan-ref: '.'
+    upload-sarif: 'true'
 ```
 
 #### 📋 **Workflow Integration**
