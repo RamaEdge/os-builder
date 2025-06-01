@@ -279,4 +279,36 @@ The comprehensive action-based approach provides:
 5. **Streamlined Testing**: Unified test-container action with parallel execution
 6. **Consistent ISO Building**: Single build-iso action for all configurations
 7. **Complete Coverage**: All major operations (version, build, scan, test, ISO) in actions
-8. **Better Error Handling**: Comprehensive validation and detailed reporting 
+8. **Better Error Handling**: Comprehensive validation and detailed reporting
+
+## Technical Notes
+
+### Container vs Direct Registry Scanning
+
+The action uses **tar file export** approach for container scanning instead of direct registry access. This approach:
+
+- **Avoids Docker daemon dependency** in CI environments where docker socket may not be available
+- **Works with both Podman and Docker** runtime environments  
+- **Handles authentication consistently** through the container runtime's existing auth
+- **Supports air-gapped environments** where direct registry access may be restricted
+- **Provides consistent results** regardless of CI environment constraints
+
+**Container scanning** exports images to tar files using `podman save` or `docker save`, then scans with `trivy image --input file.tar`
+
+### Cache Management and Deprecated Flags
+
+The action implements proper cache management using modern Trivy commands:
+
+- **Uses `trivy clean --all`** instead of deprecated `--reset` flag (removed in Trivy v0.53.0)
+- **Uses `TRIVY_SKIP_CHECK_UPDATE=true`** instead of deprecated `TRIVY_SKIP_POLICY_UPDATE`
+- **Automatic fallback** to manual cache clearing if trivy command not available
+- **Prevents cloud policy parsing errors** that cause AWS/Azure/GCP scanning failures
+
+### Cloud Policy Exclusion
+
+The action explicitly disables cloud policy scanning to prevent parsing errors:
+
+- **`TRIVY_DISABLE_MISCONFIG=true`** - Completely disables misconfiguration scanning
+- **`scanners: vuln,secret`** - Only scans vulnerabilities and secrets
+- **Excludes AWS/Azure/GCP policies** that frequently cause parsing failures
+- **Focus on actionable security issues** rather than infrastructure misconfiguration 

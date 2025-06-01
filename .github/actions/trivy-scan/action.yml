@@ -55,11 +55,17 @@ runs:
       shell: bash
       run: |
         echo "🧹 Clearing Trivy cache to avoid policy parsing errors..."
-        # Clear all possible cache locations
-        rm -rf ~/.cache/trivy ~/.local/share/trivy ~/.trivy 2>/dev/null || true
-        rm -rf /tmp/trivy* 2>/dev/null || true
-        rm -rf ${GITHUB_WORKSPACE}/.cache/trivy 2>/dev/null || true
-        echo "✅ Trivy cache cleared"
+        # Use the new trivy clean command instead of deprecated --reset flag
+        if command -v trivy >/dev/null 2>&1; then
+          trivy clean --all 2>/dev/null || true
+          echo "✅ Trivy cache cleared using 'trivy clean --all'"
+        else
+          # Fallback to manual cleanup if trivy command not found
+          rm -rf ~/.cache/trivy ~/.local/share/trivy ~/.trivy 2>/dev/null || true
+          rm -rf /tmp/trivy* 2>/dev/null || true
+          rm -rf ${GITHUB_WORKSPACE}/.cache/trivy 2>/dev/null || true
+          echo "✅ Trivy cache cleared manually"
+        fi
 
     - name: Detect container runtime
       id: runtime
@@ -180,10 +186,8 @@ runs:
         # Completely disable cloud policies and misconfig scanning
         TRIVY_SKIP_CHECK_UPDATE: "true"
         TRIVY_OFFLINE_SCAN: "false"
-        TRIVY_RESET: "true"
         # Disable ALL policy downloads and checks
         TRIVY_DISABLE_MISCONFIG: "true"
-        TRIVY_SKIP_POLICY_UPDATE: "true"
 
     - name: Generate SBOM
       id: sbom

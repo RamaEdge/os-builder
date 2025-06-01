@@ -240,3 +240,38 @@ All security scans automatically:
 - Provide table output in workflow logs
 - Upload results for centralized tracking
 - Support both scheduled and on-demand execution
+
+### trivy-scan
+
+**Purpose**: Comprehensive security scanning using Aqua Security's Trivy scanner
+
+**Key Capabilities**:
+- **Container Security**: Export images to tar files and scan for vulnerabilities and secrets (no cloud policies)
+- **Filesystem Scanning**: Scan codebases for vulnerabilities in dependencies and configuration files
+- **SBOM Generation**: Create Software Bill of Materials for supply chain transparency
+- **Multiple Formats**: Support for SARIF, JSON, and table output formats
+- **GitHub Integration**: Automatic upload to Security tab with SARIF format
+- **Modern Cache Management**: Uses `trivy clean --all` for proper cache clearing (no deprecated flags)
+
+**Container Scanning Approach**:
+- Uses tar file export (`podman save`/`docker save`) to avoid Docker daemon dependencies
+- Scans with `trivy image --input file.tar` for consistent results across CI environments
+- Automatic cleanup of tar files to conserve disk space
+
+**Cloud Policy Exclusion**:
+- Explicitly disables misconfiguration scanning (`TRIVY_DISABLE_MISCONFIG=true`)
+- Uses only `vuln,secret` scanners to avoid AWS/Azure/GCP policy parsing errors
+- Focuses on actionable vulnerability and secret detection
+
+**Example Usage**:
+```yaml
+- name: Container Security Scan
+  uses: ./.github/actions/trivy-scan
+  with:
+    scan-type: 'container'
+    scan-ref: 'my-app:latest'
+    output-format: 'sarif'
+    severity: 'CRITICAL,HIGH'
+    generate-sbom: 'true'
+    upload-sarif: 'true'
+```

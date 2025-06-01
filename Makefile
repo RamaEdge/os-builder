@@ -232,7 +232,7 @@ build-iso:
 		--type iso \
 		$(IMAGE_NAME):$(IMAGE_TAG) 
 
-# Run trivy security scan on built image via tar export (fixed: uses proper trivy image command)
+# Run trivy security scan on built image via tar export (compatible with Trivy v0.53.0+)
 scan:
 	@echo "🔍 Running trivy security scan on $(IMAGE_NAME):$(IMAGE_TAG) via tar export..."
 	@# Check if trivy is installed first
