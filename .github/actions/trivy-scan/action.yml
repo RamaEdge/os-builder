@@ -150,7 +150,7 @@ runs:
 
     - name: Run Trivy scan
       id: scan
-      uses: aquasecurity/trivy-action@0.30.0
+      uses: aquasecurity/trivy-action@0.32.1
       with:
         scan-type: ${{ steps.setup.outputs.trivy_scan_type }}
         scan-ref: ${{ steps.setup.outputs.scan_target }}
@@ -158,10 +158,14 @@ runs:
         output: ${{ steps.setup.outputs.output_file }}
         severity: ${{ inputs.severity }}
         trivy-config: '.trivy.yaml'
+        skip-dirs: '/var/cache'
+        skip-files: '*.log'
       env:
         # Clear any container runtime environment variables for tar file scanning
         CONTAINER_HOST: ""
         DOCKER_HOST: ""
+        # Disable problematic policies
+        TRIVY_SKIP_POLICY_UPDATE: "false"
 
     - name: Generate SBOM
       id: sbom

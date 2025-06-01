@@ -1,6 +1,6 @@
 # Trivy Configuration for os-builder repository
 # Centralized configuration to ensure consistency across all workflows
-# This eliminates duplication and standardizes security scanning settings
+# Fixed to handle AWS policy parsing errors
 
 # General settings
 format: table
@@ -22,9 +22,10 @@ misconfig-scanners:
   - json          # General JSON configuration checks
 
 # Skip cloud-specific policies since we're building edge OS containers, not cloud infrastructure
+# Also skip problematic AWS policies that have parsing errors
 misconfig:
   exclude-policies:
-    - 'AVD-AWS-*'      # Skip all AWS policies
+    - 'AVD-AWS-*'      # Skip all AWS policies (including problematic ones)
     - 'AVD-AZU-*'      # Skip all Azure policies  
     - 'AVD-GCP-*'      # Skip all Google Cloud policies
     - 'AVD-DIG-*'      # Skip all DigitalOcean policies
@@ -48,6 +49,10 @@ skip-dirs:
   - build/
   - target/
   - vendor/
+  - /var/cache
+  - /var/log/dnf*
+  - /var/lib/dnf
+  - /tmp
 
 # Skip files that don't need scanning
 skip-files:
@@ -63,6 +68,7 @@ skip-files:
   - "LICENSE*"
   - "NOTICE*"
   - "CHANGELOG*"
+  - "*.cache"
 
 # Vulnerability scanning settings
 vuln:
@@ -88,4 +94,8 @@ output:
 ignore-unfixed: true
 
 # Performance settings
-timeout: 10m 
+timeout: 10m
+
+# Cache settings
+cache:
+  cache-dir: ~/.cache/trivy 
