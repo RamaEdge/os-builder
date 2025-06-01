@@ -35,24 +35,31 @@ RUN --mount=type=cache,target=/var/cache/dnf \
 
 # Download and install K3s + OTEL
 RUN --mount=type=cache,target=/tmp/downloads \
-    # Set architecture once
+    # Set architecture
     ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/') && \
     # Create all directories at once
     mkdir -p /var/lib/rancher/k3s/agent/images /etc/rancher/k3s /usr/local/bin \
              /etc/containers/systemd /etc/otelcol /etc/rancher/k3s/manifests \
              /var/lib/k3s /var/log/k3s && \
-    # Download K3s (using pinned version)
-    curl -sL "https://github.com/k3s-io/k3s/releases/download/${K3S_VERSION}/k3s-${ARCH}" \
+    # Download K3s binary with error handling
+    curl -fsSL --retry 3 --retry-delay 5 \
+        "https://github.com/k3s-io/k3s/releases/download/${K3S_VERSION}/k3s-${ARCH}" \
         -o /usr/local/bin/k3s && \
     chmod +x /usr/local/bin/k3s && \
+    # Create K3s symlinks (similar to installer)
     ln -sf /usr/local/bin/k3s /usr/local/bin/kubectl && \
-    # Download K3s airgap images
-    curl -sL "https://github.com/k3s-io/k3s/releases/download/${K3S_VERSION}/k3s-airgap-images-${ARCH}.tar.zst" \
+    ln -sf /usr/local/bin/k3s /usr/local/bin/crictl && \
+    ln -sf /usr/local/bin/k3s /usr/local/bin/ctr && \
+    # Download K3s airgap images with error handling
+    curl -fsSL --retry 3 --retry-delay 5 \
+        "https://github.com/k3s-io/k3s/releases/download/${K3S_VERSION}/k3s-airgap-images-${ARCH}.tar.zst" \
         -o "/var/lib/rancher/k3s/agent/images/k3s-airgap-images-${ARCH}.tar.zst" && \
-    # Download and install OTEL Collector
-    curl -fsSL "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v${OTEL_VERSION}/otelcol_${OTEL_VERSION}_linux_${ARCH}.rpm" \
+    # Download and install OTEL Collector with error handling
+    curl -fsSL --retry 3 --retry-delay 5 \
+        "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v${OTEL_VERSION}/otelcol_${OTEL_VERSION}_linux_${ARCH}.rpm" \
         -o /tmp/otelcol.rpm && \
-    dnf install -y /tmp/otelcol.rpm && rm -f /tmp/otelcol.rpm
+    dnf install -y /tmp/otelcol.rpm && \
+    rm -f /tmp/otelcol.rpm
 
 # Copy all configuration files
 COPY configs/containers/ /etc/containers/
@@ -71,9 +78,9 @@ RUN chmod +x /usr/local/bin/*.sh 2>/dev/null || true && \
                     bootc-fetch-apply-updates.timer \
                     k3s.service k3s-load-images.service edge-setup.service \
                     k3s-kubeconfig-setup.service observability-deploy.service 2>/dev/null || true && \
-    # Configure firewall (consolidated)
-    firewall-offline-cmd --add-service=ssh \
-                        --add-port=6443/tcp --add-port=8080/tcp --add-port=10250/tcp \
+    # Configure firewall (fixed syntax)
+    firewall-offline-cmd --add-service=ssh && \
+    firewall-offline-cmd --add-port=6443/tcp --add-port=8080/tcp --add-port=10250/tcp \
                         --add-port=4317/tcp --add-port=4318/tcp --add-port=9090/tcp --add-port=8888/tcp && \
     # Final setup
     restorecon -R /etc /usr/local/bin 2>/dev/null || true && \
