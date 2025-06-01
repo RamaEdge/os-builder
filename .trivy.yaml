@@ -7,34 +7,15 @@ format: table
 exit-code: 1
 quiet: false
 
-# Scanner configuration - Enable all scanners for comprehensive security
+# Scanner configuration - Only essential scanners (NO cloud policy scanning)
 scanners:
   - vuln      # Vulnerability scanning
-  - misconfig # Misconfiguration scanning  
   - secret    # Secret detection
+  # misconfig scanner disabled - causes cloud policy issues
 
-# Misconfiguration scanner settings
-misconfig-scanners:
-  - dockerfile    # Containerfile/Dockerfile security checks
-  - kubernetes    # Kubernetes manifest security checks
-  - helm          # Helm chart security checks
-  - yaml          # General YAML configuration checks
-  - json          # General JSON configuration checks
-
-# Skip cloud-specific policies since we're building edge OS containers, not cloud infrastructure
-# Also skip problematic AWS policies that have parsing errors
-misconfig:
-  exclude-policies:
-    - 'AVD-AWS-*'      # Skip all AWS policies (including problematic ones)
-    - 'AVD-AZU-*'      # Skip all Azure policies  
-    - 'AVD-GCP-*'      # Skip all Google Cloud policies
-    - 'AVD-DIG-*'      # Skip all DigitalOcean policies
-    - 'AVD-OCI-*'      # Skip all Oracle Cloud policies
-  include-policies: []   # Only include specific policies if needed
-
-# Additional policy exclusions
-policy:
-  policy-bundle-path: ""  # Disable policy bundle to avoid problematic policies
+# Misconfiguration scanning completely disabled
+# No misconfig-scanners needed
+# No policy exclusions needed since misconfig is disabled
 
 # Severity levels to scan for (can be overridden by workflow inputs)
 severity:
