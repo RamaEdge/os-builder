@@ -150,7 +150,7 @@ runs:
 
     - name: Run Trivy scan
       id: scan
-      uses: aquasecurity/trivy-action@0.32.1
+      uses: aquasecurity/trivy-action@0.30.0
       with:
         scan-type: ${{ steps.setup.outputs.trivy_scan_type }}
         scan-ref: ${{ steps.setup.outputs.scan_target }}
