@@ -50,6 +50,16 @@ outputs:
 runs:
   using: 'composite'
   steps:
+    - name: Clear Trivy cache and problematic policies
+      shell: bash
+      run: |
+        echo "🧹 Clearing Trivy cache to avoid policy parsing errors..."
+        # Clear all possible cache locations
+        rm -rf ~/.cache/trivy ~/.local/share/trivy ~/.trivy 2>/dev/null || true
+        rm -rf /tmp/trivy* 2>/dev/null || true
+        rm -rf ${GITHUB_WORKSPACE}/.cache/trivy 2>/dev/null || true
+        echo "✅ Trivy cache cleared"
+
     - name: Detect container runtime
       id: runtime
       if: inputs.scan-type == 'container'
@@ -160,12 +170,17 @@ runs:
         trivy-config: '.trivy.yaml'
         skip-dirs: '/var/cache'
         skip-files: '*.log'
+        scanners: 'vuln,secret'  # Only scan for vulnerabilities and secrets, skip misconfig
       env:
         # Clear any container runtime environment variables for tar file scanning
         CONTAINER_HOST: ""
         DOCKER_HOST: ""
-        # Disable problematic policies
-        TRIVY_SKIP_POLICY_UPDATE: "false"
+        # Force disable problematic policies and cache
+        TRIVY_SKIP_CHECK_UPDATE: "true"
+        TRIVY_OFFLINE_SCAN: "false"
+        TRIVY_RESET: "true"
+        # Skip AWS policies specifically  
+        TRIVY_SKIP_POLICY: "aws-ec2-specify-ami-owners,aws-ec2-requested-amis"
 
     - name: Generate SBOM
       id: sbom

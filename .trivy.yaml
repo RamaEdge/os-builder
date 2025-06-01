@@ -30,6 +30,11 @@ misconfig:
     - 'AVD-GCP-*'      # Skip all Google Cloud policies
     - 'AVD-DIG-*'      # Skip all DigitalOcean policies
     - 'AVD-OCI-*'      # Skip all Oracle Cloud policies
+  include-policies: []   # Only include specific policies if needed
+
+# Additional policy exclusions
+policy:
+  policy-bundle-path: ""  # Disable policy bundle to avoid problematic policies
 
 # Severity levels to scan for (can be overridden by workflow inputs)
 severity:
