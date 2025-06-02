@@ -7,7 +7,7 @@ branding:
 
 inputs:
   scan-type:
-    description: 'Type of scan to perform (fs, config, secret, image, container, repo, k8s, sbom)'
+    description: 'Type of scan to perform (fs, config, secret, image, container)'
     required: true
   scan-ref:
     description: 'Scan target (filesystem path, image reference, tar file path, etc.)'
@@ -47,26 +47,9 @@ outputs:
     description: 'Path to exported tar file (for container scans)'
     value: ${{ steps.export.outputs.tar_file }}
 
-
 runs:
   using: 'composite'
   steps:
-    - name: Clear Trivy cache and problematic policies
-      shell: bash
-      run: |
-        echo "🧹 Clearing Trivy cache to avoid policy parsing errors..."
-        # Use the new trivy clean command instead of deprecated --reset flag
-        if command -v trivy >/dev/null 2>&1; then
-          trivy clean --all 2>/dev/null || true
-          echo "✅ Trivy cache cleared using 'trivy clean --all'"
-        else
-          # Fallback to manual cleanup if trivy command not found
-          rm -rf ~/.cache/trivy ~/.local/share/trivy ~/.trivy 2>/dev/null || true
-          rm -rf /tmp/trivy* 2>/dev/null || true
-          rm -rf ${GITHUB_WORKSPACE}/.cache/trivy 2>/dev/null || true
-          echo "✅ Trivy cache cleared manually"
-        fi
-
     - name: Detect container runtime
       id: runtime
       if: inputs.scan-type == 'container'
@@ -113,6 +96,10 @@ runs:
         
         TAR_SIZE=$(du -h "${TAR_FILE}" | cut -f1)
         echo "✅ Successfully exported image to tar file: ${TAR_FILE} (${TAR_SIZE})"
+        
+        # Set the scan reference to the tar file for archive scanning
+        echo "scan_target=${TAR_FILE}" >> $GITHUB_OUTPUT
+        echo "trivy_scan_type=archive" >> $GITHUB_OUTPUT
 
     - name: Set scan parameters
       id: setup
@@ -120,19 +107,15 @@ runs:
       run: |
         # Determine scan target and type
         if [ "${{ inputs.scan-type }}" = "container" ]; then
-          # For container scan, use the tar file with image scan type
-          SCAN_TARGET="${{ steps.export.outputs.tar_file }}"
-          TRIVY_SCAN_TYPE="image"
-          USE_INPUT_FLAG="true"
+          SCAN_TARGET="${{ steps.export.outputs.scan_target }}"
+          TRIVY_SCAN_TYPE="${{ steps.export.outputs.trivy_scan_type }}"
         else
           SCAN_TARGET="${{ inputs.scan-ref }}"
           TRIVY_SCAN_TYPE="${{ inputs.scan-type }}"
-          USE_INPUT_FLAG="false"
         fi
         
         echo "scan_target=${SCAN_TARGET}" >> $GITHUB_OUTPUT
         echo "trivy_scan_type=${TRIVY_SCAN_TYPE}" >> $GITHUB_OUTPUT
-        echo "use_input_flag=${USE_INPUT_FLAG}" >> $GITHUB_OUTPUT
         
         # Generate default output file if not provided
         if [ -z "${{ inputs.output-file }}" ]; then
@@ -170,24 +153,15 @@ runs:
       uses: aquasecurity/trivy-action@0.30.0
       with:
         scan-type: ${{ steps.setup.outputs.trivy_scan_type }}
-        scan-ref: ${{ steps.setup.outputs.use_input_flag == 'false' && steps.setup.outputs.scan_target || '' }}
-        input: ${{ steps.setup.outputs.use_input_flag == 'true' && steps.setup.outputs.scan_target || '' }}
+        scan-ref: ${{ steps.setup.outputs.scan_target }}
         format: ${{ inputs.output-format }}
         output: ${{ steps.setup.outputs.output_file }}
         severity: ${{ inputs.severity }}
         trivy-config: '.trivy.yaml'
-        skip-dirs: '/var/cache'
-        skip-files: '*.log'
-        scanners: 'vuln,secret'  # ONLY vulnerabilities and secrets - NO cloud policies
       env:
         # Clear any container runtime environment variables for tar file scanning
         CONTAINER_HOST: ""
         DOCKER_HOST: ""
-        # Completely disable cloud policies and misconfig scanning
-        TRIVY_SKIP_CHECK_UPDATE: "true"
-        TRIVY_OFFLINE_SCAN: "false"
-        # Disable ALL policy downloads and checks
-        TRIVY_DISABLE_MISCONFIG: "true"
 
     - name: Generate SBOM
       id: sbom
@@ -205,6 +179,7 @@ runs:
           echo "✅ SBOM generated: ${SBOM_FILE}"
         else
           echo "⚠️  Syft not found, using anchore/sbom-action fallback"
+          # Use GitHub action as fallback
           echo "SBOM generation requires syft to be installed"
           exit 1
         fi
