@@ -84,4 +84,31 @@ timeout: 10m
 
 # Cache settings
 cache:
-  cache-dir: ~/.cache/trivy 
+  cache-dir: ~/.cache/trivy
+
+# Explicitly disable cloud policy loading and scanning
+# This prevents AWS/GCP/Azure policy parsing errors
+rego:
+  skip-dirs:
+    - /policies/cloud/
+    - /policies/*/cloud/
+  skip-files:
+    - "**/cloud/**/*.rego"
+    - "**/aws/**/*.rego"
+    - "**/gcp/**/*.rego"
+    - "**/azure/**/*.rego"
+
+# Cloud scanning disabled completely
+cloud:
+  disable: true
+
+# Policy configuration - disable cloud policies
+policy:
+  skip-policies:
+    - "AWS*"
+    - "GCP*"
+    - "Azure*"
+    - "*ami*"
+    - "*ec2*"
+    - "*s3*"
+    - "*vpc*" 
