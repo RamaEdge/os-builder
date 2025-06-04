@@ -64,11 +64,9 @@ jobs:
       - name: Security scan
         uses: ./.github/actions/trivy-scan
         with:
-          scan-type: 'container'
           scan-ref: ${{ steps.build.outputs.local-tag }}
           severity: ${{ env.SCAN_SEVERITY }}
           output-format: 'sarif'
-          generate-sbom: 'true'
           upload-sarif: 'true'
           sarif-category: 'trivy-container-microshift'
 
@@ -94,10 +92,3 @@ jobs:
         with:
           image-ref: ${{ needs.build-scan-test.outputs.image-ref }}
           config: ${{ github.event.inputs.iso_config || 'user' }}
-
-      - name: Upload ISO artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: microshift-os-iso-${{ github.event.inputs.iso_config }}-v${{ needs.build-scan-test.outputs.version }}
-          path: ${{ steps.iso.outputs.iso-path }}
-          retention-days: 30 

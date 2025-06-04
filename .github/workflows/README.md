@@ -4,8 +4,8 @@ This directory contains automated CI/CD workflows for building and testing K3s e
 
 ## 🔄 Available Workflows
 
-- **🔧 K3s Builds**: Automated builds triggered on code changes (8-12 minutes)
-- **🔒 Security Scanning**: Automated security vulnerability scanning
+- **🔧 K3s Builds**: Automated builds with integrated security scanning (8-12 minutes)
+- **🏗️ MicroShift Builds**: MicroShift container builds (manual trigger)
 
 ## 📋 Workflow Details
 
@@ -23,24 +23,24 @@ This directory contains automated CI/CD workflows for building and testing K3s e
   - ✅ **Security Scanning** - Trivy vulnerability scanning with SARIF reports
   - ✅ **Artifact Management** - Automatic artifact uploads with retention
 
-### 2. Security Scan Only - `security-scan.yaml`
+### 2. MicroShift Build - `build-microshift.yaml`
 
-**🔒 Standalone security scanning workflow**
+**🏗️ MicroShift container build workflow**
 
-- **Triggers**: Daily schedule, manual dispatch, workflow call
-- **Duration**: ~5-10 minutes  
-- **Outputs**: Security reports, SARIF files
+- **Triggers**: Manual dispatch only
+- **Duration**: ~10-15 minutes  
+- **Outputs**: MicroShift container images, ISOs, security reports
 - **Features**:
-  - ✅ **Repository Scanning** - Source code security analysis
-  - ✅ **Dependency Scanning** - Third-party package vulnerability detection
-  - ✅ **SARIF Integration** - GitHub Security tab integration
+  - ✅ **MicroShift Integration** - OpenShift-compatible edge platform
+  - ✅ **Security Scanning** - Integrated Trivy vulnerability scanning
+  - ✅ **ISO Generation** - Bootable MicroShift ISOs
 
 ## 🎯 Workflow Selection Guide
 
 | Workflow | Primary Use | Trigger | Duration | Artifacts |
 |----------|------------|---------|----------|-----------|
-| Build and Security Scan | Production builds | Auto on push | 8-12 min | ISOs, Images, Reports |
-| Security Scan | Security review | Daily/Manual | 5-10 min | Security Reports |
+| Build and Security Scan | K3s production builds | Auto on push, Daily | 8-12 min | ISOs, Images, Reports |
+| MicroShift Build | MicroShift builds | Manual only | 10-15 min | ISOs, Images, Reports |
 
 ## 🏗️ Build Matrix
 
@@ -58,6 +58,7 @@ The main workflow builds multiple ISO configurations:
 All workflows generate structured artifacts:
 
 ### K3s Build Artifacts
+
 - `k3s-edge-os-iso-[config]-v[version]` - K3s bootable ISOs
 - `sbom-k3s-[sha]` - Software Bill of Materials
 - `security-scan-report-[sha]` - Vulnerability scan results
@@ -154,77 +155,81 @@ gh run download <run-id>
 
 ## 🔒 Security Scanning
 
-### Standardized Security Scanning Architecture
+### Simplified Container-Focused Security Scanning
 
-The repository now uses a **standardized security scanning approach** that eliminates duplication and ensures consistency across all workflows:
+The repository uses a **streamlined security scanning approach** focused on container vulnerability detection:
 
-#### 🎯 **Centralized Configuration**
-- **`.trivy.yaml`**: Single source of truth for all Trivy configurations
-- **Standardized skip-dirs**: Consistent across all scan types and workflows
-- **Unified severity levels**: CRITICAL, HIGH, MEDIUM by default
-- **Performance settings**: Optimized timeout and cache settings
+#### 🎯 **Container-Only Approach**
 
-#### 🔧 **Reusable Actions**
+- **`.trivy.yaml`**: Optimized configuration for container vulnerability scanning
+- **Tar Export Method**: Consistent scanning via exported container images
+- **Vulnerability Focus**: Only vulnerability scanning - no secrets or misconfiguration
+- **Performance Optimized**: 30-minute timeout for large container images
 
-**`.github/actions/trivy-scan/`**: Standardized Trivy scanning action
-- **Supports all scan types**: `fs`, `config`, `secret`, `image`
+#### 🔧 **Unified Scanning Action**
+
+**`.github/actions/trivy-scan/`**: Container-focused Trivy scanning action
+
+- **Container vulnerability scanning**: Exports image to tar for consistent results
 - **Multiple output formats**: `sarif`, `table`, `json`
-- **Consistent configuration**: Uses centralized `.trivy.yaml`
-- **Container runtime agnostic**: Works with Docker and Podman
+- **Container runtime agnostic**: Auto-detects podman/docker
+- **Automated cleanup**: Temporary tar files automatically removed
 
 **Usage Example:**
+
 ```yaml
 - name: Scan container image
   uses: ./.github/actions/trivy-scan
   with:
-    scan-type: 'image'
     scan-ref: 'my-image:latest'
     output-format: 'sarif'
     severity: 'CRITICAL,HIGH'
+    upload-sarif: 'true'
 ```
 
-#### 📋 **Workflow Integration**
+#### 📋 **Integrated Workflow Scanning**
 
-**Security Scan Workflow (`.github/workflows/security-scan.yaml`)**:
-- Filesystem scanning
-- Configuration scanning  
-- Secret detection
-- Uploads results to GitHub Security tab
+**Build & Security Scan Workflows**:
 
-**Build & Security Scan Workflow**:
-- Container image vulnerability scanning
-- SBOM generation
-- Integrated with build process
+- **Container vulnerability scanning** - Integrated into all build workflows
+- **Daily security monitoring** - Automated via scheduled builds
+- **SBOM generation** - Software Bill of Materials for container images
+- **SARIF integration** - Results uploaded to GitHub Security tab
 
-**Dependency Update Workflow**:
-- Base image vulnerability scanning
-- Automated security updates
+**No Separate Security Workflow**:
 
-### 🚀 **Benefits of Standardization**
+- **Integrated approach** - Security scanning built into build workflows
+- **Efficient scanning** - No duplication, scans happen during builds
+- **Consistent methodology** - Same tar export approach everywhere
 
-1. **⚡ Reduced Duplication**: Single trivy-scan action used across all workflows
-2. **🔧 Consistent Configuration**: All scans use same skip-dirs and settings
-3. **📊 Better Maintainability**: Changes to scan settings in one place
-4. **🎯 Improved Reliability**: Standardized error handling and output formats
-5. **🔄 Easy Updates**: Update Trivy version in one place affects all workflows
+### 🚀 **Benefits of Simplification**
 
-### 🛠️ **Configuration Customization**
+1. **⚡ Reduced Complexity**: Single scan type focused on containers
+2. **🔧 Consistent Results**: Tar export ensures reproducible scans
+3. **📊 Better Performance**: No secret scanning timeouts or false positives
+4. **🎯 Container Focus**: Scanning what actually gets deployed
+5. **🔄 Simplified Maintenance**: Single scanning configuration and approach
 
-**Global Settings** (`.trivy.yaml`):
-- Skip directories and files
-- Scanner types and settings
-- Performance configuration
-- Secret scanning rules
+### 🛠️ **Configuration**
 
-**Per-Workflow Overrides**:
-- Severity levels (via workflow inputs)
-- Output formats (sarif, table, json)
-- Container runtime settings (for image scans)
+**Trivy Configuration** (`.trivy.yaml`):
 
-### 📈 **Security Metrics**
+- Vulnerability scanning only (`TRIVY_SCANNERS=vuln`)
+- Container-optimized skip patterns
+- 30-minute timeout for large images
+- CRITICAL, HIGH, MEDIUM severity levels
 
-All security scans automatically:
-- Generate SARIF files for GitHub Security tab
-- Provide table output in workflow logs
-- Upload results for centralized tracking
-- Support both scheduled and on-demand execution
+**Environment Variables**:
+
+- `TRIVY_SCANNERS=vuln` - Ensures only vulnerability scanning
+- `TRIVY_CLOUD_DISABLE=true` - Disables cloud provider scanning
+- `TRIVY_SKIP_CHECK_UPDATE=true` - Skips update checks for speed
+
+### 📈 **Security Coverage**
+
+Container vulnerability scanning covers:
+
+- **OS packages** - Base image vulnerabilities
+- **Application dependencies** - Language-specific package vulnerabilities  
+- **Container layers** - All filesystem content security issues
+- **SARIF reporting** - GitHub Security tab integration for tracking

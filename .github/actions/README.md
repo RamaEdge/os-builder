@@ -9,6 +9,7 @@ This directory contains reusable GitHub Actions for the OS Builder project.
 **Purpose**: Calculate semantic version based on Git history and branch information.
 
 **Usage**:
+
 ```yaml
 - name: Calculate version
   id: version
@@ -16,12 +17,14 @@ This directory contains reusable GitHub Actions for the OS Builder project.
 ```
 
 **Outputs**:
+
 - `version`: Calculated semantic version
 - `branch`: Current branch name
 - `sha`: Short commit SHA
 - `repository-owner`: Repository owner in lowercase
 
 **Version Strategy**:
+
 - **Main Branch**: `1.2.3` (release) or `1.2.3-dev.5+abc1234` (pre-release)
 - **Release Branch**: `1.3.0-rc.2+abc1234` (release candidate)
 - **Pull Request**: `1.2.3-pr.42.feature-branch` (clean PR version)
@@ -32,6 +35,7 @@ This directory contains reusable GitHub Actions for the OS Builder project.
 **Purpose**: Build container image with Podman and proper OCI labeling.
 
 **Usage**:
+
 ```yaml
 - name: Build container image
   id: build
@@ -48,6 +52,7 @@ This directory contains reusable GitHub Actions for the OS Builder project.
 ```
 
 **Inputs**:
+
 - `containerfile` (required): Path to Containerfile
 - `image-name` (required): Container image name
 - `version` (required): Version tag for the image
@@ -58,11 +63,13 @@ This directory contains reusable GitHub Actions for the OS Builder project.
 - `microshift-version` (optional): MicroShift version for MicroShift builds
 
 **Outputs**:
+
 - `image-id`: Built image ID
 - `local-tag`: Local image tag
 - `version-tag`: Version tag
 
 **Features**:
+
 - Builds versioned and latest tags
 - OCI-compliant labels
 - Supports K3s and MicroShift builds
@@ -74,6 +81,7 @@ This directory contains reusable GitHub Actions for the OS Builder project.
 **Purpose**: Comprehensive security scanning for all types - filesystem, config, secrets, and container images.
 
 **Usage**:
+
 ```yaml
 # Container scanning with SBOM generation
 - name: Container security scan
@@ -97,6 +105,7 @@ This directory contains reusable GitHub Actions for the OS Builder project.
 ```
 
 **Supported Scan Types**:
+
 - `fs` - Filesystem scanning (source code, dependencies)
 - `config` - Configuration files (Dockerfile, YAML, etc.)
 - `secret` - Secret detection (API keys, tokens)
@@ -104,6 +113,7 @@ This directory contains reusable GitHub Actions for the OS Builder project.
 - `container` - **NEW**: Container image with automatic tar export
 
 **Key Inputs**:
+
 - `scan-type` (required): Type of scan to perform
 - `scan-ref` (required): Target to scan (path, image reference, etc.)
 - `severity` (optional): Vulnerability levels (default: `CRITICAL,HIGH`)
@@ -112,6 +122,7 @@ This directory contains reusable GitHub Actions for the OS Builder project.
 - `sarif-category` (optional): Category for GitHub Security organization
 
 **Features**:
+
 - **All-in-one solution**: Replaces separate security-scan action
 - **Automatic container handling**: Tar export, scanning, and cleanup
 - **SBOM generation**: Software Bill of Materials for containers
@@ -124,6 +135,7 @@ This directory contains reusable GitHub Actions for the OS Builder project.
 **Purpose**: Comprehensive testing of built container images for K3s, MicroShift, and bootc functionality.
 
 **Usage**:
+
 ```yaml
 # K3s container testing
 - name: Test K3s container
@@ -143,19 +155,23 @@ This directory contains reusable GitHub Actions for the OS Builder project.
 ```
 
 **Supported Test Types**:
+
 - `k3s` - K3s-specific tests (binary, kubectl, otelcol, manifests)
 - `microshift` - MicroShift-specific tests (binary, kubectl, observability)
 - `bootc` - Base bootc tests only (bootc status, systemd)
 
 **Key Inputs**:
+
 - `image-ref` (required): Container image reference to test
 - `test-type` (required): Type of tests to run
 - `parallel` (optional): Run tests in parallel (default: `true`)
 
 **Outputs**:
+
 - `test-results`: Summary of test results (total, passed, failed)
 
 **Features**:
+
 - **Runtime detection**: Auto-detects podman/docker
 - **Parallel execution**: Optional parallel test runs for speed
 - **Comprehensive testing**: Binary checks, manifest validation, status verification
@@ -167,6 +183,7 @@ This directory contains reusable GitHub Actions for the OS Builder project.
 **Purpose**: Build bootable ISO images from container images using bootc-image-builder.
 
 **Usage**:
+
 ```yaml
 # Basic ISO build
 - name: Build ISO
@@ -187,6 +204,7 @@ This directory contains reusable GitHub Actions for the OS Builder project.
 ```
 
 **Supported Configurations**:
+
 - `minimal` - Minimal ISO configuration
 - `user` - Standard user configuration (default)
 - `advanced` - Advanced configuration with extra features
@@ -194,6 +212,7 @@ This directory contains reusable GitHub Actions for the OS Builder project.
 - `production` - Production-ready configuration
 
 **Key Inputs**:
+
 - `image-ref` (required): Container image reference to build ISO from
 - `config` (optional): ISO configuration type (default: `user`)
 - `config-file` (optional): Custom path to configuration TOML file
@@ -201,11 +220,13 @@ This directory contains reusable GitHub Actions for the OS Builder project.
 - `working-path` (optional): Working directory containing config-examples (default: `./os`)
 
 **Outputs**:
+
 - `iso-path`: Path to generated ISO file
 - `iso-size`: Size of generated ISO file
 - `config-used`: Configuration file used for build
 
 **Features**:
+
 - **Runtime detection**: Auto-detects podman/docker for building
 - **Configuration validation**: Verifies config files exist before building
 - **Automatic setup**: Creates output directories and validates environment
@@ -215,6 +236,7 @@ This directory contains reusable GitHub Actions for the OS Builder project.
 ## Workflow Integration
 
 ### K3s Build Workflow (`build-and-security-scan.yaml`)
+
 - **Action-based**: Uses calculate-version, build-container, trivy-scan, test-container, and build-iso actions
 - **Parallel execution**: Build, security scan, and test jobs run independently
 - **Automated**: Triggers on push, PR, and schedule
@@ -222,17 +244,20 @@ This directory contains reusable GitHub Actions for the OS Builder project.
 - **Smart testing**: Container testing only for PRs using test-container action
 
 ### MicroShift Build Workflow (`build-microshift.yaml`)
+
 - **Streamlined**: Uses all reusable actions for consistency
 - **Action-powered**: build-container, trivy-scan, test-container, and build-iso
 - **Manual**: Workflow dispatch only with default MicroShift version
 - **Simplified**: No complex version mapping, direct user input
 
 ### Security Scan Workflow (`security-scan.yaml`)
+
 - **Matrix-based**: Single job handles all scan types using trivy-scan action
 - **Consolidated**: Parallel execution with shared patterns
 - **Unified**: Single trivy-scan action for all security scanning needs
 
 ### Dependency Update Workflow (`dependency-update.yaml`)
+
 - **Matrix strategy**: Single job handles both K3s and OTEL version checks
 - **Automated PRs**: GitHub CLI-based PR creation
 - **Consolidated**: Shared logic for version checking and updates
@@ -240,6 +265,7 @@ This directory contains reusable GitHub Actions for the OS Builder project.
 ## Design Benefits
 
 ### 🚀 Performance
+
 - **Reduced complexity**: 80-90% fewer lines in workflows
 - **Faster execution**: Consolidated jobs and streamlined processes
 - **Better caching**: Removed BUILD_DATE and optimized layers
@@ -247,6 +273,7 @@ This directory contains reusable GitHub Actions for the OS Builder project.
 - **Efficient ISO building**: Streamlined bootc-image-builder usage
 
 ### 🔧 Maintainability
+
 - **Single source of truth**: Centralized action logic for all major operations
 - **Matrix strategies**: Reduced code duplication across workflows
 - **Simplified patterns**: Consistent structure across all workflows
@@ -254,6 +281,7 @@ This directory contains reusable GitHub Actions for the OS Builder project.
 - **Unified interfaces**: Consistent input/output patterns across actions
 
 ### 📊 Standardization
+
 - **Consistent versioning**: Unified version calculation
 - **Standardized scanning**: Single trivy-scan action for all security needs
 - **Uniform labeling**: OCI-compliant container labels

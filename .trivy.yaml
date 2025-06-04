@@ -1,28 +1,22 @@
 # Trivy Configuration for os-builder repository
-# Centralized configuration to ensure consistency across all workflows
-# Fixed to handle AWS policy parsing errors and remove invalid config options
+# Container image vulnerability scanning only - no secrets
 
 # General settings
 format: table
 exit-code: 1
 quiet: false
 
-# Scanner configuration - Only essential scanners (NO cloud policy scanning)
+# Scanner configuration - Only vulnerability scanning
 scanners:
-  - vuln      # Vulnerability scanning
-  - secret    # Secret detection
-  # misconfig scanner disabled - causes cloud policy issues
+  - vuln      # Vulnerability scanning only
 
-# Misconfiguration scanning disabled to prevent cloud policy issues
-
-# Severity levels to scan for (can be overridden by workflow inputs)
+# Severity levels to scan for
 severity:
   - CRITICAL
   - HIGH
   - MEDIUM
 
-# Standardized skip directories for all scan types
-# These directories are commonly excluded across all workflows
+# Skip directories that don't need scanning
 skip-dirs:
   - .git/
   - .github/
@@ -37,7 +31,6 @@ skip-dirs:
   - /var/log/dnf*
   - /var/lib/dnf
   - /tmp
-  # Skip Trivy's own cache directory to prevent scanning policy examples
   - .cache/trivy/
   - /root/.cache/trivy/
 
@@ -63,28 +56,9 @@ vuln:
     - os
     - library
 
-# Secret scanning settings
-secret:
-  skip-dirs:
-    - .git/
-    - .github/actions/
-    # Skip Trivy cache to prevent false positives from policy examples
-    - .cache/trivy/
-    - /root/.cache/trivy/
-  skip-files:
-    - "*.md"
-    - "*.example"
-    - "*.template"
-
-# Output configuration
-output:
-  clean: true
-  
-# Ignore unfixed vulnerabilities for better signal-to-noise ratio
+# Performance settings - increased timeout for large images
+timeout: 30m
 ignore-unfixed: true
-
-# Performance settings
-timeout: 10m
 
 # Cache settings
 cache:

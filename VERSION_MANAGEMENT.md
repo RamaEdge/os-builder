@@ -114,7 +114,7 @@ To update versions:
 
 1. **Environment variables** (highest priority)
 2. **Makefile defaults** from `versions.txt`
-3. **GitHub Action inputs** 
+3. **GitHub Action inputs**
 4. **Workflow dispatch inputs**
 5. **versions.txt values** (fallback)
 
@@ -161,4 +161,4 @@ gh workflow run dependency-update.yaml \
 - **Automated SARIF upload** for security findings
 - **Weekly security summaries** as artifacts
 
-This comprehensive approach ensures your container OS images stay secure and up-to-date with minimal manual intervention. 
+This comprehensive approach ensures your container OS images stay secure and up-to-date with minimal manual intervention.

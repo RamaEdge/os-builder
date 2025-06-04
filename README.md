@@ -67,7 +67,6 @@ os-builder/
 │   └── workflows/                           # Simplified CI/CD workflows
 │       ├── build-and-security-scan.yaml    # K3s workflow (automated)
 │       ├── build-microshift.yaml           # MicroShift workflow (manual)
-│       ├── security-scan.yaml              # Security scanning
 │       └── dependency-update.yaml          # Automated dependency updates
 └── README.md                               # This file
 ```
@@ -75,6 +74,7 @@ os-builder/
 ## 🛠️ Build Targets
 
 ### Core Targets
+
 - `make build` - Build K3s edge OS image (default)
 - `make build-microshift` - Build MicroShift edge OS image
 - `make test` - Test the built image
@@ -83,6 +83,7 @@ os-builder/
 - `make info` - Show image information
 
 ### Advanced Targets
+
 - `make install-deps` - Install build dependencies
 - `make build-iso` - Build bootable ISO
 - `make help` - Show all available targets
@@ -90,6 +91,7 @@ os-builder/
 ### Container Runtime Selection
 
 The build system automatically detects available container runtimes:
+
 - **Prefers**: `podman` (better for rootless operation)
 - **Fallback**: `docker` (compatibility)
 - **Override**: Force specific runtime
@@ -105,16 +107,19 @@ make build CONTAINER_RUNTIME=podman
 ### 🔄 Automated Workflows
 
 #### K3s Build (`build-and-security-scan.yaml`)
+
 - **Triggers**: Push to main, pull requests, weekly schedule
 - **Actions**: Build → Security scan → Test (PRs only) → ISO (main only)
 - **Default ISO**: `user` configuration for production use
 
-#### Security Scan (`security-scan.yaml`)
-- **Triggers**: Code changes, daily schedule, manual
-- **Scans**: Filesystem, configuration, secrets
-- **Matrix**: Parallel execution of all scan types
+#### Security Scanning (Integrated)
+
+- **Integrated**: Built into build workflows for efficiency
+- **Container Focus**: Vulnerability scanning via tar export for consistency
+- **Daily Monitoring**: Automated via build-and-security-scan.yaml schedule
 
 #### Dependency Updates (`dependency-update.yaml`)
+
 - **Triggers**: Weekly schedule, manual
 - **Monitors**: K3s versions, OpenTelemetry Collector, base images
 - **Automation**: Creates PRs for version updates
@@ -151,8 +156,8 @@ git push origin main                    # Triggers K3s build
 # Manual MicroShift build  
 gh workflow run build-microshift.yaml
 
-# Security scanning
-gh workflow run security-scan.yaml
+# Security scanning (integrated into build workflows)
+gh workflow run build-and-security-scan.yaml
 ```
 
 ### Advanced Usage
@@ -171,6 +176,7 @@ gh workflow run build-and-security-scan.yaml -f iso_config=production
 ## 📦 What's Included
 
 ### Core Components
+
 - **Base OS**: Fedora Linux with bootc
 - **Security**: SELinux enforcing, firewall configured
 - **Networking**: NetworkManager, Cockpit web interface
@@ -179,6 +185,7 @@ gh workflow run build-and-security-scan.yaml -f iso_config=production
 - **Updates**: Automatic system updates via bootc
 
 ### K3s Distribution
+
 - **Kubernetes**: K3s lightweight distribution
 - **Runtime**: Embedded containerd
 - **Networking**: Flannel CNI
@@ -187,6 +194,7 @@ gh workflow run build-and-security-scan.yaml -f iso_config=production
 - **Images**: Pre-loaded for offline operation
 
 ### MicroShift Distribution
+
 - **Kubernetes**: MicroShift (OpenShift-based)
 - **Runtime**: CRI-O with crictl
 - **Networking**: OVN-Kubernetes CNI
@@ -202,10 +210,11 @@ gh workflow run build-and-security-scan.yaml -f iso_config=production
 
 ## 🔒 Security Features
 
-- **Automated Scanning**: Vulnerability detection via tar-based image export for reproducible scans
-- **SBOM Generation**: Software Bill of Materials for supply chain security
+- **Vulnerability Scanning**: Container image scanning via tar export for consistent, reproducible results
+- **SBOM Generation**: Software Bill of Materials for supply chain security  
 - **Version Pinning**: Reproducible builds with pinned dependencies
 - **Security Updates**: Automated dependency monitoring and updates
+- **Integrated Approach**: Security scanning built into build workflows for efficiency
 
 ## 💿 ISO Deployment
 

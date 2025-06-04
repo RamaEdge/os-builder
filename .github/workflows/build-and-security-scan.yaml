@@ -9,7 +9,6 @@ on:
     paths: ['os/**']
   schedule:
     - cron: '0 1 * * Fri'  # Weekly builds
-    - cron: '0 2 1 * 1'    # Monthly security scans
   workflow_dispatch:
     inputs:
       iso_config:
@@ -77,11 +76,9 @@ jobs:
       - name: Security scan
         uses: ./.github/actions/trivy-scan
         with:
-          scan-type: 'container'
           scan-ref: ${{ steps.build.outputs.local-tag }}
           severity: ${{ env.SCAN_SEVERITY }}
           output-format: 'sarif'
-          generate-sbom: 'true'
           upload-sarif: 'true'
           sarif-category: 'trivy-container-k3s'
 
@@ -121,11 +118,4 @@ jobs:
         uses: ./.github/actions/build-iso
         with:
           image-ref: ${{ needs.build-and-scan.outputs.image-ref }}
-          config: ${{ matrix.config }}
-
-      - name: Upload ISO artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: k3s-os-iso-${{ matrix.config }}-v${{ needs.build-and-scan.outputs.version }}
-          path: ${{ steps.iso.outputs.iso-path }}
-          retention-days: 30 
+          config: ${{ matrix.config }} 

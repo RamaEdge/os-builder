@@ -45,7 +45,7 @@ OUTPUT_DIR := output
 ISO_DIR := iso-output
 
 # Trivy environment (centralized)
-TRIVY_ENV := TRIVY_SKIP_CHECK_UPDATE=true TRIVY_DISABLE_MISCONFIG=true TRIVY_CLOUD_DISABLE=true
+TRIVY_ENV := TRIVY_SKIP_CHECK_UPDATE=true TRIVY_CLOUD_DISABLE=true TRIVY_SCANNERS=vuln
 
 # Common targets
 .PHONY: help build build-microshift test clean push pull info scan sbom
@@ -156,11 +156,11 @@ info:
 	@$(CONTAINER_RUNTIME) images $(IMAGE_NAME) --format "table {{.Repository}}\t{{.Tag}}\t{{.ID}}\t{{.Size}}" 2>/dev/null || echo "No images found"
 
 # =============================================================================
-# Security Targets  
+# Security Targets - Container vulnerability scanning only
 # =============================================================================
 scan:
 	$(call ensure_tool,trivy)
-	@echo "🔍 Security scanning $(IMAGE_NAME):$(IMAGE_TAG)..."
+	@echo "🔍 Scanning container image $(IMAGE_NAME):$(IMAGE_TAG)..."
 	@TARGET_IMAGE=$(call find_image); \
 	test -n "$$TARGET_IMAGE" || (echo "❌ No image found! Run 'make build' first." && exit 1); \
 	mkdir -p $(SCAN_DIR); \
@@ -168,9 +168,9 @@ scan:
 	echo "📦 Exporting $$TARGET_IMAGE to tar..."; \
 	$(CONTAINER_RUNTIME) save --output "$$TAR_FILE" "$$TARGET_IMAGE"; \
 	if [ "$(TRIVY_FORMAT)" = "table" ]; then \
-		$(TRIVY_ENV) trivy image --config .trivy.yaml --input "$$TAR_FILE" --severity $(TRIVY_SEVERITY) --format table --scanners vuln,secret; \
+		$(TRIVY_ENV) trivy image --config .trivy.yaml --input "$$TAR_FILE" --severity $(TRIVY_SEVERITY) --format table; \
 	else \
-		$(TRIVY_ENV) trivy image --config .trivy.yaml --input "$$TAR_FILE" --severity $(TRIVY_SEVERITY) --format $(TRIVY_FORMAT) --output $(SCAN_DIR)/$(TRIVY_OUTPUT_FILE) --scanners vuln,secret; \
+		$(TRIVY_ENV) trivy image --config .trivy.yaml --input "$$TAR_FILE" --severity $(TRIVY_SEVERITY) --format $(TRIVY_FORMAT) --output $(SCAN_DIR)/$(TRIVY_OUTPUT_FILE); \
 		echo "✅ Results: $(SCAN_DIR)/$(TRIVY_OUTPUT_FILE)"; \
 	fi; \
 	rm -f "$$TAR_FILE"

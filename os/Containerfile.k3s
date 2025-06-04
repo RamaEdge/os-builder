@@ -65,10 +65,16 @@ RUN ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/') && \
 # Download and install OTEL Collector (separate layer)
 RUN ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/') && \
     curl -fsSL --retry 3 --retry-delay 5 \
-        "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v${OTEL_VERSION}/otelcol_${OTEL_VERSION}_linux_${ARCH}.rpm" \
-        -o /tmp/otelcol.rpm && \
-    dnf install -y /tmp/otelcol.rpm && \
-    rm -f /tmp/otelcol.rpm
+        "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v${OTEL_VERSION}/otelcol_${OTEL_VERSION}_linux_${ARCH}.tar.gz" \
+        -o /tmp/otelcol.tar.gz && \
+    tar -xzf /tmp/otelcol.tar.gz -C /tmp && \
+    mv /tmp/otelcol /usr/local/bin/otelcol && \
+    chmod +x /usr/local/bin/otelcol && \
+    rm -f /tmp/otelcol.tar.gz && \
+    # Create otelcol user and directories
+    useradd -r -s /sbin/nologin -d /var/lib/otelcol -c "OpenTelemetry Collector" otelcol && \
+    mkdir -p /var/log/otelcol /var/lib/otelcol && \
+    chown -R otelcol:otelcol /var/log/otelcol /var/lib/otelcol /etc/otelcol
 
 # Copy all configuration files
 COPY configs/containers/ /etc/containers/
