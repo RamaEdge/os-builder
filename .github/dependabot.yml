@@ -1,5 +1,6 @@
 # Dependabot configuration for automated dependency updates
 # This configuration monitors package ecosystems relevant to container OS building
+# Works alongside the centralized version management system in versions.txt
 
 version: 2
 updates:
@@ -17,11 +18,21 @@ updates:
       - "@ravichillerega"
     commit-message:
       prefix: "chore(deps)"
+      prefix-development: "chore(deps-dev)"
       include: "scope"
     labels:
       - "dependencies"
       - "github-actions"
       - "security"
+      - "automated-update"
+    # Group minor and patch updates to reduce PR volume
+    groups:
+      github-actions-updates:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
 
   # Monitor Docker base images and Containerfile dependencies
   - package-ecosystem: "docker"
@@ -43,7 +54,59 @@ updates:
       - "docker"
       - "security"
       - "container-image"
+      - "automated-update"
+    # Only track specific base images that aren't version-controlled centrally
+    ignore:
+      # Ignore K3s, OTEL, and other versions managed by versions.txt
+      - dependency-name: "*k3s*"
+      - dependency-name: "*opentelemetry*"
+      - dependency-name: "*otel*"
 
-# Note: Dependabot doesn't natively support GitHub release tracking for K3s versions.
-# K3s version updates are handled by the automated workflow in .github/workflows/dependency-update.yaml
-# which checks for new K3s releases and creates PRs to update the pinned version in Containerfiles. 
+  # Monitor Python dependencies in GitHub Actions and scripts
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "wednesday"
+      time: "06:00"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "@ravichillerega"
+    assignees:
+      - "@ravichillerega"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "python"
+      - "security"
+      - "automated-update"
+    groups:
+      python-updates:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+
+# Note: Application-specific versions (K3s, OpenTelemetry, MicroShift, Fedora) are managed centrally
+# through the versions.txt file and the automated dependency-update.yaml workflow.
+# 
+# This Dependabot configuration focuses on:
+# 1. GitHub Actions versions
+# 2. Base container images (Fedora bootc base)
+# 3. Build tooling and scripts
+# 
+# The dependency-update.yaml workflow handles:
+# 1. K3s version tracking
+# 2. OpenTelemetry version tracking  
+# 3. MicroShift version tracking
+# 4. Fedora version coordination
+# 5. Security scanning of version updates
+#
+# This dual approach ensures:
+# - Infrastructure dependencies are kept current (Dependabot)
+# - Application versions are centrally managed (versions.txt + workflow)
+# - Security scanning covers all components
+# - Consistent versioning across all build environments 

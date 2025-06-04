@@ -1,0 +1,18 @@
+# Version Configuration File
+# This file contains version definitions used across Makefile and GitHub Actions
+# Format: KEY=VALUE (no spaces around =)
+
+# K3s version - Kubernetes distribution
+K3S_VERSION=v1.33.1+k3s1
+
+# OpenTelemetry Collector version
+OTEL_VERSION=0.127.0
+
+# MicroShift version (Red Hat's Kubernetes distribution)
+MICROSHIFT_VERSION=release-4.19
+
+# Container image versions
+FEDORA_VERSION=42
+BOOTC_VERSION=42
+
+# Build metadata (handled dynamically in builds) 

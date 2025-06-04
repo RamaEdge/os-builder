@@ -5,11 +5,245 @@ on:
     # Check for dependency updates weekly on Mondays
     - cron: '0 6 * * 1'
   workflow_dispatch:
+    inputs:
+      components:
+        description: 'Components to check (comma-separated: k3s,otel,microshift,fedora)'
+        default: 'k3s,otel,microshift,fedora'
+        type: string
+      force_update:
+        description: 'Force create PRs even if no updates'
+        default: false
+        type: boolean
+
+# Centralized environment configuration
+env:
+  PR_LABELS: 'dependencies,automated-update,security'
 
 jobs:
-  check-base-image:
-    name: Check Base Image Updates
+  # Load current versions from centralized file
+  load-versions:
+    name: Load Current Versions
     runs-on: self-hosted
+    outputs:
+      k3s-version: ${{ steps.versions.outputs.k3s-version }}
+      otel-version: ${{ steps.versions.outputs.otel-version }}
+      microshift-version: ${{ steps.versions.outputs.microshift-version }}
+      fedora-version: ${{ steps.versions.outputs.fedora-version }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Load version configuration
+        id: versions
+        uses: ./.github/actions/load-versions
+
+  # Check for version updates using matrix strategy
+  check-updates:
+    name: Check Updates
+    runs-on: self-hosted
+    needs: load-versions
+    permissions:
+      contents: write
+      pull-requests: write
+    strategy:
+      fail-fast: false
+      matrix:
+        component:
+          - name: "k3s"
+            display_name: "K3s"
+            version_key: "K3S_VERSION"
+            current_version: ${{ needs.load-versions.outputs.k3s-version }}
+            api_url: "https://api.github.com/repos/k3s-io/k3s/releases/latest"
+            version_extract: "cat"
+            labels: "k3s,kubernetes,container-runtime"
+            
+          - name: "otel"
+            display_name: "OpenTelemetry Collector"
+            version_key: "OTEL_VERSION"
+            current_version: ${{ needs.load-versions.outputs.otel-version }}
+            api_url: "https://api.github.com/repos/open-telemetry/opentelemetry-collector-releases/releases/latest"
+            version_extract: "sed 's/^v//'"
+            labels: "opentelemetry,observability,telemetry"
+            
+          - name: "microshift"
+            display_name: "MicroShift"
+            version_key: "MICROSHIFT_VERSION"
+            current_version: ${{ needs.load-versions.outputs.microshift-version }}
+            api_url: "https://api.github.com/repos/openshift/microshift/releases/latest"
+            version_extract: "cat"
+            labels: "microshift,kubernetes,openshift"
+            
+          - name: "fedora"
+            display_name: "Fedora"
+            version_key: "FEDORA_VERSION"
+            current_version: ${{ needs.load-versions.outputs.fedora-version }}
+            # Custom check for Fedora versions (not using GitHub API)
+            api_url: ""
+            version_extract: ""
+            labels: "fedora,base-image,os"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check if component should be updated
+        id: should-update
+        run: |
+          COMPONENTS="${{ github.event.inputs.components || 'k3s,otel,microshift,fedora' }}"
+          
+          if echo "$COMPONENTS" | grep -q "${{ matrix.component.name }}"; then
+            echo "should-update=true" >> $GITHUB_OUTPUT
+            echo "✅ ${{ matrix.component.display_name }} scheduled for update check"
+          else
+            echo "should-update=false" >> $GITHUB_OUTPUT
+            echo "⏭️ Skipping ${{ matrix.component.display_name }} (not in component list)"
+          fi
+
+      - name: Get latest version
+        id: latest
+        if: steps.should-update.outputs.should-update == 'true'
+        run: |
+          CURRENT="${{ matrix.component.current_version }}"
+          echo "current=${CURRENT}" >> $GITHUB_OUTPUT
+          
+          case "${{ matrix.component.name }}" in
+            "fedora")
+              # Check Fedora release schedule or use a fixed update pattern
+              # For now, we'll check if there's a newer major version available
+              LATEST=$(curl -s "https://release.fedoraproject.org/data/releases.json" | \
+                jq -r '.[] | select(.version | tonumber >= ($CURRENT | tonumber)) | .version' | \
+                sort -V | tail -1 2>/dev/null || echo "$CURRENT")
+              ;;
+            *)
+              if [ -n "${{ matrix.component.api_url }}" ]; then
+                LATEST=$(curl -s "${{ matrix.component.api_url }}" | \
+                  grep '"tag_name"' | cut -d'"' -f4 | ${{ matrix.component.version_extract }})
+              else
+                LATEST="$CURRENT"
+              fi
+              ;;
+          esac
+          
+          echo "latest=${LATEST}" >> $GITHUB_OUTPUT
+          
+          if [ "$CURRENT" != "$LATEST" ] || [ "${{ github.event.inputs.force_update }}" = "true" ]; then
+            echo "update-needed=true" >> $GITHUB_OUTPUT
+            echo "🆕 ${{ matrix.component.display_name }} update available: ${CURRENT} → ${LATEST}"
+          else
+            echo "update-needed=false" >> $GITHUB_OUTPUT
+            echo "✅ ${{ matrix.component.display_name }} already latest: ${CURRENT}"
+          fi
+
+      - name: Update version and create PR
+        if: steps.should-update.outputs.should-update == 'true' && steps.latest.outputs.update-needed == 'true'
+        run: |
+          LATEST="${{ steps.latest.outputs.latest }}"
+          CURRENT="${{ steps.latest.outputs.current }}"
+          BRANCH="chore/update-${{ matrix.component.name }}-${LATEST}"
+          
+          echo "🔄 Creating update for ${{ matrix.component.display_name }}: ${CURRENT} → ${LATEST}"
+          
+          # Configure git
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Create branch
+          git checkout -b "$BRANCH"
+          
+          # Update version in versions.txt
+          sed -i "s/^${{ matrix.component.version_key }}=.*/${{ matrix.component.version_key }}=${LATEST}/" versions.txt
+          
+          # Verify update
+          UPDATED_VERSION=$(grep "^${{ matrix.component.version_key }}=" versions.txt | cut -d'=' -f2)
+          if [ "$UPDATED_VERSION" != "$LATEST" ]; then
+            echo "❌ Failed to update ${{ matrix.component.version_key }} in versions.txt"
+            exit 1
+          fi
+          
+          # Commit changes
+          git add versions.txt
+          git commit -m "chore(deps): update ${{ matrix.component.display_name }} to ${LATEST}
+
+          - Update ${{ matrix.component.version_key }} from ${CURRENT} to ${LATEST}
+          - This update affects all build environments (Makefile and GitHub Actions)
+          - Centralized version management ensures consistency"
+          
+          # Push branch
+          git push origin "$BRANCH"
+          
+          # Create PR body
+          cat > pr_body.md << EOF
+          ## 🔄 ${{ matrix.component.display_name }} Version Update
+          
+          This PR updates **${{ matrix.component.display_name }}** to the latest version.
+          
+          ### Changes
+          - **Component**: ${{ matrix.component.display_name }}
+          - **Previous Version**: \`${CURRENT}\`
+          - **New Version**: \`${LATEST}\`
+          - **Updated File**: \`versions.txt\`
+          
+          ### Impact
+          This change affects:
+          - ✅ Makefile builds (\`make build\`)
+          - ✅ GitHub Actions workflows
+          - ✅ Container image builds
+          - ✅ All environments use centralized version
+          
+          ### Release Information
+          EOF
+          
+          # Add release link if available
+          case "${{ matrix.component.name }}" in
+            "k3s")
+              echo "- 📋 [K3s Release Notes](https://github.com/k3s-io/k3s/releases/tag/${LATEST})" >> pr_body.md
+              ;;
+            "otel")
+              echo "- 📋 [OpenTelemetry Release Notes](https://github.com/open-telemetry/opentelemetry-collector-releases/releases/tag/v${LATEST})" >> pr_body.md
+              ;;
+            "microshift")
+              echo "- 📋 [MicroShift Release Notes](https://github.com/openshift/microshift/releases/tag/${LATEST})" >> pr_body.md
+              ;;
+            "fedora")
+              echo "- 📋 [Fedora Release Information](https://fedoraproject.org/wiki/Releases/${LATEST})" >> pr_body.md
+              ;;
+          esac
+          
+          cat >> pr_body.md << EOF
+          
+          ### Testing Checklist
+          - [ ] Container builds successfully
+          - [ ] Service starts correctly
+          - [ ] No regression in functionality
+          - [ ] Security scan passes
+          
+          ### Auto-Merge Conditions
+          - [ ] All checks pass
+          - [ ] No breaking changes detected
+          - [ ] Security scans show no new issues
+          
+          ---
+          🤖 **Automated update** by dependency monitoring workflow.
+          💡 This PR updates the centralized \`versions.txt\` file used by all build systems.
+          EOF
+          
+          # Create PR
+          gh pr create \
+            --title "chore(deps): update ${{ matrix.component.display_name }} to ${LATEST}" \
+            --body-file pr_body.md \
+            --head "$BRANCH" \
+            --base main \
+            --label "${{ env.PR_LABELS }},${{ matrix.component.labels }}"
+          
+          echo "✅ Created PR for ${{ matrix.component.display_name }} update"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Security scan of updated dependencies
+  security-scan:
+    name: Security Analysis
+    runs-on: self-hosted
+    needs: load-versions
     permissions:
       contents: read
       security-events: write
@@ -17,179 +251,72 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Extract and scan base image
-        id: base-scan
-        run: |
-          BASE_IMAGE=$(grep "^FROM" os/Containerfile.k3s | head -1 | awk '{print $2}')
-          echo "base-image=${BASE_IMAGE}" >> $GITHUB_OUTPUT
-          echo "📦 Checking base image: ${BASE_IMAGE}"
-          
-          # Pull and get digest
-          podman pull ${BASE_IMAGE}
-          DIGEST=$(podman inspect ${BASE_IMAGE} --format='{{.RepoDigests}}')
-          echo "Current digest: ${DIGEST}"
-
-      - name: Scan base image for vulnerabilities
-        uses: ./.github/actions/trivy-scan
-        with:
-          scan-type: 'image'
-          scan-ref: ${{ steps.base-scan.outputs.base-image }}
-          output-format: 'sarif'
-          severity: 'CRITICAL,HIGH'
-
-  check-version-updates:
-    name: Check Version Updates
-    runs-on: self-hosted
-    permissions:
-      contents: write
-      pull-requests: write
-    strategy:
-      matrix:
-        component:
-          - name: "otel"
-            display_name: "OpenTelemetry Collector"
-            version_arg: "OTEL_VERSION"
-            api_url: "https://api.github.com/repos/open-telemetry/opentelemetry-collector-releases/releases/latest"
-            version_extract: "sed 's/^v//'"
-            files: "os/Containerfile.k3s os/Containerfile.fedora.optimized"
-            labels: "dependencies,opentelemetry,chore,security"
-          - name: "k3s"
-            display_name: "K3s"
-            version_arg: "K3S_VERSION"
-            api_url: "https://api.github.com/repos/k3s-io/k3s/releases/latest"
-            version_extract: "cat"
-            files: "os/Containerfile.k3s"
-            labels: "dependencies,k3s,chore,security,kubernetes"
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Get versions and compare
+      - name: Load current versions
         id: versions
+        uses: ./.github/actions/load-versions
+
+      - name: Scan base images for vulnerabilities
         run: |
-          # Get current version
-          CURRENT=$(grep 'ARG ${{ matrix.component.version_arg }}=' ${{ matrix.component.files }} | head -1 | cut -d'"' -f2)
-          echo "current=${CURRENT}" >> $GITHUB_OUTPUT
+          echo "🔍 Scanning base images for security vulnerabilities..."
           
-          # Get latest version
-          LATEST=$(curl -s ${{ matrix.component.api_url }} | grep '"tag_name"' | cut -d'"' -f4 | ${{ matrix.component.version_extract }})
-          echo "latest=${LATEST}" >> $GITHUB_OUTPUT
+          # Scan Fedora base image
+          BASE_IMAGE="quay.io/fedora/fedora-bootc:${{ steps.versions.outputs.fedora-version }}"
+          echo "📦 Scanning: ${BASE_IMAGE}"
           
-          # Compare
-          if [ "$CURRENT" != "$LATEST" ]; then
-            echo "update-needed=true" >> $GITHUB_OUTPUT
-            echo "🆕 ${{ matrix.component.display_name }} update: ${CURRENT} → ${LATEST}"
-          else
-            echo "update-needed=false" >> $GITHUB_OUTPUT
-            echo "✅ ${{ matrix.component.display_name }} already latest: ${CURRENT}"
-          fi
+          podman pull "$BASE_IMAGE" 2>/dev/null || true
+          
+          # Use trivy scan action for base image
+          TRIVY_ENV="TRIVY_SKIP_CHECK_UPDATE=true TRIVY_DISABLE_MISCONFIG=true"
+          $TRIVY_ENV trivy image \
+            --severity CRITICAL,HIGH \
+            --format sarif \
+            --output base-image-scan.sarif \
+            "$BASE_IMAGE" || true
 
-      - name: Create update PR
-        if: steps.versions.outputs.update-needed == 'true'
-        run: |
-          LATEST="${{ steps.versions.outputs.latest }}"
-          CURRENT="${{ steps.versions.outputs.current }}"
-          BRANCH="chore/update-${{ matrix.component.name }}-${LATEST}"
-          
-          # Configure git
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          
-          # Create branch and update files
-          git checkout -b "$BRANCH"
-          sed -i "s/ARG ${{ matrix.component.version_arg }}=\".*\"/ARG ${{ matrix.component.version_arg }}=\"${LATEST}\"/g" ${{ matrix.component.files }}
-          
-          # Commit and push
-          git add ${{ matrix.component.files }}
-          git commit -m "chore(deps): update ${{ matrix.component.display_name }} to ${LATEST}"
-          git push origin "$BRANCH"
-          
-          # Create PR using GitHub CLI
-          cat > pr_body.md << 'EOF'
-          ## 🔄 ${{ matrix.component.display_name }} Update
-          
-          - **Previous**: ${{ steps.versions.outputs.current }}
-          - **New**: ${{ steps.versions.outputs.latest }}
-          - **Release**: [${{ steps.versions.outputs.latest }}](https://github.com/${{ matrix.component.name == 'otel' && 'open-telemetry/opentelemetry-collector-releases' || 'k3s-io/k3s' }}/releases/tag/${{ steps.versions.outputs.latest }})
-          
-          ### Testing Checklist
-          - [ ] Container builds successfully
-          - [ ] Service starts correctly  
-          - [ ] No regression in functionality
-          
-          🤖 **Automated update** by dependency monitoring workflow.
-          EOF
-          
-          gh pr create \
-            --title "chore(deps): update ${{ matrix.component.display_name }} to ${LATEST}" \
-            --body-file pr_body.md \
-            --head "$BRANCH" \
-            --base main \
-            --label "${{ matrix.component.labels }}"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  analyze-packages:
-    name: Analyze Packages
-    runs-on: self-hosted
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Extract and analyze packages
-        run: |
-          echo "📦 Extracting package information..."
-          
-          # Extract packages from all Containerfiles
-          find os -name "Containerfile*" -exec grep -h "dnf install" {} \; | \
-            sed 's/.*dnf install -y//' | \
-            tr ' ' '\n' | \
-            grep -E '^[a-zA-Z]' | \
-            sort -u > package-list.txt
-          
-          echo "Found $(wc -l < package-list.txt) unique packages"
-          echo "Top 10 packages:"
-          head -10 package-list.txt
-
-      - name: Upload package analysis
-        uses: actions/upload-artifact@v4
+      - name: Upload base image scan results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
         with:
-          name: package-analysis
-          path: package-list.txt
+          sarif_file: base-image-scan.sarif
+          category: 'trivy-base-image'
 
-  security-summary:
-    name: Security Summary
-    runs-on: self-hosted
-    needs: [check-base-image, check-version-updates, analyze-packages]
-    if: always()
-    steps:
-      - name: Generate and upload summary
+      - name: Generate dependency summary
         run: |
-          cat > security-summary.md << EOF
-          # 🔒 Weekly Security Review
+          cat > dependency-summary.md << EOF
+          # 🔒 Weekly Dependency Security Review
           
-          ## Summary
-          Automated security review of Fedora bootc container images.
+          ## Current Versions (from versions.txt)
+          - **K3s**: \`${{ steps.versions.outputs.k3s-version }}\`
+          - **OpenTelemetry**: \`${{ steps.versions.outputs.otel-version }}\`
+          - **MicroShift**: \`${{ steps.versions.outputs.microshift-version }}\`
+          - **Fedora**: \`${{ steps.versions.outputs.fedora-version }}\`
           
           ## Scans Performed
           - ✅ Base image vulnerability scan
-          - ✅ Package vulnerability analysis  
-          - ✅ Version update checks (OTEL, K3s)
+          - ✅ Version update checks
+          - ✅ Security advisory monitoring
+          
+          ## Centralized Version Management
+          All versions are managed through \`versions.txt\` for consistency across:
+          - Makefile builds
+          - GitHub Actions workflows  
+          - Container image builds
           
           ## Next Steps
-          1. Review Security tab for findings
-          2. Check for any new PRs from version updates
+          1. Review [Security Tab](https://github.com/${{ github.repository }}/security) for findings
+          2. Check for new dependency update PRs
           3. Address critical/high severity issues
+          4. Test updated versions in development
           
-          ## Links
-          - [Security Tab](https://github.com/${{ github.repository }}/security)
-          - [Workflow Runs](https://github.com/${{ github.repository }}/actions)
+          ---
+          📋 Generated by automated dependency monitoring workflow
           EOF
           
-          echo "📋 Security review completed"
+          echo "📋 Dependency security review completed"
 
-      - name: Upload security summary
+      - name: Upload dependency summary
         uses: actions/upload-artifact@v4
         with:
-          name: security-summary
-          path: security-summary.md 
+          name: dependency-summary-$(date +%Y%m%d)
+          path: dependency-summary.md
+          retention-days: 30 

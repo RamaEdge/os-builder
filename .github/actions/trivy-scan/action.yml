@@ -163,9 +163,8 @@ runs:
         CONTAINER_HOST: ""
         DOCKER_HOST: ""
         # Prevent cloud policy loading to avoid AWS/GCP/Azure policy parsing errors
-        TRIVY_SKIP_POLICY_UPDATE: "true"
-        TRIVY_DISABLE_MISCONFIG: "true"
         TRIVY_SKIP_CHECK_UPDATE: "true"
+        TRIVY_DISABLE_MISCONFIG: "true"
         # Explicitly disable cloud scanning
         TRIVY_CLOUD_DISABLE: "true"
 

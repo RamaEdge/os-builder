@@ -20,28 +20,27 @@ LABEL org.opencontainers.image.title="Edge OS - Fedora bootc with K3s" \
       k3s.distribution="k3s" \
       otel.version="${OTEL_VERSION}"
 
-# Install packages, K3s, and OTEL in optimized layers
-RUN --mount=type=cache,target=/var/cache/dnf \
-    # Install system packages
-    dnf install -y \
+# Update package cache in separate layer for better caching
+RUN dnf makecache --refresh
+
+# Install packages in optimized layer (leverage dnf's built-in caching)
+RUN dnf install -y \
         openssh-server sudo podman kubernetes-client NetworkManager \
         firewalld policycoreutils-python-utils systemd-resolved chrony \
         curl tar zstd skopeo containerd jq && \
     # Security hardening
     find /usr -type f \( \( -perm -4000 -o -perm -2000 \) -a \( -name chfn -o -name chsh -o -name newgrp \) \) \
         -exec chmod u-s {} \; && \
-    # Clean up
-    dnf clean all && rm -rf /var/cache/dnf/* /tmp/* /var/tmp/*
+    # Clean up package cache (but keep dnf metadata for rebuild cache)
+    dnf clean packages && rm -rf /tmp/* /var/tmp/*
 
-# Download and install K3s + OTEL
-RUN --mount=type=cache,target=/tmp/downloads \
-    # Set architecture
-    ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/') && \
-    # Create all directories at once
-    mkdir -p /var/lib/rancher/k3s/agent/images /etc/rancher/k3s /usr/local/bin \
+# Create directory structure first (cached layer)
+RUN mkdir -p /var/lib/rancher/k3s/agent/images /etc/rancher/k3s /usr/local/bin \
              /etc/containers/systemd /etc/otelcol /etc/rancher/k3s/manifests \
-             /var/lib/k3s /var/log/k3s && \
-    # Download K3s binary with error handling
+             /var/lib/k3s /var/log/k3s
+
+# Download K3s binary (separate layer for better caching)
+RUN ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/') && \
     curl -fsSL --retry 3 --retry-delay 5 \
         "https://github.com/k3s-io/k3s/releases/download/${K3S_VERSION}/k3s-${ARCH}" \
         -o /usr/local/bin/k3s && \
@@ -49,12 +48,16 @@ RUN --mount=type=cache,target=/tmp/downloads \
     # Create K3s symlinks (similar to installer)
     ln -sf /usr/local/bin/k3s /usr/local/bin/kubectl && \
     ln -sf /usr/local/bin/k3s /usr/local/bin/crictl && \
-    ln -sf /usr/local/bin/k3s /usr/local/bin/ctr && \
-    # Download K3s airgap images with error handling
+    ln -sf /usr/local/bin/k3s /usr/local/bin/ctr
+
+# Download K3s airgap images (separate layer)
+RUN ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/') && \
     curl -fsSL --retry 3 --retry-delay 5 \
         "https://github.com/k3s-io/k3s/releases/download/${K3S_VERSION}/k3s-airgap-images-${ARCH}.tar.zst" \
-        -o "/var/lib/rancher/k3s/agent/images/k3s-airgap-images-${ARCH}.tar.zst" && \
-    # Download and install OTEL Collector with error handling
+        -o "/var/lib/rancher/k3s/agent/images/k3s-airgap-images-${ARCH}.tar.zst"
+
+# Download and install OTEL Collector (separate layer)
+RUN ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/') && \
     curl -fsSL --retry 3 --retry-delay 5 \
         "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v${OTEL_VERSION}/otelcol_${OTEL_VERSION}_linux_${ARCH}.rpm" \
         -o /tmp/otelcol.rpm && \

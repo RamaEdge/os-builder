@@ -1,5 +1,5 @@
 name: 'Test Container Image'
-description: 'Run comprehensive tests on built container images for K3s and MicroShift'
+description: 'Run comprehensive tests on built container images'
 author: 'os-builder'
 branding:
   icon: 'check-circle'
@@ -12,10 +12,6 @@ inputs:
   test-type:
     description: 'Type of tests to run (k3s, microshift, bootc)'
     required: true
-  parallel:
-    description: 'Run tests in parallel (default: true)'
-    required: false
-    default: 'true'
 
 outputs:
   test-results:
@@ -25,22 +21,6 @@ outputs:
 runs:
   using: 'composite'
   steps:
-    - name: Detect container runtime
-      id: runtime
-      shell: bash
-      run: |
-        echo "🔍 Detecting container runtime for testing..."
-        if command -v podman >/dev/null 2>&1; then
-          echo "runtime=podman" >> $GITHUB_OUTPUT
-          echo "Using Podman runtime"
-        elif command -v docker >/dev/null 2>&1; then
-          echo "runtime=docker" >> $GITHUB_OUTPUT
-          echo "Using Docker runtime"
-        else
-          echo "❌ No container runtime found!"
-          exit 1
-        fi
-
     - name: Run container tests
       id: test
       shell: bash
@@ -48,90 +28,60 @@ runs:
         echo "🧪 Testing container image: ${{ inputs.image-ref }}"
         echo "📋 Test type: ${{ inputs.test-type }}"
         
-        RUNTIME="${{ steps.runtime.outputs.runtime }}"
-        IMAGE_REF="${{ inputs.image-ref }}"
-        PARALLEL="${{ inputs.parallel }}"
+        # Detect container runtime
+        if command -v podman >/dev/null 2>&1; then
+          RUNTIME="podman"
+        elif command -v docker >/dev/null 2>&1; then
+          RUNTIME="docker"
+        else
+          echo "❌ No container runtime found!"
+          exit 1
+        fi
+        echo "🔧 Using runtime: $RUNTIME"
         
-        # Function to run a test command
+        IMAGE_REF="${{ inputs.image-ref }}"
+        PASSED=0
+        FAILED=0
+        
+        # Test execution function
         run_test() {
           local test_name="$1"
           local test_cmd="$2"
-          echo "🔹 Running $test_name..."
-          if $RUNTIME run --rm "$IMAGE_REF" /bin/bash -c "$test_cmd"; then
-            echo "✅ $test_name: PASSED"
+          echo "🔹 Testing: $test_name"
+          if $RUNTIME run --rm "$IMAGE_REF" /bin/bash -c "$test_cmd" >/dev/null 2>&1; then
+            echo "  ✅ PASSED"
             return 0
           else
-            echo "❌ $test_name: FAILED"
+            echo "  ❌ FAILED"
             return 1
           fi
         }
         
-        # Track test results
-        PASSED_TESTS=()
-        FAILED_TESTS=()
-        
-        # Common bootc tests
-        echo "📦 Running bootc tests..."
-        if run_test "bootc status" "bootc status || true"; then
-          PASSED_TESTS+=("bootc-status")
-        else
-          FAILED_TESTS+=("bootc-status")
-        fi
-        
-        if run_test "systemd version" "systemctl --version | head -1"; then
-          PASSED_TESTS+=("systemd")
-        else
-          FAILED_TESTS+=("systemd")
-        fi
+        # Common tests for all image types
+        echo "📦 Running common tests..."
+        run_test "bootc status" "bootc status || true" && ((PASSED++)) || ((FAILED++))
+        run_test "systemd version" "systemctl --version | head -1" && ((PASSED++)) || ((FAILED++))
         
         # Type-specific tests
         case "${{ inputs.test-type }}" in
           "k3s")
-            echo "🎯 Running K3s-specific tests..."
-            
-            if [ "$PARALLEL" = "true" ]; then
-              echo "🔄 Running tests in parallel..."
-              {
-                run_test "k3s version" "k3s --version || echo 'K3s binary found'" &
-                run_test "kubectl version" "kubectl version --client || echo 'kubectl binary found'" &
-                run_test "otelcol version" "/usr/bin/otelcol --version || echo 'OTEL binary found'" &
-                run_test "k3s manifests" "ls -la /etc/rancher/k3s/manifests/ 2>/dev/null || echo 'No K3s manifests'" &
-                wait
-              }
-              # Check results (simplified for parallel)
-              PASSED_TESTS+=("k3s-binary" "kubectl-binary" "otelcol-binary" "k3s-manifests")
-            else
-              echo "⏭️ Running tests sequentially..."
-              run_test "k3s version" "k3s --version || echo 'K3s binary found'" && PASSED_TESTS+=("k3s-binary") || FAILED_TESTS+=("k3s-binary")
-              run_test "kubectl version" "kubectl version --client || echo 'kubectl binary found'" && PASSED_TESTS+=("kubectl-binary") || FAILED_TESTS+=("kubectl-binary") 
-              run_test "otelcol version" "/usr/bin/otelcol --version || echo 'OTEL binary found'" && PASSED_TESTS+=("otelcol-binary") || FAILED_TESTS+=("otelcol-binary")
-              run_test "k3s manifests" "ls -la /etc/rancher/k3s/manifests/ 2>/dev/null || echo 'No K3s manifests'" && PASSED_TESTS+=("k3s-manifests") || FAILED_TESTS+=("k3s-manifests")
-            fi
+            echo "🎯 Running K3s tests..."
+            run_test "k3s binary" "k3s --version || command -v k3s" && ((PASSED++)) || ((FAILED++))
+            run_test "kubectl binary" "kubectl version --client || command -v kubectl" && ((PASSED++)) || ((FAILED++))
+            run_test "otelcol binary" "/usr/bin/otelcol --version || command -v otelcol" && ((PASSED++)) || ((FAILED++))
+            run_test "k3s manifests" "ls /etc/rancher/k3s/manifests/ >/dev/null 2>&1 || echo 'No manifests'" && ((PASSED++)) || ((FAILED++))
             ;;
             
           "microshift")
-            echo "🎯 Running MicroShift-specific tests..."
-            
-            if [ "$PARALLEL" = "true" ]; then
-              echo "🔄 Running tests in parallel..."
-              {
-                run_test "microshift version" "microshift version || echo 'MicroShift binary found'" &
-                run_test "kubectl version" "kubectl version --client || echo 'kubectl binary found'" &
-                run_test "microshift manifests" "ls -la /etc/microshift/manifests/observability-stack.yaml" &
-                wait
-              }
-              PASSED_TESTS+=("microshift-binary" "kubectl-binary" "microshift-manifests")
-            else
-              echo "⏭️ Running tests sequentially..."
-              run_test "microshift version" "microshift version || echo 'MicroShift binary found'" && PASSED_TESTS+=("microshift-binary") || FAILED_TESTS+=("microshift-binary")
-              run_test "kubectl version" "kubectl version --client || echo 'kubectl binary found'" && PASSED_TESTS+=("kubectl-binary") || FAILED_TESTS+=("kubectl-binary")
-              run_test "microshift manifests" "ls -la /etc/microshift/manifests/observability-stack.yaml" && PASSED_TESTS+=("microshift-manifests") || FAILED_TESTS+=("microshift-manifests")
-            fi
+            echo "🎯 Running MicroShift tests..."
+            run_test "microshift binary" "microshift version || command -v microshift" && ((PASSED++)) || ((FAILED++))
+            run_test "kubectl binary" "kubectl version --client || command -v kubectl" && ((PASSED++)) || ((FAILED++))
+            run_test "microshift manifests" "ls /etc/microshift/manifests/observability-stack.yaml" && ((PASSED++)) || ((FAILED++))
             ;;
             
           "bootc")
             echo "🎯 Running bootc-only tests..."
-            # Only the common tests above
+            # Only common tests above
             ;;
             
           *)
@@ -141,28 +91,17 @@ runs:
             ;;
         esac
         
-        # Generate test summary
-        TOTAL_TESTS=$((${#PASSED_TESTS[@]} + ${#FAILED_TESTS[@]}))
-        PASSED_COUNT=${#PASSED_TESTS[@]}
-        FAILED_COUNT=${#FAILED_TESTS[@]}
-        
+        # Generate results summary
+        TOTAL=$((PASSED + FAILED))
         echo ""
-        echo "📊 Test Results Summary:"
-        echo "  Total tests: $TOTAL_TESTS"
-        echo "  Passed: $PASSED_COUNT"
-        echo "  Failed: $FAILED_COUNT"
-        
-        if [ $FAILED_COUNT -gt 0 ]; then
-          echo "  Failed tests: ${FAILED_TESTS[*]}"
-        fi
+        echo "📊 Test Results:"
+        echo "  Total: $TOTAL, Passed: $PASSED, Failed: $FAILED"
         
         # Set output
-        TEST_RESULTS="total=$TOTAL_TESTS,passed=$PASSED_COUNT,failed=$FAILED_COUNT"
-        echo "test_results=$TEST_RESULTS" >> $GITHUB_OUTPUT
+        echo "test_results=total=$TOTAL,passed=$PASSED,failed=$FAILED" >> $GITHUB_OUTPUT
         
-        if [ $FAILED_COUNT -eq 0 ]; then
+        if [ $FAILED -eq 0 ]; then
           echo "✅ All tests passed!"
         else
-          echo "⚠️ Some tests failed, but continuing..."
-          # Don't exit with error for now, just report
+          echo "⚠️ $FAILED test(s) failed"
         fi 

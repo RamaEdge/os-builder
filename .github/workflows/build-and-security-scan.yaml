@@ -8,7 +8,7 @@ on:
     branches: ['main']
     paths: ['os/**']
   schedule:
-    - cron: '0 1 * * Fri'  # Weekly builds on Fridays
+    - cron: '0 1 * * Fri'  # Weekly builds
     - cron: '0 2 1 * 1'    # Monthly security scans
   workflow_dispatch:
     inputs:
@@ -26,29 +26,34 @@ on:
         default: false
         type: boolean
 
+# Centralized environment configuration
 env:
   IMAGE_NAME: ramaedge-os-k3s
   REGISTRY: ghcr.io
-  WORKING_PATH: ./os
   CONTAINERFILE: Containerfile.k3s
+  SCAN_SEVERITY: CRITICAL,HIGH
 
 jobs:
-  build:
-    name: Build K3s OS
+  # Combined build and scan job for efficiency
+  build-and-scan:
+    name: Build & Scan K3s OS
     runs-on: self-hosted
     outputs:
-      image-id: ${{ steps.build.outputs.image-id }}
       image-ref: ${{ steps.build.outputs.local-tag }}
       version: ${{ steps.version.outputs.version }}
     permissions:
       contents: read
       packages: write
-      actions: read
+      security-events: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Load version configuration
+        id: versions
+        uses: ./.github/actions/load-versions
 
       - name: Calculate version
         id: version
@@ -64,35 +69,27 @@ jobs:
           sha: ${{ steps.version.outputs.sha }}
           registry: ${{ env.REGISTRY }}
           repository-owner: ${{ steps.version.outputs.repository-owner }}
-          working-path: ${{ env.WORKING_PATH }}
+          k3s-version: ${{ steps.versions.outputs.k3s-version }}
+          otel-version: ${{ steps.versions.outputs.otel-version }}
+          fedora-version: ${{ steps.versions.outputs.fedora-version }}
           enable-cache: ${{ github.event.inputs.force_rebuild != 'true' }}
-
-  security-scan:
-    name: Security Scan
-    runs-on: self-hosted
-    needs: build
-    permissions:
-      contents: read
-      security-events: write
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
 
       - name: Security scan
         uses: ./.github/actions/trivy-scan
         with:
           scan-type: 'container'
-          scan-ref: ${{ needs.build.outputs.image-ref }}
-          severity: 'CRITICAL,HIGH'
+          scan-ref: ${{ steps.build.outputs.local-tag }}
+          severity: ${{ env.SCAN_SEVERITY }}
           output-format: 'sarif'
           generate-sbom: 'true'
           upload-sarif: 'true'
           sarif-category: 'trivy-container-k3s'
 
+  # Conditional test job (PR only)
   test:
     name: Test K3s Container
     runs-on: self-hosted
-    needs: build
+    needs: build-and-scan
     if: github.event_name == 'pull_request'
     steps:
       - name: Checkout repository
@@ -101,17 +98,17 @@ jobs:
       - name: Test K3s container
         uses: ./.github/actions/test-container
         with:
-          image-ref: ${{ needs.build.outputs.image-ref }}
+          image-ref: ${{ needs.build-and-scan.outputs.image-ref }}
           test-type: 'k3s'
-          parallel: 'true'
 
+  # Conditional ISO build (non-PR, configurable)
   build-iso:
     name: Build K3s ISO
     runs-on: self-hosted
-    needs: [build, security-scan]
-    if: github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || github.event.inputs.build_iso == 'true')
-    permissions:
-      contents: read
+    needs: build-and-scan
+    if: >-
+      github.event_name != 'pull_request' && 
+      (github.event_name != 'workflow_dispatch' || github.event.inputs.build_iso == 'true')
     strategy:
       matrix:
         config: ${{ github.event_name == 'workflow_dispatch' && fromJSON(format('["{0}"]', github.event.inputs.iso_config)) || fromJSON('["user"]') }}
@@ -123,14 +120,12 @@ jobs:
         id: iso
         uses: ./.github/actions/build-iso
         with:
-          image-ref: ${{ needs.build.outputs.image-ref }}
+          image-ref: ${{ needs.build-and-scan.outputs.image-ref }}
           config: ${{ matrix.config }}
-          output-dir: 'iso-output'
-          working-path: ${{ env.WORKING_PATH }}
 
       - name: Upload ISO artifact
         uses: actions/upload-artifact@v4
         with:
-          name: k3s-os-iso-${{ matrix.config }}-v${{ needs.build.outputs.version }}
+          name: k3s-os-iso-${{ matrix.config }}-v${{ needs.build-and-scan.outputs.version }}
           path: ${{ steps.iso.outputs.iso-path }}
           retention-days: 30 

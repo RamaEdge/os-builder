@@ -31,11 +31,15 @@ LABEL org.opencontainers.image.title="Edge OS - Fedora bootc (Optimized)" \
       microshift.optimization="pre-built-binary" \
       otel.version="${OTEL_VERSION}"
 
-# Install packages and setup MicroShift in optimized layers
+# Copy pre-built MicroShift binaries first (cached layer)
 COPY --from=microshift-prebuilt /microshift /usr/bin/microshift
 COPY --from=microshift-prebuilt /release-images.json /usr/share/microshift/release-images.json
-RUN --mount=type=cache,target=/var/cache/dnf \
-    chmod +x /usr/bin/microshift && \
+
+# Update package cache in separate layer for better caching
+RUN dnf makecache --refresh
+
+# Install packages and setup MicroShift (leverage dnf's built-in caching)
+RUN chmod +x /usr/bin/microshift && \
     # Install system packages
     dnf install -y \
         openssh-server sudo podman cri-o kubernetes-client NetworkManager \
@@ -43,19 +47,16 @@ RUN --mount=type=cache,target=/var/cache/dnf \
     # Security hardening
     find /usr -type f \( \( -perm -4000 -o -perm -2000 \) -a \( -name chfn -o -name chsh -o -name newgrp \) \) \
         -exec chmod u-s {} \; && \
-    # Clean up
-    dnf clean all && rm -rf /var/cache/dnf/* /tmp/* /var/tmp/*
+    # Clean up package cache (but keep dnf metadata for rebuild cache)
+    dnf clean packages && rm -rf /tmp/* /var/tmp/*
 
-# Setup MicroShift images and OTEL
-RUN --mount=type=cache,target=/var/cache/dnf \
-    # Set architecture once
-    ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/') && \
-    # Create all directories at once
-    mkdir -p /usr/share/microshift /usr/share/containers/storage \
+# Create directory structure first (cached layer)
+RUN mkdir -p /usr/share/microshift /usr/share/containers/storage \
              /etc/containers/systemd /etc/microshift /etc/otelcol \
-             /etc/microshift/manifests /var/lib/microshift /var/log/microshift /var/hpvolumes && \
-    # Pre-load MicroShift container images (parallel)
-    if [ -f "/usr/share/microshift/release-images.json" ] && [ -s "/usr/share/microshift/release-images.json" ]; then \
+             /etc/microshift/manifests /var/lib/microshift /var/log/microshift /var/hpvolumes
+
+# Setup MicroShift container images (separate layer for better caching)
+RUN if [ -f "/usr/share/microshift/release-images.json" ] && [ -s "/usr/share/microshift/release-images.json" ]; then \
         echo "📦 Pre-loading MicroShift container images..."; \
         jq -r '.images[]?' /usr/share/microshift/release-images.json | \
         xargs -r -n 1 -P 4 -I {} sh -c 'echo "Pulling: {}" && podman pull --root /usr/share/containers/storage "{}" 2>/dev/null || echo "Failed: {}"'; \
@@ -65,8 +66,10 @@ RUN --mount=type=cache,target=/var/cache/dnf \
     fi && \
     # Configure offline container storage
     mkdir -p /etc/containers/storage.conf.d && \
-    echo -e '[storage]\nadditionalImageStores = ["/usr/share/containers/storage"]' > /etc/containers/storage.conf.d/offline.conf && \
-    # Download and install OTEL Collector
+    echo -e '[storage]\nadditionalImageStores = ["/usr/share/containers/storage"]' > /etc/containers/storage.conf.d/offline.conf
+
+# Download and install OTEL Collector (separate layer)
+RUN ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/') && \
     curl -fsSL "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v${OTEL_VERSION}/otelcol_${OTEL_VERSION}_linux_${ARCH}.rpm" \
         -o /tmp/otelcol.rpm && \
     dnf install -y /tmp/otelcol.rpm && rm -f /tmp/otelcol.rpm

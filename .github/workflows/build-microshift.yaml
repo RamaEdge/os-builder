@@ -16,51 +16,57 @@ on:
         default: true
         type: boolean
 
+# Centralized environment configuration
 env:
   IMAGE_NAME: ramaedge-os-microshift
   REGISTRY: ghcr.io
   REPO_OWNER: ramaedge
+  CONTAINERFILE: Containerfile.fedora.optimized
+  SCAN_SEVERITY: CRITICAL,HIGH
 
 jobs:
-  build-and-scan:
-    name: Build MicroShift OS
+  # Combined build, scan, and test job for efficiency
+  build-scan-test:
+    name: Build & Test MicroShift OS
     runs-on: ubuntu-22.04
     outputs:
-      image-ref: ${{ steps.build.outputs.image-ref }}
+      image-ref: ${{ steps.build.outputs.local-tag }}
       version: ${{ steps.version.outputs.version }}
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Load version configuration
+        id: versions
+        uses: ./.github/actions/load-versions
+
       - name: Calculate version
         id: version
         uses: ./.github/actions/calculate-version
-
-      - name: Set MicroShift version
-        id: microshift
-        run: |
-          VERSION="${{ github.event.inputs.microshift_version || 'release-4.19' }}"
-          echo "microshift-version=${VERSION}" >> $GITHUB_OUTPUT
-          echo "📦 Using MicroShift version: ${VERSION}"
 
       - name: Build container image
         id: build
         uses: ./.github/actions/build-container
         with:
           image-name: ${{ env.IMAGE_NAME }}
-          image-tag: ${{ steps.version.outputs.version }}
-          containerfile: Containerfile.fedora.optimized
-          working-path: ./os
+          version: ${{ steps.version.outputs.version }}
+          sha: ${{ steps.version.outputs.sha }}
+          containerfile: ${{ env.CONTAINERFILE }}
           registry: ${{ env.REGISTRY }}
           repository-owner: ${{ env.REPO_OWNER }}
-          microshift-version: ${{ steps.microshift.outputs.microshift-version }}
+          microshift-version: ${{ github.event.inputs.microshift_version || steps.versions.outputs.microshift-version }}
+          fedora-version: ${{ steps.versions.outputs.fedora-version }}
 
       - name: Security scan
         uses: ./.github/actions/trivy-scan
         with:
           scan-type: 'container'
-          scan-ref: ${{ steps.build.outputs.image-ref }}
-          severity: 'CRITICAL,HIGH'
+          scan-ref: ${{ steps.build.outputs.local-tag }}
+          severity: ${{ env.SCAN_SEVERITY }}
           output-format: 'sarif'
           generate-sbom: 'true'
           upload-sarif: 'true'
@@ -69,14 +75,14 @@ jobs:
       - name: Test container image
         uses: ./.github/actions/test-container
         with:
-          image-ref: ${{ steps.build.outputs.image-ref }}
+          image-ref: ${{ steps.build.outputs.local-tag }}
           test-type: 'microshift'
-          parallel: 'true'
 
+  # Conditional ISO build
   build-iso:
-    name: Build ISO
+    name: Build MicroShift ISO
     runs-on: ubuntu-22.04
-    needs: build-and-scan
+    needs: build-scan-test
     if: github.event.inputs.build_iso == 'true'
     steps:
       - name: Checkout repository
@@ -86,14 +92,12 @@ jobs:
         id: iso
         uses: ./.github/actions/build-iso
         with:
-          image-ref: ${{ needs.build-and-scan.outputs.image-ref }}
+          image-ref: ${{ needs.build-scan-test.outputs.image-ref }}
           config: ${{ github.event.inputs.iso_config || 'user' }}
-          output-dir: 'iso-output'
-          working-path: './os'
 
       - name: Upload ISO artifact
         uses: actions/upload-artifact@v4
         with:
-          name: microshift-os-iso-${{ github.event.inputs.iso_config }}-v${{ needs.build-and-scan.outputs.version }}
+          name: microshift-os-iso-${{ github.event.inputs.iso_config }}-v${{ needs.build-scan-test.outputs.version }}
           path: ${{ steps.iso.outputs.iso-path }}
           retention-days: 30 
