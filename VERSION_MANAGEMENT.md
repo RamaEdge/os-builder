@@ -66,7 +66,9 @@ ARG MICROSHIFT_VERSION
 ARG FEDORA_VERSION
 
 # Use in Containerfile
-RUN curl -L https://github.com/k3s-io/k3s/releases/download/${K3S_VERSION}/k3s > /usr/local/bin/k3s
+RUN ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/') && \
+    BINARY_NAME=$([ "$ARCH" = "amd64" ] && echo "k3s" || echo "k3s-${ARCH}") && \
+    curl -L https://github.com/k3s-io/k3s/releases/download/${K3S_VERSION}/${BINARY_NAME} > /usr/local/bin/k3s
 ```
 
 ## Updating Versions

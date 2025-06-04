@@ -41,8 +41,14 @@ RUN mkdir -p /var/lib/rancher/k3s/agent/images /etc/rancher/k3s /usr/local/bin \
 
 # Download K3s binary (separate layer for better caching)
 RUN ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/') && \
+    # K3s binary naming: amd64 = 'k3s', others have suffix
+    if [ "$ARCH" = "amd64" ]; then \
+        BINARY_NAME="k3s"; \
+    else \
+        BINARY_NAME="k3s-${ARCH}"; \
+    fi && \
     curl -fsSL --retry 3 --retry-delay 5 \
-        "https://github.com/k3s-io/k3s/releases/download/${K3S_VERSION}/k3s-${ARCH}" \
+        "https://github.com/k3s-io/k3s/releases/download/${K3S_VERSION}/${BINARY_NAME}" \
         -o /usr/local/bin/k3s && \
     chmod +x /usr/local/bin/k3s && \
     # Create K3s symlinks (similar to installer)
