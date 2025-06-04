@@ -1,6 +1,6 @@
 # Trivy Configuration for os-builder repository
 # Centralized configuration to ensure consistency across all workflows
-# Fixed to handle AWS policy parsing errors
+# Fixed to handle AWS policy parsing errors and remove invalid config options
 
 # General settings
 format: table
@@ -13,9 +13,7 @@ scanners:
   - secret    # Secret detection
   # misconfig scanner disabled - causes cloud policy issues
 
-# Misconfiguration scanning completely disabled
-# No misconfig-scanners needed
-# No policy exclusions needed since misconfig is disabled
+# Misconfiguration scanning disabled to prevent cloud policy issues
 
 # Severity levels to scan for (can be overridden by workflow inputs)
 severity:
@@ -39,6 +37,9 @@ skip-dirs:
   - /var/log/dnf*
   - /var/lib/dnf
   - /tmp
+  # Skip Trivy's own cache directory to prevent scanning policy examples
+  - .cache/trivy/
+  - /root/.cache/trivy/
 
 # Skip files that don't need scanning
 skip-files:
@@ -67,6 +68,9 @@ secret:
   skip-dirs:
     - .git/
     - .github/actions/
+    # Skip Trivy cache to prevent false positives from policy examples
+    - .cache/trivy/
+    - /root/.cache/trivy/
   skip-files:
     - "*.md"
     - "*.example"
@@ -84,31 +88,4 @@ timeout: 10m
 
 # Cache settings
 cache:
-  cache-dir: ~/.cache/trivy
-
-# Explicitly disable cloud policy loading and scanning
-# This prevents AWS/GCP/Azure policy parsing errors
-rego:
-  skip-dirs:
-    - /policies/cloud/
-    - /policies/*/cloud/
-  skip-files:
-    - "**/cloud/**/*.rego"
-    - "**/aws/**/*.rego"
-    - "**/gcp/**/*.rego"
-    - "**/azure/**/*.rego"
-
-# Cloud scanning disabled completely
-cloud:
-  disable: true
-
-# Policy configuration - disable cloud policies
-policy:
-  skip-policies:
-    - "AWS*"
-    - "GCP*"
-    - "Azure*"
-    - "*ami*"
-    - "*ec2*"
-    - "*s3*"
-    - "*vpc*" 
+  cache-dir: ~/.cache/trivy 
