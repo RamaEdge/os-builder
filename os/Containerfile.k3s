@@ -3,7 +3,7 @@
 FROM quay.io/fedora/fedora-bootc:42
 
 # Build arguments
-ARG K3S_VERSION="v1.33.1+k3s1"
+ARG K3S_VERSION="v1.32.5+k3s1"
 ARG OTEL_VERSION="0.127.0"
 ARG VCS_REF
 ARG VERSION
@@ -40,21 +40,36 @@ RUN mkdir -p /var/lib/rancher/k3s/agent/images /etc/rancher/k3s /usr/local/bin \
              /var/lib/k3s /var/log/k3s
 
 # Download K3s binary (separate layer for better caching)
-RUN ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/') && \
+RUN echo "=== DEBUGGING K3S DOWNLOAD ===" && \
+    echo "System info:" && \
+    uname -a && \
+    echo "Architecture detection:" && \
+    ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/') && \
+    echo "uname -m: $(uname -m)" && \
+    echo "ARCH (processed): ${ARCH}" && \
     # K3s binary naming: amd64 = 'k3s', others have suffix
     if [ "$ARCH" = "amd64" ]; then \
         BINARY_NAME="k3s"; \
     else \
         BINARY_NAME="k3s-${ARCH}"; \
     fi && \
+    echo "K3S_VERSION: ${K3S_VERSION}" && \
+    echo "BINARY_NAME: ${BINARY_NAME}" && \
+    echo "Full URL: https://github.com/k3s-io/k3s/releases/download/${K3S_VERSION}/${BINARY_NAME}" && \
+    echo "Testing URL availability..." && \
+    curl -I "https://github.com/k3s-io/k3s/releases/download/${K3S_VERSION}/${BINARY_NAME}" && \
+    echo "URL is accessible, proceeding with download..." && \
     curl -fsSL --retry 3 --retry-delay 5 \
         "https://github.com/k3s-io/k3s/releases/download/${K3S_VERSION}/${BINARY_NAME}" \
         -o /usr/local/bin/k3s && \
     chmod +x /usr/local/bin/k3s && \
+    echo "K3s binary downloaded successfully:" && \
+    ls -la /usr/local/bin/k3s && \
     # Create K3s symlinks (similar to installer)
     ln -sf /usr/local/bin/k3s /usr/local/bin/kubectl && \
     ln -sf /usr/local/bin/k3s /usr/local/bin/crictl && \
-    ln -sf /usr/local/bin/k3s /usr/local/bin/ctr
+    ln -sf /usr/local/bin/k3s /usr/local/bin/ctr && \
+    echo "=== K3S DOWNLOAD COMPLETE ==="
 
 # Download K3s airgap images (separate layer)
 RUN ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/') && \
