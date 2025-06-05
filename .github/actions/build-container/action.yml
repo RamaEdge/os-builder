@@ -1,0 +1,155 @@
+name: 'Build Container Image'
+description: 'Build container image with optimized caching and labeling'
+author: 'os-builder'
+branding:
+  icon: 'package'
+  color: 'green'
+
+inputs:
+  containerfile:
+    description: 'Path to Containerfile'
+    required: true
+  image-name:
+    description: 'Container image name'
+    required: true
+  version:
+    description: 'Version tag for the image'
+    required: true
+  sha:
+    description: 'Git commit SHA'
+    required: true
+  microshift-version:
+    description: 'MicroShift version (for MicroShift builds)'
+    required: false
+    default: ''
+  k3s-version:
+    description: 'K3s version'
+    required: false
+    default: ''
+  otel-version:
+    description: 'OpenTelemetry version'
+    required: false
+    default: ''
+  fedora-version:
+    description: 'Fedora version'
+    required: false
+    default: ''
+  registry:
+    description: 'Container registry'
+    required: true
+  repository-owner:
+    description: 'Repository owner'
+    required: true
+  enable-cache:
+    description: 'Enable build cache (default: true)'
+    required: false
+    default: 'true'
+
+outputs:
+  image-id:
+    description: 'Built image ID'
+    value: ${{ steps.build.outputs.image_id }}
+  local-tag:
+    description: 'Local image tag'
+    value: ${{ steps.build.outputs.local_tag }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup build environment
+      shell: bash
+      run: |
+        echo "🚀 Setting up build environment..."
+        echo "Runner architecture info:"
+        uname -a
+        echo "uname -m: $(uname -m)"
+        
+        # Configure Podman for optimal performance
+        mkdir -p ~/.config/containers
+        cat > ~/.config/containers/storage.conf << 'EOF'
+        [storage]
+        driver = "overlay"
+        [storage.options.overlay]
+        mount_program = "/usr/bin/fuse-overlayfs"
+        mountopt = "nodev,metacopy=on"
+        EOF
+        
+        echo "✅ Build environment configured"
+
+    - name: Setup build cache
+      if: inputs.enable-cache == 'true'
+      shell: bash
+      run: |
+        echo "📦 Setting up build cache..."
+        
+        # Cache configuration
+        CACHE_TAG="${{ inputs.registry }}/${{ inputs.repository-owner }}/${{ inputs.image-name }}:latest"
+        
+        # Try to pull previous version for layer cache
+        if podman pull "$CACHE_TAG" 2>/dev/null; then
+          echo "cache_from=--cache-from $CACHE_TAG" >> $GITHUB_ENV
+          echo "✅ Cache source available: $CACHE_TAG"
+        else
+          echo "cache_from=" >> $GITHUB_ENV
+          echo "ℹ️ No cache source found, clean build"
+        fi
+
+    - name: Build container image
+      id: build
+      shell: bash
+      working-directory: ./os
+      run: |
+        LOCAL_TAG="${{ inputs.image-name }}:${{ inputs.version }}"
+        
+        echo "🔨 Building: $LOCAL_TAG"
+        
+        # Common build arguments
+        BUILD_ARGS="--build-arg VCS_REF=${{ inputs.sha }} --build-arg VERSION=${{ inputs.version }}"
+        
+        # Add version-specific arguments
+        if [ -n "${{ inputs.k3s-version }}" ]; then
+          BUILD_ARGS="$BUILD_ARGS --build-arg K3S_VERSION=${{ inputs.k3s-version }}"
+          echo "🔧 K3s version: ${{ inputs.k3s-version }}"
+        fi
+        
+        if [ -n "${{ inputs.otel-version }}" ]; then
+          BUILD_ARGS="$BUILD_ARGS --build-arg OTEL_VERSION=${{ inputs.otel-version }}"
+          echo "🔧 OpenTelemetry version: ${{ inputs.otel-version }}"
+        fi
+        
+        if [ -n "${{ inputs.fedora-version }}" ]; then
+          BUILD_ARGS="$BUILD_ARGS --build-arg FEDORA_VERSION=${{ inputs.fedora-version }}"
+          echo "🔧 Fedora version: ${{ inputs.fedora-version }}"
+        fi
+        
+        # Add MicroShift-specific arguments if needed
+        if [ -n "${{ inputs.microshift-version }}" ]; then
+          BUILD_ARGS="$BUILD_ARGS --build-arg MICROSHIFT_VERSION=${{ inputs.microshift-version }}"
+          BUILD_ARGS="$BUILD_ARGS --build-arg MICROSHIFT_IMAGE_BASE=${{ inputs.registry }}/${{ inputs.repository-owner }}/microshift-builder"
+          echo "🔧 MicroShift version: ${{ inputs.microshift-version }}"
+        fi
+        
+        # Standard labels
+        LABELS="--label org.opencontainers.image.version=${{ inputs.version }}"
+        LABELS="$LABELS --label org.opencontainers.image.revision=${{ inputs.sha }}"
+        LABELS="$LABELS --label org.opencontainers.image.source=https://github.com/${{ github.repository }}"
+        LABELS="$LABELS --label org.opencontainers.image.created=$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+        
+        # Build with optimizations
+        podman build \
+          -f ${{ inputs.containerfile }} \
+          -t "$LOCAL_TAG" \
+          $BUILD_ARGS \
+          ${{ env.cache_from }} \
+          $LABELS \
+          --jobs=4 \
+          .
+        
+        # Get image info and set outputs
+        IMAGE_ID=$(podman images --filter reference="$LOCAL_TAG" -q)
+        IMAGE_SIZE=$(podman images --format "{{.Size}}" --filter reference="$LOCAL_TAG")
+        
+        echo "image_id=${IMAGE_ID}" >> $GITHUB_OUTPUT
+        echo "local_tag=${LOCAL_TAG}" >> $GITHUB_OUTPUT
+        
+        echo "✅ Built: $LOCAL_TAG (ID: $IMAGE_ID, Size: $IMAGE_SIZE)" 

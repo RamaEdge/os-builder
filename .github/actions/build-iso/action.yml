@@ -1,0 +1,174 @@
+name: 'Build Bootc ISO'
+description: 'Build bootable ISO images from container images using bootc-image-builder'
+author: 'os-builder'
+branding:
+  icon: 'disc'
+  color: 'orange'
+
+inputs:
+  image-ref:
+    description: 'Container image reference to build ISO from'
+    required: true
+  config:
+    description: 'ISO configuration type (minimal, user, advanced, interactive, production)'
+    required: false
+    default: 'user'
+  output-dir:
+    description: 'Output directory for ISO files'
+    required: false
+    default: 'iso-output'
+  config-file:
+    description: 'Custom path to configuration TOML file'
+    required: false
+  working-path:
+    description: 'Working directory containing config-examples'
+    required: false
+    default: './os'
+
+outputs:
+  iso-path:
+    description: 'Path to generated ISO file'
+    value: ${{ steps.build.outputs.iso_path }}
+  iso-size:
+    description: 'Size of generated ISO file'
+    value: ${{ steps.build.outputs.iso_size }}
+  config-used:
+    description: 'Configuration file used for build'
+    value: ${{ steps.build.outputs.config_used }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Detect container runtime
+      id: runtime
+      shell: bash
+      run: |
+        echo "🔍 Detecting container runtime for ISO building..."
+        if command -v podman >/dev/null 2>&1; then
+          echo "runtime=podman" >> $GITHUB_OUTPUT
+          echo "Using Podman runtime"
+        elif command -v docker >/dev/null 2>&1; then
+          echo "runtime=docker" >> $GITHUB_OUTPUT
+          echo "Using Docker runtime"
+        else
+          echo "❌ No container runtime found!"
+          exit 1
+        fi
+
+    - name: Setup ISO build environment
+      id: setup
+      shell: bash
+      run: |
+        echo "🏗️ Setting up ISO build environment..."
+        
+        # Determine configuration file
+        if [ -n "${{ inputs.config-file }}" ]; then
+          CONFIG_FILE="${{ inputs.config-file }}"
+        else
+          CONFIG_FILE="${{ inputs.working-path }}/config-examples/${{ inputs.config }}-config.toml"
+        fi
+        
+        echo "config_file=${CONFIG_FILE}" >> $GITHUB_OUTPUT
+        echo "Using configuration: ${CONFIG_FILE}"
+        
+        # Verify config file exists
+        if [ ! -f "$CONFIG_FILE" ]; then
+          echo "❌ Configuration file not found: $CONFIG_FILE"
+          
+          # List available configs for troubleshooting
+          echo "Available configurations:"
+          ls -la "${{ inputs.working-path }}/config-examples/"*.toml 2>/dev/null || echo "No config files found"
+          exit 1
+        fi
+        
+        # Create output directory
+        mkdir -p "${{ inputs.output-dir }}"
+        echo "📁 Created output directory: ${{ inputs.output-dir }}"
+        
+        # Show config file content for debugging
+        echo "📋 Configuration file content:"
+        cat "$CONFIG_FILE"
+
+    - name: Pull bootc-image-builder
+      shell: bash
+      run: |
+        echo "📦 Pulling bootc-image-builder..."
+        RUNTIME="${{ steps.runtime.outputs.runtime }}"
+        
+        if ! $RUNTIME pull quay.io/centos-bootc/bootc-image-builder:latest; then
+          echo "❌ Failed to pull bootc-image-builder"
+          exit 1
+        fi
+        
+        echo "✅ Successfully pulled bootc-image-builder"
+
+    - name: Build ISO
+      id: build
+      shell: bash
+      run: |
+        echo "🔨 Building ISO image..."
+        echo "  Image: ${{ inputs.image-ref }}"
+        echo "  Config: ${{ inputs.config }}"
+        echo "  Output: ${{ inputs.output-dir }}"
+        
+        RUNTIME="${{ steps.runtime.outputs.runtime }}"
+        IMAGE_REF="${{ inputs.image-ref }}"
+        CONFIG_FILE="${{ steps.setup.outputs.config_file }}"
+        OUTPUT_DIR="${{ inputs.output-dir }}"
+        
+        # Build ISO using bootc-image-builder
+        echo "🚀 Starting ISO build process..."
+        
+        BUILD_ARGS="--rm --privileged --security-opt label=type:unconfined_t"
+        VOLUME_ARGS="-v $(pwd)/${OUTPUT_DIR}:/output -v $(pwd)/${CONFIG_FILE}:/config.toml:ro"
+        
+        # Add container socket access for local image access
+        if [ "$RUNTIME" = "podman" ]; then
+          # For podman, mount the containers directory
+          VOLUME_ARGS="$VOLUME_ARGS -v /run/user/$(id -u)/containers:/run/user/$(id -u)/containers:ro"
+          BUILD_CMD="$RUNTIME run $BUILD_ARGS $VOLUME_ARGS"
+        else
+          # For docker, mount the docker socket
+          VOLUME_ARGS="$VOLUME_ARGS -v /var/run/docker.sock:/var/run/docker.sock"
+          BUILD_CMD="$RUNTIME run $BUILD_ARGS $VOLUME_ARGS"
+        fi
+        
+        # Execute the build
+        $BUILD_CMD \
+          quay.io/centos-bootc/bootc-image-builder:latest \
+          --type iso \
+          --config /config.toml \
+          --local \
+          "$IMAGE_REF"
+        
+        # Verify ISO was created
+        if [ ! -d "$OUTPUT_DIR" ] || [ -z "$(ls -A $OUTPUT_DIR 2>/dev/null)" ]; then
+          echo "❌ ISO build failed - no output files found"
+          exit 1
+        fi
+        
+        # Find the generated ISO file
+        ISO_FILE=$(find "$OUTPUT_DIR" -name "*.iso" | head -1)
+        if [ -z "$ISO_FILE" ]; then
+          echo "❌ No ISO file found in output directory"
+          echo "Contents of $OUTPUT_DIR:"
+          ls -la "$OUTPUT_DIR"
+          exit 1
+        fi
+        
+        # Get ISO information
+        ISO_SIZE=$(du -h "$ISO_FILE" | cut -f1)
+        ISO_NAME=$(basename "$ISO_FILE")
+        
+        echo "iso_path=${ISO_FILE}" >> $GITHUB_OUTPUT
+        echo "iso_size=${ISO_SIZE}" >> $GITHUB_OUTPUT
+        echo "config_used=${{ inputs.config }}" >> $GITHUB_OUTPUT
+        
+        echo "✅ ISO build completed successfully!"
+        echo "  📀 ISO file: $ISO_NAME"
+        echo "  📏 Size: $ISO_SIZE"
+        echo "  📂 Location: $ISO_FILE"
+        
+        # List all output files for reference
+        echo "📋 All output files:"
+        ls -la "$OUTPUT_DIR" 

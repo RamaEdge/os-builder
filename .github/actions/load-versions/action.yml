@@ -1,0 +1,53 @@
+name: 'Load Version Configuration'
+description: 'Load version configuration from centralized versions.txt file'
+author: 'os-builder'
+branding:
+  icon: 'tag'
+  color: 'blue'
+
+outputs:
+  k3s-version:
+    description: 'K3s version'
+    value: ${{ steps.versions.outputs.k3s-version }}
+  otel-version:
+    description: 'OpenTelemetry version'
+    value: ${{ steps.versions.outputs.otel-version }}
+  microshift-version:
+    description: 'MicroShift version'
+    value: ${{ steps.versions.outputs.microshift-version }}
+  fedora-version:
+    description: 'Fedora version'
+    value: ${{ steps.versions.outputs.fedora-version }}
+  bootc-version:
+    description: 'Bootc version'
+    value: ${{ steps.versions.outputs.bootc-version }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Load versions from file
+      id: versions
+      shell: bash
+      run: |
+        echo "📋 Loading versions from versions.txt..."
+        
+        if [ ! -f "versions.txt" ]; then
+          echo "❌ versions.txt not found!"
+          exit 1
+        fi
+        
+        # Source the file and export outputs
+        source versions.txt
+        
+        echo "k3s-version=${K3S_VERSION}" >> $GITHUB_OUTPUT
+        echo "otel-version=${OTEL_VERSION}" >> $GITHUB_OUTPUT
+        echo "microshift-version=${MICROSHIFT_VERSION}" >> $GITHUB_OUTPUT
+        echo "fedora-version=${FEDORA_VERSION}" >> $GITHUB_OUTPUT
+        echo "bootc-version=${BOOTC_VERSION}" >> $GITHUB_OUTPUT
+        
+        echo "✅ Loaded versions:"
+        echo "  K3s: ${K3S_VERSION}"
+        echo "  OpenTelemetry: ${OTEL_VERSION}"
+        echo "  MicroShift: ${MICROSHIFT_VERSION}"
+        echo "  Fedora: ${FEDORA_VERSION}"
+        echo "  Bootc: ${BOOTC_VERSION}" 

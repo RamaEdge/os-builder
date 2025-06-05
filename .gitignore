@@ -1,0 +1,112 @@
+# Build artifacts
+output/
+iso-output/
+build/
+dist/
+*.qcow2
+*.vmdk
+*.raw
+*.iso
+*.ova
+*.oci
+*.tar.gz
+*.tar.zst
+*.tar.xz
+
+# Container runtime choice
+.runtime_choice
+
+# Container and bootc artifacts
+*.container
+*.manifest
+bootc-*.log
+image-*.log
+
+# Temporary build files
+*.tmp
+*.temp
+*~
+.build-*
+.tmp-*
+
+# Fedora/RPM build artifacts
+*.rpm
+*.srpm
+rpmbuild/
+
+# Cloud-init and deployment files
+user-data
+meta-data
+cloud-init-*.yaml
+cloud-init-*.yml
+
+# macOS
+.DS_Store
+*.app
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+*.sublime-*
+.vim/
+
+# Logs
+*.log
+logs/
+build-*.log
+test-*.log
+
+# Development and testing
+.pytest_cache/
+__pycache__/
+*.pyc
+*.pyo
+.coverage
+.tox/
+
+# Security and secrets
+*.pem
+*.key
+*.crt
+*.p12
+secrets/
+.secrets
+
+# Local configuration overrides
+.env
+.env.local
+local.yaml
+local.yml
+*-local.*
+
+# bootc-image-builder artifacts (anaconda-iso focus)
+bootc-config.toml
+*.qcow2
+*.vmdk
+*.vhd
+*.ami
+
+# Trivy scan results
+scan-results/
+
+# OS and editor files
+.DS_Store
+.vscode/
+.idea/
+*~
+*.swp
+*.swo
+
+# Container runtime files
+.containers/
+.local/share/containers/
+
+# Log files
+*.log
+
+# Temporary files
+*.tmp
+*.temp 

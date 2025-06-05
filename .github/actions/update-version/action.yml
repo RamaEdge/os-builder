@@ -1,0 +1,65 @@
+name: 'Update Version in versions.txt'
+description: 'Update a specific version in the centralized versions.txt file'
+author: 'os-builder'
+branding:
+  icon: 'edit'
+  color: 'orange'
+
+inputs:
+  version-key:
+    description: 'The version key to update (e.g., K3S_VERSION)'
+    required: true
+  new-version:
+    description: 'The new version value'
+    required: true
+  component-name:
+    description: 'Human-readable component name (e.g., K3s)'
+    required: true
+
+outputs:
+  updated:
+    description: 'Whether the version was updated'
+    value: ${{ steps.update.outputs.updated }}
+  old-version:
+    description: 'The previous version'
+    value: ${{ steps.update.outputs.old-version }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Update version in versions.txt
+      id: update
+      shell: bash
+      run: |
+        echo "🔄 Updating ${{ inputs.component-name }} version..."
+        
+        if [ ! -f "versions.txt" ]; then
+          echo "❌ versions.txt not found!"
+          exit 1
+        fi
+        
+        # Get current version
+        OLD_VERSION=$(grep "^${{ inputs.version-key }}=" versions.txt | cut -d'=' -f2)
+        NEW_VERSION="${{ inputs.new-version }}"
+        
+        echo "old-version=${OLD_VERSION}" >> $GITHUB_OUTPUT
+        
+        if [ "$OLD_VERSION" = "$NEW_VERSION" ]; then
+          echo "updated=false" >> $GITHUB_OUTPUT
+          echo "✅ ${{ inputs.component-name }} already at version: ${NEW_VERSION}"
+          exit 0
+        fi
+        
+        # Update the version
+        sed -i "s/^${{ inputs.version-key }}=.*/${{ inputs.version-key }}=${NEW_VERSION}/" versions.txt
+        
+        # Verify the update
+        UPDATED_VERSION=$(grep "^${{ inputs.version-key }}=" versions.txt | cut -d'=' -f2)
+        
+        if [ "$UPDATED_VERSION" = "$NEW_VERSION" ]; then
+          echo "updated=true" >> $GITHUB_OUTPUT
+          echo "✅ Updated ${{ inputs.component-name }}: ${OLD_VERSION} → ${NEW_VERSION}"
+        else
+          echo "❌ Failed to update ${{ inputs.component-name }}"
+          exit 1
+        fi 

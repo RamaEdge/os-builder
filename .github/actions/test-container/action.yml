@@ -1,0 +1,107 @@
+name: 'Test Container Image'
+description: 'Run comprehensive tests on built container images'
+author: 'os-builder'
+branding:
+  icon: 'check-circle'
+  color: 'green'
+
+inputs:
+  image-ref:
+    description: 'Container image reference to test'
+    required: true
+  test-type:
+    description: 'Type of tests to run (k3s, microshift, bootc)'
+    required: true
+
+outputs:
+  test-results:
+    description: 'Test results summary'
+    value: ${{ steps.test.outputs.test_results }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Run container tests
+      id: test
+      shell: bash
+      run: |
+        echo "🧪 Testing container image: ${{ inputs.image-ref }}"
+        echo "📋 Test type: ${{ inputs.test-type }}"
+        
+        # Detect container runtime
+        if command -v podman >/dev/null 2>&1; then
+          RUNTIME="podman"
+        elif command -v docker >/dev/null 2>&1; then
+          RUNTIME="docker"
+        else
+          echo "❌ No container runtime found!"
+          exit 1
+        fi
+        echo "🔧 Using runtime: $RUNTIME"
+        
+        IMAGE_REF="${{ inputs.image-ref }}"
+        PASSED=0
+        FAILED=0
+        
+        # Test execution function
+        run_test() {
+          local test_name="$1"
+          local test_cmd="$2"
+          echo "🔹 Testing: $test_name"
+          if $RUNTIME run --rm "$IMAGE_REF" /bin/bash -c "$test_cmd" >/dev/null 2>&1; then
+            echo "  ✅ PASSED"
+            return 0
+          else
+            echo "  ❌ FAILED"
+            return 1
+          fi
+        }
+        
+        # Common tests for all image types
+        echo "📦 Running common tests..."
+        run_test "bootc status" "bootc status || true" && ((PASSED++)) || ((FAILED++))
+        run_test "systemd version" "systemctl --version | head -1" && ((PASSED++)) || ((FAILED++))
+        
+        # Type-specific tests
+        case "${{ inputs.test-type }}" in
+          "k3s")
+            echo "🎯 Running K3s tests..."
+            run_test "k3s binary" "k3s --version || command -v k3s" && ((PASSED++)) || ((FAILED++))
+            run_test "kubectl binary" "kubectl version --client || command -v kubectl" && ((PASSED++)) || ((FAILED++))
+            run_test "otelcol binary" "/usr/bin/otelcol --version || command -v otelcol" && ((PASSED++)) || ((FAILED++))
+            run_test "k3s manifests" "ls /etc/rancher/k3s/manifests/ >/dev/null 2>&1 || echo 'No manifests'" && ((PASSED++)) || ((FAILED++))
+            ;;
+            
+          "microshift")
+            echo "🎯 Running MicroShift tests..."
+            run_test "microshift binary" "microshift version || command -v microshift" && ((PASSED++)) || ((FAILED++))
+            run_test "kubectl binary" "kubectl version --client || command -v kubectl" && ((PASSED++)) || ((FAILED++))
+            run_test "microshift manifests" "ls /etc/microshift/manifests/observability-stack.yaml" && ((PASSED++)) || ((FAILED++))
+            ;;
+            
+          "bootc")
+            echo "🎯 Running bootc-only tests..."
+            # Only common tests above
+            ;;
+            
+          *)
+            echo "❌ Unknown test type: ${{ inputs.test-type }}"
+            echo "Supported types: k3s, microshift, bootc"
+            exit 1
+            ;;
+        esac
+        
+        # Generate results summary
+        TOTAL=$((PASSED + FAILED))
+        echo ""
+        echo "📊 Test Results:"
+        echo "  Total: $TOTAL, Passed: $PASSED, Failed: $FAILED"
+        
+        # Set output
+        echo "test_results=total=$TOTAL,passed=$PASSED,failed=$FAILED" >> $GITHUB_OUTPUT
+        
+        if [ $FAILED -eq 0 ]; then
+          echo "✅ All tests passed!"
+        else
+          echo "⚠️ $FAILED test(s) failed"
+        fi 

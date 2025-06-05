@@ -1,0 +1,106 @@
+# Optimized multi-stage MicroShift edge OS
+# Simplified build with pre-built binaries
+ARG MICROSHIFT_REPO=https://github.com/openshift/microshift.git
+ARG MICROSHIFT_IMAGE_BASE=ghcr.io/ramaedge/microshift-builder
+ARG VCS_REF
+ARG VERSION
+ARG OTEL_VERSION="0.127.0"
+
+# Stage 1: Get pre-built MicroShift binary
+ARG MICROSHIFT_VERSION=main
+FROM ${MICROSHIFT_IMAGE_BASE}:${MICROSHIFT_VERSION} AS microshift-prebuilt
+
+# Stage 2: Final bootc image
+FROM quay.io/fedora/fedora-bootc:42
+
+ARG MICROSHIFT_VERSION=main
+ARG MICROSHIFT_REPO=https://github.com/openshift/microshift.git
+ARG VCS_REF
+ARG VERSION
+ARG OTEL_VERSION="0.127.0"
+
+# Metadata labels
+LABEL org.opencontainers.image.title="Edge OS - Fedora bootc (Optimized)" \
+      org.opencontainers.image.description="Fedora bootc with pre-built MicroShift for edge computing" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.revision="${VCS_REF}" \
+      org.opencontainers.image.vendor="RamaEdge" \
+      org.opencontainers.image.licenses="MIT" \
+      containers.bootc=1 \
+      microshift.version="${MICROSHIFT_VERSION}" \
+      microshift.optimization="pre-built-binary" \
+      otel.version="${OTEL_VERSION}"
+
+# Copy pre-built MicroShift binaries first (cached layer)
+COPY --from=microshift-prebuilt /microshift /usr/bin/microshift
+COPY --from=microshift-prebuilt /release-images.json /usr/share/microshift/release-images.json
+
+# Update package cache in separate layer for better caching
+RUN dnf makecache --refresh
+
+# Install packages and setup MicroShift (leverage dnf's built-in caching)
+RUN chmod +x /usr/bin/microshift && \
+    # Install system packages
+    dnf install -y \
+        openssh-server sudo podman cri-o kubernetes-client NetworkManager \
+        firewalld policycoreutils-python-utils systemd-resolved chrony curl jq && \
+    # Security hardening
+    find /usr -type f \( \( -perm -4000 -o -perm -2000 \) -a \( -name chfn -o -name chsh -o -name newgrp \) \) \
+        -exec chmod u-s {} \; && \
+    # Clean up package cache (but keep dnf metadata for rebuild cache)
+    dnf clean packages && rm -rf /tmp/* /var/tmp/*
+
+# Create directory structure first (cached layer)
+RUN mkdir -p /usr/share/microshift /usr/share/containers/storage \
+             /etc/containers/systemd /etc/microshift /etc/otelcol \
+             /etc/microshift/manifests /var/lib/microshift /var/log/microshift /var/hpvolumes
+
+# Setup MicroShift container images (separate layer for better caching)
+RUN if [ -f "/usr/share/microshift/release-images.json" ] && [ -s "/usr/share/microshift/release-images.json" ]; then \
+        echo "📦 Pre-loading MicroShift container images..."; \
+        jq -r '.images[]?' /usr/share/microshift/release-images.json | \
+        xargs -r -n 1 -P 4 -I {} sh -c 'echo "Pulling: {}" && podman pull --root /usr/share/containers/storage "{}" 2>/dev/null || echo "Failed: {}"'; \
+        echo "✅ Container image pre-loading completed"; \
+    else \
+        echo "⚠️  No release images found, skipping pre-loading"; \
+    fi && \
+    # Configure offline container storage
+    mkdir -p /etc/containers/storage.conf.d && \
+    echo -e '[storage]\nadditionalImageStores = ["/usr/share/containers/storage"]' > /etc/containers/storage.conf.d/offline.conf
+
+# Download and install OTEL Collector (separate layer)
+RUN ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/') && \
+    curl -fsSL "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v${OTEL_VERSION}/otelcol_${OTEL_VERSION}_linux_${ARCH}.rpm" \
+        -o /tmp/otelcol.rpm && \
+    dnf install -y /tmp/otelcol.rpm && rm -f /tmp/otelcol.rpm
+
+# Copy all configuration files
+COPY configs/containers/ /etc/containers/
+COPY configs/otelcol/ /etc/otelcol/
+COPY configs/microshift/ /etc/microshift/
+COPY manifests/ /etc/microshift/manifests/
+COPY systemd/*.service /usr/lib/systemd/system/
+COPY systemd/microshift/ /usr/lib/systemd/system/
+COPY systemd/bootc-fetch-apply-updates.timer.d/ /usr/lib/systemd/system/bootc-fetch-apply-updates.timer.d/
+COPY scripts/ /usr/local/bin/
+
+# Final configuration
+RUN chmod +x /usr/local/bin/*.sh 2>/dev/null || true && \
+    # Enable all services (simplified)
+    systemctl enable sshd chronyd systemd-resolved podman.socket crio otelcol \
+                    bootc-fetch-apply-updates.timer \
+                    microshift.service microshift-kubeconfig-setup.service \
+                    edge-setup.service observability-deploy.service 2>/dev/null || true && \
+    # Configure firewall (consolidated)
+    firewall-offline-cmd --add-service=ssh \
+                        --add-port=6443/tcp --add-port=8080/tcp --add-port=10250/tcp \
+                        --add-port=4317/tcp --add-port=4318/tcp --add-port=9090/tcp --add-port=8888/tcp && \
+    # Final setup
+    restorecon -R /etc /usr/local/bin 2>/dev/null || true && \
+    useradd -r -s /sbin/nologin -d /var/empty -c "Container user" containeruser && \
+    bootc container lint
+
+USER containeruser
+
+# This is a bootc image - no CMD needed as it will be converted to a bootable OS
+# When booted, systemd will be PID 1, not a container command 
