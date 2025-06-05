@@ -57,11 +57,20 @@ RUN echo "=== DEBUGGING K3S DOWNLOAD ===" && \
     echo "BINARY_NAME: ${BINARY_NAME}" && \
     echo "Full URL: https://github.com/k3s-io/k3s/releases/download/${K3S_VERSION}/${BINARY_NAME}" && \
     echo "Testing URL availability..." && \
-    curl -I "https://github.com/k3s-io/k3s/releases/download/${K3S_VERSION}/${BINARY_NAME}" && \
-    echo "URL is accessible, proceeding with download..." && \
-    curl -fsSL --retry 3 --retry-delay 5 \
-        "https://github.com/k3s-io/k3s/releases/download/${K3S_VERSION}/${BINARY_NAME}" \
-        -o /usr/local/bin/k3s && \
+    if curl -I "https://github.com/k3s-io/k3s/releases/download/${K3S_VERSION}/${BINARY_NAME}" 2>/dev/null; then \
+        echo "URL is accessible, proceeding with download..." && \
+        curl -fsSL --retry 3 --retry-delay 5 \
+            "https://github.com/k3s-io/k3s/releases/download/${K3S_VERSION}/${BINARY_NAME}" \
+            -o /usr/local/bin/k3s; \
+    else \
+        echo "Direct URL failed, trying alternative method..." && \
+        echo "Available binaries for ${K3S_VERSION}:" && \
+        curl -s "https://api.github.com/repos/k3s-io/k3s/releases/tags/${K3S_VERSION}" | grep -o '"browser_download_url":"[^"]*k3s[^"]*"' | cut -d'"' -f4 && \
+        echo "Attempting download via redirected URL..." && \
+        curl -L --retry 3 --retry-delay 5 \
+            "https://github.com/k3s-io/k3s/releases/download/${K3S_VERSION}/${BINARY_NAME}" \
+            -o /usr/local/bin/k3s; \
+    fi && \
     chmod +x /usr/local/bin/k3s && \
     echo "K3s binary downloaded successfully:" && \
     ls -la /usr/local/bin/k3s && \

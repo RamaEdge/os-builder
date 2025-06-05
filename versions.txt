@@ -3,7 +3,7 @@
 # Format: KEY=VALUE (no spaces around =)
 
 # K3s version - Kubernetes distribution
-K3S_VERSION=v1.33.1+k3s1
+K3S_VERSION=v1.32.5+k3s1
 
 # OpenTelemetry Collector version
 OTEL_VERSION=0.127.0

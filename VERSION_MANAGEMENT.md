@@ -8,7 +8,7 @@ The `versions.txt` file contains all version definitions used throughout the pro
 
 ```bash
 # K3s version - Kubernetes distribution
-K3S_VERSION=v1.33.1+k3s1
+K3S_VERSION=v1.32.5+k3s1
 
 # OpenTelemetry Collector version
 OTEL_VERSION=0.127.0
@@ -32,7 +32,7 @@ The Makefile automatically loads versions from `versions.txt`:
 make build
 
 # Override versions via environment variables
-K3S_VERSION=v1.33.2+k3s1 make build
+K3S_VERSION=v1.32.5+k3s1 make build
 
 # View current versions
 make help

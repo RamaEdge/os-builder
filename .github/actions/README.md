@@ -76,59 +76,47 @@ This directory contains reusable GitHub Actions for the OS Builder project.
 - Podman-based building
 - Optimized for caching (no BUILD_DATE)
 
-### 🛡️ trivy-scan (Unified Security Scanning)
+### 🛡️ trivy-scan (Container Vulnerability Scanning)
 
-**Purpose**: Comprehensive security scanning for all types - filesystem, config, secrets, and container images.
+**Purpose**: Container image vulnerability scanning via tar export for consistent, reproducible results.
 
 **Usage**:
 
 ```yaml
-# Container scanning with SBOM generation
+# Container vulnerability scanning
 - name: Container security scan
   uses: ./.github/actions/trivy-scan
   with:
-    scan-type: 'container'
     scan-ref: 'myregistry/myimage:latest'
     severity: 'CRITICAL,HIGH'
-    generate-sbom: 'true'
     upload-sarif: 'true'
     sarif-category: 'trivy-container'
-
-# Filesystem scanning
-- name: Source code scan
-  uses: ./.github/actions/trivy-scan
-  with:
-    scan-type: 'fs'
-    scan-ref: '.'
-    upload-sarif: 'true'
-    sarif-category: 'trivy-filesystem'
+    output-format: 'sarif'
 ```
 
-**Supported Scan Types**:
+**Scan Approach**:
 
-- `fs` - Filesystem scanning (source code, dependencies)
-- `config` - Configuration files (Dockerfile, YAML, etc.)
-- `secret` - Secret detection (API keys, tokens)
-- `image` - Direct container image scanning
-- `container` - **NEW**: Container image with automatic tar export
+- **Container-only**: Focused exclusively on container image vulnerability scanning
+- **Tar export method**: Exports container to tar file for consistent scanning
+- **Vulnerability-only**: No secret scanning or misconfiguration checks
 
 **Key Inputs**:
 
-- `scan-type` (required): Type of scan to perform
-- `scan-ref` (required): Target to scan (path, image reference, etc.)
+- `scan-ref` (required): Container image reference to scan
 - `severity` (optional): Vulnerability levels (default: `CRITICAL,HIGH`)
-- `generate-sbom` (optional): Generate SBOM for containers (default: `false`)
+- `output-format` (optional): Output format - `table`, `sarif`, `json` (default: `table`)
+- `output-file` (optional): Output file path (for sarif/json formats)
 - `upload-sarif` (optional): Upload to GitHub Security tab (default: `false`)
 - `sarif-category` (optional): Category for GitHub Security organization
 
 **Features**:
 
-- **All-in-one solution**: Replaces separate security-scan action
-- **Automatic container handling**: Tar export, scanning, and cleanup
-- **SBOM generation**: Software Bill of Materials for containers
+- **Tar export scanning**: Consistent results via container image export
+- **Runtime detection**: Auto-detects podman/docker for image export
 - **SARIF integration**: Direct upload to GitHub Security tab
-- **Runtime detection**: Auto-detects podman/docker
-- **Smart cleanup**: Automatic temp file removal
+- **Automatic cleanup**: Temporary tar files automatically removed
+- **Performance optimized**: 30-minute timeout for large images
+- **Vulnerability focus**: Only scans for security vulnerabilities
 
 ### 🧪 test-container
 
@@ -250,11 +238,11 @@ This directory contains reusable GitHub Actions for the OS Builder project.
 - **Manual**: Workflow dispatch only with default MicroShift version
 - **Simplified**: No complex version mapping, direct user input
 
-### Security Scan Workflow (`security-scan.yaml`)
+### Integrated Security Scanning
 
-- **Matrix-based**: Single job handles all scan types using trivy-scan action
-- **Consolidated**: Parallel execution with shared patterns
-- **Unified**: Single trivy-scan action for all security scanning needs
+- **Built-in**: Security scanning integrated into build workflows
+- **Container-focused**: Only scans container images via tar export
+- **Efficient**: No separate security workflow needed
 
 ### Dependency Update Workflow (`dependency-update.yaml`)
 
@@ -283,7 +271,7 @@ This directory contains reusable GitHub Actions for the OS Builder project.
 ### 📊 Standardization
 
 - **Consistent versioning**: Unified version calculation
-- **Standardized scanning**: Single trivy-scan action for all security needs
+- **Container-focused scanning**: Single trivy-scan action for vulnerability scanning
 - **Uniform labeling**: OCI-compliant container labels
 - **Standard testing**: Consistent test patterns across K3s and MicroShift
 - **Unified ISO building**: Same action for all configuration types

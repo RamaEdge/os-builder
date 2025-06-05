@@ -60,6 +60,9 @@ runs:
       shell: bash
       run: |
         echo "🚀 Setting up build environment..."
+        echo "Runner architecture info:"
+        uname -a
+        echo "uname -m: $(uname -m)"
         
         # Configure Podman for optimal performance
         mkdir -p ~/.config/containers
@@ -105,24 +108,24 @@ runs:
         
         # Add version-specific arguments
         if [ -n "${{ inputs.k3s-version }}" ]; then
-          BUILD_ARGS="$BUILD_ARGS --build-arg K3S_VERSION=\"${{ inputs.k3s-version }}\""
+          BUILD_ARGS="$BUILD_ARGS --build-arg K3S_VERSION=${{ inputs.k3s-version }}"
           echo "🔧 K3s version: ${{ inputs.k3s-version }}"
         fi
         
         if [ -n "${{ inputs.otel-version }}" ]; then
-          BUILD_ARGS="$BUILD_ARGS --build-arg OTEL_VERSION=\"${{ inputs.otel-version }}\""
+          BUILD_ARGS="$BUILD_ARGS --build-arg OTEL_VERSION=${{ inputs.otel-version }}"
           echo "🔧 OpenTelemetry version: ${{ inputs.otel-version }}"
         fi
         
         if [ -n "${{ inputs.fedora-version }}" ]; then
-          BUILD_ARGS="$BUILD_ARGS --build-arg FEDORA_VERSION=\"${{ inputs.fedora-version }}\""
+          BUILD_ARGS="$BUILD_ARGS --build-arg FEDORA_VERSION=${{ inputs.fedora-version }}"
           echo "🔧 Fedora version: ${{ inputs.fedora-version }}"
         fi
         
         # Add MicroShift-specific arguments if needed
         if [ -n "${{ inputs.microshift-version }}" ]; then
-          BUILD_ARGS="$BUILD_ARGS --build-arg MICROSHIFT_VERSION=\"${{ inputs.microshift-version }}\""
-          BUILD_ARGS="$BUILD_ARGS --build-arg MICROSHIFT_IMAGE_BASE=\"${{ inputs.registry }}/${{ inputs.repository-owner }}/microshift-builder\""
+          BUILD_ARGS="$BUILD_ARGS --build-arg MICROSHIFT_VERSION=${{ inputs.microshift-version }}"
+          BUILD_ARGS="$BUILD_ARGS --build-arg MICROSHIFT_IMAGE_BASE=${{ inputs.registry }}/${{ inputs.repository-owner }}/microshift-builder"
           echo "🔧 MicroShift version: ${{ inputs.microshift-version }}"
         fi
         
