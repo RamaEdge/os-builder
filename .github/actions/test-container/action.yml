@@ -53,12 +53,15 @@ runs:
             return 0
           else
             echo "  ❌ FAILED"
+            # Store failed test name for summary
+            FAILED_TESTS+=("$test_name")
             return 1
           fi
         }
         
         # Common tests for all image types
         echo "📦 Running common tests..."
+        FAILED_TESTS=()
         run_test "bootc status" "bootc status || true" && ((PASSED++)) || ((FAILED++))
         run_test "systemd version" "systemctl --version | head -1" && ((PASSED++)) || ((FAILED++))
         
@@ -97,11 +100,21 @@ runs:
         echo "📊 Test Results:"
         echo "  Total: $TOTAL, Passed: $PASSED, Failed: $FAILED"
         
+        # Show failed tests if any
+        if [ ${#FAILED_TESTS[@]} -gt 0 ]; then
+          echo "❌ Failed tests:"
+          for test in "${FAILED_TESTS[@]}"; do
+            echo "  - $test"
+          done
+        fi
+        
         # Set output
         echo "test_results=total=$TOTAL,passed=$PASSED,failed=$FAILED" >> $GITHUB_OUTPUT
         
         if [ $FAILED -eq 0 ]; then
           echo "✅ All tests passed!"
+          exit 0
         else
           echo "⚠️ $FAILED test(s) failed"
+          exit 1
         fi 
