@@ -1,6 +1,10 @@
 # Fedora bootc with K3s for edge computing
 # Simplified and optimized build
-FROM quay.io/fedora/fedora-bootc:42
+
+# Build arguments (must be before FROM to use in FROM)
+ARG FEDORA_VERSION
+
+FROM quay.io/fedora/fedora-bootc:${FEDORA_VERSION}
 
 # Build arguments
 ARG K3S_VERSION="v1.32.5+k3s1"

@@ -22,7 +22,7 @@ env:
   REGISTRY: ghcr.io
   REPO_OWNER: ramaedge
   CONTAINERFILE: Containerfile.fedora.optimized
-  SCAN_SEVERITY: CRITICAL,HIGH
+  SCAN_SEVERITY: CRITICAL,HIGH,MEDIUM
 
 jobs:
   # Combined build, scan, and test job for efficiency

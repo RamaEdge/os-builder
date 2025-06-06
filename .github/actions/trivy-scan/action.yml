@@ -132,6 +132,8 @@ runs:
       with:
         sarif_file: ${{ steps.setup.outputs.output_file }}
         category: ${{ inputs.sarif-category }}
+        # Ensure proper integration with GitHub Advanced Security
+        wait-for-processing: true
 
     - name: Cleanup tar file
       shell: bash

@@ -30,7 +30,7 @@ env:
   IMAGE_NAME: ramaedge-os-k3s
   REGISTRY: ghcr.io
   CONTAINERFILE: Containerfile.k3s
-  SCAN_SEVERITY: CRITICAL,HIGH
+  SCAN_SEVERITY: CRITICAL,HIGH,MEDIUM
 
 jobs:
   # Combined build and scan job for efficiency
