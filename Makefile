@@ -3,10 +3,10 @@
 # =============================================================================
 # Configuration
 # =============================================================================
-IMAGE_NAME ?= localhost/ramaedge-os-k3s
+IMAGE_NAME ?= harbor.local/ramaedge/os-k3s
 IMAGE_TAG ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "latest")
 CONTAINERFILE ?= os/Containerfile.k3s
-REGISTRY ?= localhost
+REGISTRY ?= harbor.local
 
 # Load version configuration from centralized file
 K3S_VERSION ?= $(shell grep '^K3S_VERSION=' versions.txt | cut -d'=' -f2)
@@ -138,7 +138,7 @@ build-microshift:
 	OTEL_VERSION="$(OTEL_VERSION)" \
 	GIT_SHA="$(GIT_SHA)" \
 	BUILD_DATE="$(BUILD_DATE)" \
-	MICROSHIFT_IMAGE_BASE="$(REGISTRY)/$(subst localhost,ramaedge,$(word 1,$(subst /, ,$(IMAGE_NAME))))/microshift-builder" \
+	MICROSHIFT_IMAGE_BASE="$(REGISTRY)/ramaedge/microshift-builder" \
 	./build.sh
 
 # =============================================================================

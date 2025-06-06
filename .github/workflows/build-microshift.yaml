@@ -18,8 +18,8 @@ on:
 
 # Centralized environment configuration
 env:
-  IMAGE_NAME: ramaedge-os-microshift
-  REGISTRY: ghcr.io
+  IMAGE_NAME: ramaedge/os-microshift
+  REGISTRY: harbor.local
   REPO_OWNER: ramaedge
   CONTAINERFILE: Containerfile.fedora.optimized
   SCAN_SEVERITY: CRITICAL,HIGH,MEDIUM
@@ -48,6 +48,13 @@ jobs:
         id: version
         uses: ./.github/actions/calculate-version
 
+      - name: Authenticate with Harbor
+        uses: ./.github/actions/harbor-auth
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.HARBOR_USERNAME }}
+          password: ${{ secrets.HARBOR_PASSWORD }}
+
       - name: Build container image
         id: build
         uses: ./.github/actions/build-container
@@ -75,6 +82,39 @@ jobs:
         with:
           image-ref: ${{ steps.build.outputs.local-tag }}
           test-type: 'microshift'
+
+  # Push to Harbor registry (main branch only)
+  push:
+    name: Push to Harbor Registry
+    runs-on: ubuntu-22.04
+    needs: build-scan-test
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Authenticate with Harbor
+        uses: ./.github/actions/harbor-auth
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.HARBOR_USERNAME }}
+          password: ${{ secrets.HARBOR_PASSWORD }}
+
+      - name: Tag and push to Harbor
+        run: |
+          LOCAL_IMAGE="${{ needs.build-scan-test.outputs.image-ref }}"
+          HARBOR_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build-scan-test.outputs.version }}"
+          
+          echo "🏷️  Tagging image for Harbor registry..."
+          echo "Source: $LOCAL_IMAGE"
+          echo "Target: $HARBOR_IMAGE"
+          
+          podman tag "$LOCAL_IMAGE" "$HARBOR_IMAGE"
+          
+          echo "⬆️  Pushing to Harbor registry..."
+          podman push "$HARBOR_IMAGE"
+          
+          echo "✅ Successfully pushed: $HARBOR_IMAGE"
 
   # Conditional ISO build
   build-iso:

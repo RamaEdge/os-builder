@@ -125,7 +125,7 @@ runs:
         # Add MicroShift-specific arguments if needed
         if [ -n "${{ inputs.microshift-version }}" ]; then
           BUILD_ARGS="$BUILD_ARGS --build-arg MICROSHIFT_VERSION=${{ inputs.microshift-version }}"
-          BUILD_ARGS="$BUILD_ARGS --build-arg MICROSHIFT_IMAGE_BASE=${{ inputs.registry }}/${{ inputs.repository-owner }}/microshift-builder"
+          BUILD_ARGS="$BUILD_ARGS --build-arg MICROSHIFT_IMAGE_BASE=${{ inputs.registry }}/ramaedge/microshift-builder"
           echo "🔧 MicroShift version: ${{ inputs.microshift-version }}"
         fi
         
