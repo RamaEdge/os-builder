@@ -61,12 +61,7 @@ timeout: 30m
 ignore-unfixed: true
 
 # CVE ignore list for known false positives or unfixable base OS issues
-ignore-policy: |
-  # Ignore common base OS vulnerabilities that are typically false positives
-  # or require system-level updates that aren't applicable to container images
-  vulnerability:
-    # Add specific CVEs here when identified
-    # - CVE-YYYY-NNNN  # Description of why this is ignored
+ignore-policy: .trivy-ignore.yaml
 
 # Cache settings
 cache:
