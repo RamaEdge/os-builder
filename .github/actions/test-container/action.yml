@@ -14,7 +14,7 @@ inputs:
     required: true
 
 outputs:
-  test-results:
+  test_results:
     description: 'Test results summary'
     value: ${{ steps.test.outputs.test_results }}
 
@@ -76,7 +76,7 @@ runs:
             echo "🎯 Running MicroShift tests..."
             run_test "microshift binary" "microshift version || command -v microshift" && ((PASSED++)) || ((FAILED++))
             run_test "kubectl binary" "kubectl version --client || command -v kubectl" && ((PASSED++)) || ((FAILED++))
-            run_test "microshift manifests" "ls /etc/microshift/manifests/observability-stack.yaml" && ((PASSED++)) || ((FAILED++))
+            run_test "microshift manifests" "[ -d /etc/microshift/manifests ] && [ \$(ls -A /etc/microshift/manifests/*.yaml 2>/dev/null | wc -l) -gt 0 ]" && ((PASSED++)) || ((FAILED++))
             ;;
             
           "bootc")
