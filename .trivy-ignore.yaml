@@ -1,9 +1,0 @@
-# Trivy Ignore Policy for os-builder
-# This file contains vulnerability filtering rules
-
-# Ignore common base OS vulnerabilities that are typically false positives
-# or require system-level updates that aren't applicable to container images
-vulnerability:
-  # Add specific CVEs here when identified
-  # Example:
-  # - CVE-YYYY-NNNN  # Description of why this is ignored 
