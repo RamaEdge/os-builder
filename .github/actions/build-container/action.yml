@@ -48,108 +48,116 @@ inputs:
 outputs:
   image-id:
     description: 'Built image ID'
-    value: ${{ steps.build.outputs.image_id }}
+    value: ${{ steps.main.outputs.image_id }}
   local-tag:
     description: 'Local image tag'
-    value: ${{ steps.build.outputs.local_tag }}
+    value: ${{ steps.main.outputs.local_tag }}
 
 runs:
   using: 'composite'
   steps:
-    - name: Setup build environment
+    - name: Build or reuse container image
+      id: main
       shell: bash
+      working-directory: ./os
       run: |
-        echo "🚀 Setting up build environment..."
-        echo "Runner architecture info:"
-        uname -a
-        echo "uname -m: $(uname -m)"
+        LOCAL_TAG="${{ inputs.image-name }}:${{ inputs.version }}"
+        REGISTRY_TAG="${{ inputs.registry }}/${{ inputs.repository-owner }}/${{ inputs.image-name }}:${{ inputs.version }}"
+        CACHE_TAG="${{ inputs.registry }}/${{ inputs.repository-owner }}/${{ inputs.image-name }}:latest"
         
-        # Configure Podman for optimal performance
-        mkdir -p ~/.config/containers
-        cat > ~/.config/containers/storage.conf << 'EOF'
+        echo "🔍 Image existence check:"
+        echo "   Local tag: $LOCAL_TAG"
+        echo "   Registry tag: $REGISTRY_TAG"
+        echo "   Cache tag: $CACHE_TAG"
+        
+        # Check local image first
+        if podman images "$LOCAL_TAG" --format "{{.Repository}}:{{.Tag}}" | grep -q "^$LOCAL_TAG$"; then
+          echo "✅ Found existing local image: $LOCAL_TAG"
+          STATUS="reused-local"
+        # Check registry image
+        elif podman pull "$REGISTRY_TAG" 2>/dev/null; then
+          echo "✅ Found existing registry image, pulled: $REGISTRY_TAG"
+          podman tag "$REGISTRY_TAG" "$LOCAL_TAG"
+          echo "   Tagged as local: $LOCAL_TAG"
+          STATUS="pulled-registry"
+        else
+          echo "❌ No existing image found locally or in registry"
+          echo "🔨 Proceeding with new build: $LOCAL_TAG"
+          STATUS="built-new"
+          
+          # Setup Podman configuration for builds
+          mkdir -p ~/.config/containers
+          cat > ~/.config/containers/storage.conf << 'EOF'
         [storage]
         driver = "overlay"
         [storage.options.overlay]
         mount_program = "/usr/bin/fuse-overlayfs"
         mountopt = "nodev,metacopy=on"
         EOF
-        
-        echo "✅ Build environment configured"
 
-    - name: Setup build cache
-      if: inputs.enable-cache == 'true'
-      shell: bash
-      run: |
-        echo "📦 Setting up build cache..."
-        
-        # Cache configuration
-        CACHE_TAG="${{ inputs.registry }}/${{ inputs.repository-owner }}/${{ inputs.image-name }}:latest"
-        
-        # Try to pull previous version for layer cache
-        if podman pull "$CACHE_TAG" 2>/dev/null; then
-          echo "cache_from=--cache-from $CACHE_TAG" >> $GITHUB_ENV
-          echo "✅ Cache source available: $CACHE_TAG"
-        else
-          echo "cache_from=" >> $GITHUB_ENV
-          echo "ℹ️ No cache source found, clean build"
-        fi
-
-    - name: Build container image
-      id: build
-      shell: bash
-      working-directory: ./os
-      run: |
-        LOCAL_TAG="${{ inputs.image-name }}:${{ inputs.version }}"
-        
-        echo "🔨 Building: $LOCAL_TAG"
-        
-        # Common build arguments
-        BUILD_ARGS="--build-arg VCS_REF=${{ inputs.sha }} --build-arg VERSION=${{ inputs.version }}"
-        
-        # Add version-specific arguments
-        if [ -n "${{ inputs.k3s-version }}" ]; then
-          BUILD_ARGS="$BUILD_ARGS --build-arg K3S_VERSION=${{ inputs.k3s-version }}"
-          echo "🔧 K3s version: ${{ inputs.k3s-version }}"
-        fi
-        
-        if [ -n "${{ inputs.otel-version }}" ]; then
-          BUILD_ARGS="$BUILD_ARGS --build-arg OTEL_VERSION=${{ inputs.otel-version }}"
-          echo "🔧 OpenTelemetry version: ${{ inputs.otel-version }}"
+          # Setup cache if enabled
+          CACHE_FROM=""
+          if [ "${{ inputs.enable-cache }}" == "true" ] && podman pull "$CACHE_TAG" 2>/dev/null; then
+            CACHE_FROM="--cache-from $CACHE_TAG"
+            echo "📦 Using cache: $CACHE_TAG"
+          fi
+          
+          # Build arguments
+          BUILD_ARGS="--build-arg VCS_REF=${{ inputs.sha }} --build-arg VERSION=${{ inputs.version }}"
+          
+          # Add conditional version arguments
+          [ -n "${{ inputs.k3s-version }}" ] && BUILD_ARGS="$BUILD_ARGS --build-arg K3S_VERSION=${{ inputs.k3s-version }}"
+          [ -n "${{ inputs.otel-version }}" ] && BUILD_ARGS="$BUILD_ARGS --build-arg OTEL_VERSION=${{ inputs.otel-version }}"
+          [ -n "${{ inputs.fedora-version }}" ] && BUILD_ARGS="$BUILD_ARGS --build-arg FEDORA_VERSION=${{ inputs.fedora-version }}"
+          
+          if [ -n "${{ inputs.microshift-version }}" ]; then
+            BUILD_ARGS="$BUILD_ARGS --build-arg MICROSHIFT_VERSION=${{ inputs.microshift-version }}"
+            BUILD_ARGS="$BUILD_ARGS --build-arg MICROSHIFT_IMAGE_BASE=${{ inputs.registry }}/ramaedge/microshift-builder"
+          fi
+          
+          # Standard labels
+          LABELS="--label org.opencontainers.image.version=${{ inputs.version }}"
+          LABELS="$LABELS --label org.opencontainers.image.revision=${{ inputs.sha }}"
+          LABELS="$LABELS --label org.opencontainers.image.source=https://github.com/${{ github.repository }}"
+          LABELS="$LABELS --label org.opencontainers.image.created=$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          
+          # Build image
+          podman build \
+            -f ${{ inputs.containerfile }} \
+            -t "$LOCAL_TAG" \
+            $BUILD_ARGS \
+            $CACHE_FROM \
+            $LABELS \
+            --jobs=4 \
+            .
         fi
         
-        if [ -n "${{ inputs.fedora-version }}" ]; then
-          BUILD_ARGS="$BUILD_ARGS --build-arg FEDORA_VERSION=${{ inputs.fedora-version }}"
-          echo "🔧 Fedora version: ${{ inputs.fedora-version }}"
+        # Validate image exists and get final info
+        if ! podman images "$LOCAL_TAG" --format "{{.Repository}}:{{.Tag}}" | grep -q "^$LOCAL_TAG$"; then
+          echo "❌ ERROR: Expected image $LOCAL_TAG not found after $STATUS process"
+          echo "Available images:"
+          podman images
+          exit 1
         fi
         
-        # Add MicroShift-specific arguments if needed
-        if [ -n "${{ inputs.microshift-version }}" ]; then
-          BUILD_ARGS="$BUILD_ARGS --build-arg MICROSHIFT_VERSION=${{ inputs.microshift-version }}"
-          BUILD_ARGS="$BUILD_ARGS --build-arg MICROSHIFT_IMAGE_BASE=${{ inputs.registry }}/ramaedge/microshift-builder"
-          echo "🔧 MicroShift version: ${{ inputs.microshift-version }}"
-        fi
-        
-        # Standard labels
-        LABELS="--label org.opencontainers.image.version=${{ inputs.version }}"
-        LABELS="$LABELS --label org.opencontainers.image.revision=${{ inputs.sha }}"
-        LABELS="$LABELS --label org.opencontainers.image.source=https://github.com/${{ github.repository }}"
-        LABELS="$LABELS --label org.opencontainers.image.created=$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-        
-        # Build with optimizations
-        podman build \
-          -f ${{ inputs.containerfile }} \
-          -t "$LOCAL_TAG" \
-          $BUILD_ARGS \
-          ${{ env.cache_from }} \
-          $LABELS \
-          --jobs=4 \
-          .
-        
-        # Get image info and set outputs
         IMAGE_ID=$(podman images --filter reference="$LOCAL_TAG" -q)
         IMAGE_SIZE=$(podman images --format "{{.Size}}" --filter reference="$LOCAL_TAG")
+        
+        # Validate outputs before setting them
+        if [ -z "$IMAGE_ID" ] || [ -z "$LOCAL_TAG" ]; then
+          echo "❌ ERROR: Failed to get image information"
+          echo "Image ID: '$IMAGE_ID', Local Tag: '$LOCAL_TAG'"
+          exit 1
+        fi
         
         echo "image_id=${IMAGE_ID}" >> $GITHUB_OUTPUT
         echo "local_tag=${LOCAL_TAG}" >> $GITHUB_OUTPUT
         
-        echo "✅ Built: $LOCAL_TAG (ID: $IMAGE_ID, Size: $IMAGE_SIZE)" 
+        # Summary and workflow continuity confirmation
+        echo "✅ Image ready: $LOCAL_TAG"
+        echo "   ID: $IMAGE_ID | Size: $IMAGE_SIZE | Status: $STATUS"
+        echo ""
+        echo "🔗 Outputs set for subsequent actions:"
+        echo "   image-id: $IMAGE_ID"
+        echo "   local-tag: $LOCAL_TAG"
+        echo "✅ Ready for: trivy-scan, test-container, build-iso, registry operations" 
