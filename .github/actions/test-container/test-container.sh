@@ -79,33 +79,33 @@ run_common_tests() {
   echo "📦 Running common bootc tests..."
   
   if run_test "bootc status" "bootc status"; then
-    ((PASSED++))
+    PASSED=$((PASSED + 1))
   else
-    ((FAILED++))
+    FAILED=$((FAILED + 1))
   fi
   
   if run_test "systemd version" "systemctl --version | head -1"; then
-    ((PASSED++))
+    PASSED=$((PASSED + 1))
   else
-    ((FAILED++))
+    FAILED=$((FAILED + 1))
   fi
   
   if run_test "podman runtime" "podman --version"; then
-    ((PASSED++))
+    PASSED=$((PASSED + 1))
   else
-    ((FAILED++))
+    FAILED=$((FAILED + 1))
   fi
   
   if run_test "basic filesystem" "test -d /usr && test -d /etc && test -d /var"; then
-    ((PASSED++))
+    PASSED=$((PASSED + 1))
   else
-    ((FAILED++))
+    FAILED=$((FAILED + 1))
   fi
   
   if run_test "bootc container config" "test -f /usr/lib/bootc/install/05-users.toml || test -d /usr/lib/bootc"; then
-    ((PASSED++))
+    PASSED=$((PASSED + 1))
   else
-    ((FAILED++))
+    FAILED=$((FAILED + 1))
   fi
 }
 
@@ -115,62 +115,62 @@ run_k3s_tests() {
   
   # Core binaries with functionality check
   if run_test "k3s binary & help" "k3s --version && k3s --help | head -1"; then
-    ((PASSED++))
+    PASSED=$((PASSED + 1))
   else
-    ((FAILED++))
+    FAILED=$((FAILED + 1))
   fi
   
   if run_test "kubectl binary & help" "kubectl version --client --output=json | grep gitVersion || command -v kubectl"; then
-    ((PASSED++))
+    PASSED=$((PASSED + 1))
   else
-    ((FAILED++))
+    FAILED=$((FAILED + 1))
   fi
   
   # OpenTelemetry collector
   if run_test "otelcol binary & config" "command -v otelcol && otelcol --version"; then
-    ((PASSED++))
+    PASSED=$((PASSED + 1))
   else
-    ((FAILED++))
+    FAILED=$((FAILED + 1))
   fi
   
   if run_test "otelcol config file" "test -f /etc/otelcol/config.yaml || test -f /etc/otelcol-contrib/config.yaml"; then
-    ((PASSED++))
+    PASSED=$((PASSED + 1))
   else
-    ((FAILED++))
+    FAILED=$((FAILED + 1))
   fi
   
   # K3s configuration and manifests
   if run_test "k3s config directory" "test -d /etc/rancher/k3s"; then
-    ((PASSED++))
+    PASSED=$((PASSED + 1))
   else
-    ((FAILED++))
+    FAILED=$((FAILED + 1))
   fi
   
   if run_test "k3s manifests content" "test -d /etc/rancher/k3s/manifests && find /etc/rancher/k3s/manifests -name '*.yaml' -o -name '*.yml' | wc -l | grep -v '^0$'"; then
-    ((PASSED++))
+    PASSED=$((PASSED + 1))
   else
-    ((FAILED++))
+    FAILED=$((FAILED + 1))
   fi
   
   # Systemd services
-  if run_test "k3s systemd service" "test -f /etc/systemd/system/k3s.service || systemctl cat k3s >/dev/null 2>&1"; then
-    ((PASSED++))
+  if run_test "k3s systemd service" "test -f /usr/lib/systemd/system/k3s.service || test -f /etc/systemd/system/k3s.service"; then
+    PASSED=$((PASSED + 1))
   else
-    ((FAILED++))
+    FAILED=$((FAILED + 1))
   fi
   
   # Container images (offline capability)
   if run_test "k3s image directory" "test -d /var/lib/rancher/k3s/agent/images || ls /var/lib/rancher/k3s/server/static/charts/ 2>/dev/null | wc -l | grep -v '^0$'"; then
-    ((PASSED++))
+    PASSED=$((PASSED + 1))
   else
-    ((FAILED++))
+    FAILED=$((FAILED + 1))
   fi
   
   # CNI and networking
   if run_test "CNI plugins" "test -d /opt/cni/bin && ls /opt/cni/bin/ | wc -l | grep -v '^0$'"; then
-    ((PASSED++))
+    PASSED=$((PASSED + 1))
   else
-    ((FAILED++))
+    FAILED=$((FAILED + 1))
   fi
 }
 
@@ -180,62 +180,62 @@ run_microshift_tests() {
   
   # Core binaries with functionality check
   if run_test "microshift binary & version" "microshift version --output=json | grep gitVersion || command -v microshift"; then
-    ((PASSED++))
+    PASSED=$((PASSED + 1))
   else
-    ((FAILED++))
+    FAILED=$((FAILED + 1))
   fi
   
   if run_test "kubectl binary & help" "kubectl version --client --output=json | grep gitVersion || command -v kubectl"; then
-    ((PASSED++))
+    PASSED=$((PASSED + 1))
   else
-    ((FAILED++))
+    FAILED=$((FAILED + 1))
   fi
   
   # MicroShift configuration
   if run_test "microshift config directory" "test -d /etc/microshift"; then
-    ((PASSED++))
+    PASSED=$((PASSED + 1))
   else
-    ((FAILED++))
+    FAILED=$((FAILED + 1))
   fi
   
   if run_test "microshift config file" "test -f /etc/microshift/config.yaml || test -f /etc/microshift/cluster.yaml"; then
-    ((PASSED++))
+    PASSED=$((PASSED + 1))
   else
-    ((FAILED++))
+    FAILED=$((FAILED + 1))
   fi
   
   if run_test "microshift manifests content" "test -d /etc/microshift/manifests && find /etc/microshift/manifests -name '*.yaml' -o -name '*.yml' | wc -l | grep -v '^0$'"; then
-    ((PASSED++))
+    PASSED=$((PASSED + 1))
   else
-    ((FAILED++))
+    FAILED=$((FAILED + 1))
   fi
   
   # Systemd services
-  if run_test "microshift systemd service" "test -f /etc/systemd/system/microshift.service || systemctl cat microshift >/dev/null 2>&1"; then
-    ((PASSED++))
+  if run_test "microshift systemd service" "test -f /usr/lib/systemd/system/microshift.service || test -f /etc/systemd/system/microshift.service"; then
+    PASSED=$((PASSED + 1))
   else
-    ((FAILED++))
+    FAILED=$((FAILED + 1))
   fi
   
   # OpenShift/Kubernetes components
   if run_test "crictl binary" "command -v crictl && crictl --version"; then
-    ((PASSED++))
+    PASSED=$((PASSED + 1))
   else
-    ((FAILED++))
+    FAILED=$((FAILED + 1))
   fi
   
   # Container images and data
   if run_test "microshift data directory" "test -d /var/lib/microshift || test -d /var/lib/microshift-backups"; then
-    ((PASSED++))
+    PASSED=$((PASSED + 1))
   else
-    ((FAILED++))
+    FAILED=$((FAILED + 1))
   fi
   
   # CNI configuration
   if run_test "CNI config" "test -d /etc/cni/net.d || test -f /etc/cni/net.d/100-crio-bridge.conflist"; then
-    ((PASSED++))
+    PASSED=$((PASSED + 1))
   else
-    ((FAILED++))
+    FAILED=$((FAILED + 1))
   fi
 }
 
@@ -245,27 +245,27 @@ run_bootc_tests() {
   
   # Additional bootc-specific tests
   if run_test "bootc install support" "bootc install --help | head -1"; then
-    ((PASSED++))
+    PASSED=$((PASSED + 1))
   else
-    ((FAILED++))
+    FAILED=$((FAILED + 1))
   fi
   
   if run_test "bootc switch support" "bootc switch --help | head -1"; then
-    ((PASSED++))
+    PASSED=$((PASSED + 1))
   else
-    ((FAILED++))
+    FAILED=$((FAILED + 1))
   fi
   
   if run_test "ostree support" "command -v ostree && ostree --version"; then
-    ((PASSED++))
+    PASSED=$((PASSED + 1))
   else
-    ((FAILED++))
+    FAILED=$((FAILED + 1))
   fi
   
   if run_test "systemd boot support" "test -d /usr/lib/systemd/boot || test -f /usr/lib/systemd/systemd-boot"; then
-    ((PASSED++))
+    PASSED=$((PASSED + 1))
   else
-    ((FAILED++))
+    FAILED=$((FAILED + 1))
   fi
 }
 

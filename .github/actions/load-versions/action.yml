@@ -21,6 +21,9 @@ outputs:
   bootc-version:
     description: 'Bootc version'
     value: ${{ steps.versions.outputs.bootc-version }}
+  cni-version:
+    description: 'CNI plugins version'
+    value: ${{ steps.versions.outputs.cni-version }}
 
 runs:
   using: 'composite'
@@ -44,10 +47,12 @@ runs:
         echo "microshift-version=${MICROSHIFT_VERSION}" >> $GITHUB_OUTPUT
         echo "fedora-version=${FEDORA_VERSION}" >> $GITHUB_OUTPUT
         echo "bootc-version=${BOOTC_VERSION}" >> $GITHUB_OUTPUT
+        echo "cni-version=${CNI_VERSION}" >> $GITHUB_OUTPUT
         
         echo "✅ Loaded versions:"
         echo "  K3s: ${K3S_VERSION}"
         echo "  OpenTelemetry: ${OTEL_VERSION}"
         echo "  MicroShift: ${MICROSHIFT_VERSION}"
         echo "  Fedora: ${FEDORA_VERSION}"
-        echo "  Bootc: ${BOOTC_VERSION}" 
+        echo "  Bootc: ${BOOTC_VERSION}"
+        echo "  CNI: ${CNI_VERSION}" 

@@ -4,20 +4,21 @@ ARG MICROSHIFT_REPO=https://github.com/openshift/microshift.git
 ARG MICROSHIFT_IMAGE_BASE=ghcr.io/ramaedge/microshift-builder
 ARG VCS_REF
 ARG VERSION
-ARG OTEL_VERSION="0.127.0"
+ARG OTEL_VERSION
+ARG FEDORA_VERSION
 
 # Stage 1: Get pre-built MicroShift binary
-ARG MICROSHIFT_VERSION=main
+ARG MICROSHIFT_VERSION
 FROM ${MICROSHIFT_IMAGE_BASE}:${MICROSHIFT_VERSION} AS microshift-prebuilt
 
 # Stage 2: Final bootc image
-FROM quay.io/fedora/fedora-bootc:42
+FROM quay.io/fedora/fedora-bootc:${FEDORA_VERSION}
 
-ARG MICROSHIFT_VERSION=main
+ARG MICROSHIFT_VERSION
 ARG MICROSHIFT_REPO=https://github.com/openshift/microshift.git
 ARG VCS_REF
 ARG VERSION
-ARG OTEL_VERSION="0.127.0"
+ARG OTEL_VERSION
 
 # Metadata labels
 LABEL org.opencontainers.image.title="Edge OS - Fedora bootc (Optimized)" \
@@ -27,6 +28,7 @@ LABEL org.opencontainers.image.title="Edge OS - Fedora bootc (Optimized)" \
       org.opencontainers.image.vendor="RamaEdge" \
       org.opencontainers.image.licenses="MIT" \
       containers.bootc=1 \
+      ostree.bootable=1 \
       microshift.version="${MICROSHIFT_VERSION}" \
       microshift.optimization="pre-built-binary" \
       otel.version="${OTEL_VERSION}"
@@ -69,10 +71,25 @@ RUN if [ -f "/usr/share/microshift/release-images.json" ] && [ -s "/usr/share/mi
     echo -e '[storage]\nadditionalImageStores = ["/usr/share/containers/storage"]' > /etc/containers/storage.conf.d/offline.conf
 
 # Download and install OTEL Collector (separate layer)
-RUN ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/') && \
-    curl -fsSL "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v${OTEL_VERSION}/otelcol_${OTEL_VERSION}_linux_${ARCH}.rpm" \
-        -o /tmp/otelcol.rpm && \
-    dnf install -y /tmp/otelcol.rpm && rm -f /tmp/otelcol.rpm
+RUN RAW_ARCH=$(uname -m) && \
+    if [ "${RAW_ARCH}" = "aarch64" ] || [ "${RAW_ARCH}" = "arm64" ]; then \
+        ARCH="arm64"; \
+    elif [ "${RAW_ARCH}" = "x86_64" ] || [ "${RAW_ARCH}" = "amd64" ]; then \
+        ARCH="amd64"; \
+    else \
+        ARCH=$(echo "${RAW_ARCH}" | sed 's/x86_64/amd64/;s/aarch64/arm64/'); \
+    fi && \
+    curl -fsSL --retry 3 --retry-delay 5 \
+        "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v${OTEL_VERSION}/otelcol_${OTEL_VERSION}_linux_${ARCH}.tar.gz" \
+        -o /tmp/otelcol.tar.gz && \
+    tar -xzf /tmp/otelcol.tar.gz -C /tmp && \
+    mv /tmp/otelcol /usr/local/bin/otelcol && \
+    chmod +x /usr/local/bin/otelcol && \
+    rm -f /tmp/otelcol.tar.gz && \
+    # Create otelcol user and directories
+    useradd -r -s /sbin/nologin -d /var/lib/otelcol -c "OpenTelemetry Collector" otelcol && \
+    mkdir -p /var/log/otelcol /var/lib/otelcol && \
+    chown -R otelcol:otelcol /var/log/otelcol /var/lib/otelcol /etc/otelcol
 
 # Copy all configuration files
 COPY configs/containers/ /etc/containers/
@@ -84,7 +101,7 @@ COPY systemd/microshift/ /usr/lib/systemd/system/
 COPY systemd/bootc-fetch-apply-updates.timer.d/ /usr/lib/systemd/system/bootc-fetch-apply-updates.timer.d/
 COPY scripts/ /usr/local/bin/
 
-# Final configuration
+# Final configuration and bootc compliance
 RUN chmod +x /usr/local/bin/*.sh 2>/dev/null || true && \
     # Enable all services (simplified)
     systemctl enable sshd chronyd systemd-resolved podman.socket crio otelcol \
@@ -98,9 +115,18 @@ RUN chmod +x /usr/local/bin/*.sh 2>/dev/null || true && \
     # Final setup
     restorecon -R /etc /usr/local/bin 2>/dev/null || true && \
     useradd -r -s /sbin/nologin -d /var/empty -c "Container user" containeruser && \
-    bootc container lint
+    chown containeruser:containeruser /var/empty
 
-USER containeruser
+# Required bootc labels for compliance
+LABEL containers.bootc=1
+LABEL ostree.bootable=1
 
-# This is a bootc image - no CMD needed as it will be converted to a bootable OS
-# When booted, systemd will be PID 1, not a container command 
+# Optional bootc container runtime labels for systemd compatibility  
+STOPSIGNAL SIGRTMIN+3
+CMD ["/sbin/init"]
+
+# Run bootc container lint as the final step for compliance
+RUN bootc container lint
+
+# Switch to containeruser as final step for security
+USER containeruser 

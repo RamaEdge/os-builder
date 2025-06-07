@@ -34,6 +34,10 @@ inputs:
     description: 'Fedora version'
     required: false
     default: ''
+  cni-version:
+    description: 'CNI plugins version'
+    required: false
+    default: ''
   registry:
     description: 'Container registry'
     required: true
@@ -79,16 +83,37 @@ runs:
         echo "   Image reference: $IMAGE_REF"
         echo "   Cache tag: $CACHE_TAG"
         
+        # Check if Containerfile has changed by computing its hash
+        CONTAINERFILE_HASH=$(sha256sum "${{ inputs.containerfile }}" | cut -d' ' -f1)
+        echo "📝 Containerfile hash: $CONTAINERFILE_HASH"
+        
         # Check registry for existing image (GitHub Actions - no local images persist)
+        FORCE_REBUILD=false
         echo "🔍 Checking registry for existing image: $IMAGE_REF"
         if podman pull "$IMAGE_REF" 2>/dev/null; then
           echo "✅ Found existing registry image: $IMAGE_REF"
-          STATUS="pulled-registry"
+          
+          # Check if the existing image was built with the same Containerfile
+          EXISTING_HASH=$(podman inspect "$IMAGE_REF" --format '{{index .Config.Labels "containerfile.hash"}}' 2>/dev/null || echo "")
+          
+          if [ "$EXISTING_HASH" = "$CONTAINERFILE_HASH" ]; then
+            echo "✅ Containerfile unchanged, reusing existing image"
+            STATUS="pulled-registry"
+          else
+            echo "📝 Containerfile changed (existing: $EXISTING_HASH, current: $CONTAINERFILE_HASH)"
+            echo "🔨 Forcing rebuild due to Containerfile changes"
+            FORCE_REBUILD=true
+            STATUS="rebuilt-containerfile-changed"
+          fi
         else
           echo "❌ No existing image found in registry"
           echo "🔨 Proceeding with new build: $IMAGE_REF"
           STATUS="built-new"
-          
+          FORCE_REBUILD=true
+        fi
+        
+        # Build if forced or no existing image
+        if [ "$FORCE_REBUILD" = "true" ]; then
           # Setup Podman configuration for builds
           mkdir -p ~/.config/containers
           cat > ~/.config/containers/storage.conf << 'EOF'
@@ -109,10 +134,11 @@ runs:
           # Build arguments
           BUILD_ARGS="--build-arg VCS_REF=${{ inputs.sha }} --build-arg VERSION=${{ inputs.version }}"
           
-          # Add conditional version arguments
+          # Add conditional version arguments (required for versions.txt sourcing)
           [ -n "${{ inputs.k3s-version }}" ] && BUILD_ARGS="$BUILD_ARGS --build-arg K3S_VERSION=${{ inputs.k3s-version }}"
           [ -n "${{ inputs.otel-version }}" ] && BUILD_ARGS="$BUILD_ARGS --build-arg OTEL_VERSION=${{ inputs.otel-version }}"
           [ -n "${{ inputs.fedora-version }}" ] && BUILD_ARGS="$BUILD_ARGS --build-arg FEDORA_VERSION=${{ inputs.fedora-version }}"
+          [ -n "${{ inputs.cni-version }}" ] && BUILD_ARGS="$BUILD_ARGS --build-arg CNI_VERSION=${{ inputs.cni-version }}"
           
           if [ -n "${{ inputs.microshift-version }}" ]; then
             BUILD_ARGS="$BUILD_ARGS --build-arg MICROSHIFT_VERSION=${{ inputs.microshift-version }}"
@@ -124,6 +150,7 @@ runs:
           LABELS="$LABELS --label org.opencontainers.image.revision=${{ inputs.sha }}"
           LABELS="$LABELS --label org.opencontainers.image.source=https://github.com/${{ github.repository }}"
           LABELS="$LABELS --label org.opencontainers.image.created=$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          LABELS="$LABELS --label containerfile.hash=$CONTAINERFILE_HASH"
           
           # Build image
           podman build \
@@ -160,6 +187,7 @@ runs:
         # Summary and workflow continuity confirmation
         echo "✅ Image ready: $IMAGE_REF"
         echo "   ID: $IMAGE_ID | Size: $IMAGE_SIZE | Status: $STATUS"
+        echo "   Containerfile Hash: $CONTAINERFILE_HASH"
         echo ""
         echo "🔗 Outputs set for subsequent actions:"
         echo "   image-id: $IMAGE_ID"

@@ -15,4 +15,7 @@ MICROSHIFT_VERSION=release-4.19
 FEDORA_VERSION=42
 BOOTC_VERSION=42
 
+# CNI plugins version
+CNI_VERSION=v1.7.1
+
 # Build metadata (handled dynamically in builds) 

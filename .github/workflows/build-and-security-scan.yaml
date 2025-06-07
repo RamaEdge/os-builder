@@ -78,6 +78,7 @@ jobs:
           k3s-version: ${{ steps.versions.outputs.k3s-version }}
           otel-version: ${{ steps.versions.outputs.otel-version }}
           fedora-version: ${{ steps.versions.outputs.fedora-version }}
+          cni-version: ${{ steps.versions.outputs.cni-version }}
           enable-cache: ${{ github.event.inputs.force_rebuild != 'true' }}
 
       - name: Security scan

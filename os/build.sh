@@ -15,6 +15,7 @@ OTEL_VERSION="${OTEL_VERSION}"
 MICROSHIFT_VERSION="${MICROSHIFT_VERSION:-release-4.19}"
 FEDORA_VERSION="${FEDORA_VERSION}"
 BOOTC_VERSION="${BOOTC_VERSION}"
+CNI_VERSION="${CNI_VERSION}"
 
 # MicroShift specific
 MICROSHIFT_IMAGE_BASE="${MICROSHIFT_IMAGE_BASE:-ghcr.io/ramaedge/microshift-builder}"
@@ -50,7 +51,7 @@ get_git_metadata() {
 build_image() {
     info "Building: ${IMAGE_NAME}:${IMAGE_TAG}"
     info "Using: ${CONTAINER_RUNTIME}"
-    info "Versions: K3s=${K3S_VERSION}, OTEL=${OTEL_VERSION}, Fedora=${FEDORA_VERSION}"
+    info "Versions: K3s=${K3S_VERSION}, OTEL=${OTEL_VERSION}, Fedora=${FEDORA_VERSION}, CNI=${CNI_VERSION}"
     
     cd "$(dirname "$0")"
     
@@ -75,6 +76,7 @@ build_image() {
     BUILD_CMD="$BUILD_CMD --build-arg OTEL_VERSION=${OTEL_VERSION}"
     BUILD_CMD="$BUILD_CMD --build-arg FEDORA_VERSION=${FEDORA_VERSION}"
     BUILD_CMD="$BUILD_CMD --build-arg BOOTC_VERSION=${BOOTC_VERSION}"
+    BUILD_CMD="$BUILD_CMD --build-arg CNI_VERSION=${CNI_VERSION}"
     
     # Labels (removed created label to prevent cache invalidation)
     BUILD_CMD="$BUILD_CMD --label org.opencontainers.image.version=${IMAGE_TAG}"

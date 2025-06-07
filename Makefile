@@ -14,6 +14,7 @@ OTEL_VERSION ?= $(shell grep '^OTEL_VERSION=' versions.txt | cut -d'=' -f2)
 MICROSHIFT_VERSION ?= $(shell grep '^MICROSHIFT_VERSION=' versions.txt | cut -d'=' -f2)
 FEDORA_VERSION ?= $(shell grep '^FEDORA_VERSION=' versions.txt | cut -d'=' -f2)
 BOOTC_VERSION ?= $(shell grep '^BOOTC_VERSION=' versions.txt | cut -d'=' -f2)
+CNI_VERSION ?= $(shell grep '^CNI_VERSION=' versions.txt | cut -d'=' -f2)
 
 # Build metadata
 GIT_SHA := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
@@ -48,7 +49,7 @@ ISO_DIR := iso-output
 TRIVY_ENV := TRIVY_SKIP_CHECK_UPDATE=true TRIVY_CLOUD_DISABLE=true TRIVY_SCANNERS=vuln
 
 # Common targets
-.PHONY: help build build-microshift test clean push pull info scan sbom
+.PHONY: help build build-microshift test test-k3s test-microshift test-bootc test-all clean push pull info scan sbom
 .PHONY: install-deps install-trivy install-syft disk-image build-iso
 
 # =============================================================================
@@ -57,22 +58,26 @@ TRIVY_ENV := TRIVY_SKIP_CHECK_UPDATE=true TRIVY_CLOUD_DISABLE=true TRIVY_SCANNER
 help:
 	@echo "Fedora bootc Container Image Builder"
 	@echo ""
-	@echo "Build:      build, build-microshift, test, clean"
+	@echo "Build:      build, build-microshift"
+	@echo "Test:       test, test-k3s, test-microshift, test-bootc, test-all"
 	@echo "Security:   scan, sbom"
 	@echo "Deploy:     push, pull, disk-image, build-iso"
 	@echo "Install:    install-deps, install-trivy, install-syft"
-	@echo "Info:       info, help"
+	@echo "Info:       info, help, clean"
 	@echo ""
 	@echo "Config:     IMAGE_NAME=$(IMAGE_NAME)"
 	@echo "            IMAGE_TAG=$(IMAGE_TAG)"
 	@echo "            CONTAINER_RUNTIME=$(CONTAINER_RUNTIME)"
+	@echo "            TEST_TYPE=$(TEST_TYPE)"
 	@echo ""
 	@echo "Versions:   K3S_VERSION=$(K3S_VERSION)"
 	@echo "            OTEL_VERSION=$(OTEL_VERSION)"
 	@echo "            MICROSHIFT_VERSION=$(MICROSHIFT_VERSION)"
 	@echo "            FEDORA_VERSION=$(FEDORA_VERSION)"
+	@echo "            CNI_VERSION=$(CNI_VERSION)"
 	@echo ""
 	@echo "Examples:   make build IMAGE_TAG=v1.0.0"
+	@echo "            make test TEST_TYPE=k3s"
 	@echo "            make scan TRIVY_SEVERITY=CRITICAL,HIGH,MEDIUM"
 
 # =============================================================================
@@ -106,7 +111,7 @@ endef
 # =============================================================================
 build:
 	@echo "🔨 Building $(IMAGE_NAME):$(IMAGE_TAG) with $(CONTAINER_RUNTIME)..."
-	@echo "📋 Using versions: K3S=$(K3S_VERSION), OTEL=$(OTEL_VERSION)"
+	@echo "📋 Using versions: K3S=$(K3S_VERSION), OTEL=$(OTEL_VERSION), CNI=$(CNI_VERSION)"
 	@chmod +x os/build.sh
 	@cd os && \
 	CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" \
@@ -117,6 +122,7 @@ build:
 	OTEL_VERSION="$(OTEL_VERSION)" \
 	FEDORA_VERSION="$(FEDORA_VERSION)" \
 	BOOTC_VERSION="$(BOOTC_VERSION)" \
+	CNI_VERSION="$(CNI_VERSION)" \
 	GIT_SHA="$(GIT_SHA)" \
 	BUILD_DATE="$(BUILD_DATE)" \
 	./build.sh
@@ -144,12 +150,31 @@ build-microshift:
 # =============================================================================
 # Test and Info Targets
 # =============================================================================
+# Test type configuration
+TEST_TYPE ?= k3s
+
 test:
-	@echo "🧪 Testing container image..."
+	@echo "🧪 Testing container image with comprehensive test suite..."
 	@TARGET_IMAGE=$(call find_image); \
 	test -n "$$TARGET_IMAGE" || (echo "❌ No image found! Run 'make build' first." && exit 1); \
-	echo "Testing: $$TARGET_IMAGE"; \
-	$(CONTAINER_RUNTIME) run --rm $$TARGET_IMAGE /bin/bash -c "bootc status || true; systemctl --version | head -1; k3s --version || echo 'K3s not found'"
+	echo "Testing: $$TARGET_IMAGE (Type: $(TEST_TYPE))"; \
+	chmod +x .github/actions/test-container/test-container.sh; \
+	.github/actions/test-container/test-container.sh "$$TARGET_IMAGE" "$(TEST_TYPE)"
+
+test-k3s:
+	@$(MAKE) test TEST_TYPE=k3s
+
+test-microshift:
+	@$(MAKE) test TEST_TYPE=microshift
+
+test-bootc:
+	@$(MAKE) test TEST_TYPE=bootc
+
+test-all:
+	@echo "🧪 Running all test types..."
+	@$(MAKE) test-k3s || true
+	@$(MAKE) test-microshift || true  
+	@$(MAKE) test-bootc || true
 
 info:
 	@echo "📊 Image information:"

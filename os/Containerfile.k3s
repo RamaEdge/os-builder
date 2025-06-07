@@ -7,8 +7,9 @@ ARG FEDORA_VERSION
 FROM quay.io/fedora/fedora-bootc:${FEDORA_VERSION}
 
 # Build arguments
-ARG K3S_VERSION="v1.32.5+k3s1"
-ARG OTEL_VERSION="0.127.0"
+ARG K3S_VERSION
+ARG OTEL_VERSION
+ARG CNI_VERSION
 ARG VCS_REF
 ARG VERSION
 
@@ -20,6 +21,7 @@ LABEL org.opencontainers.image.title="Edge OS - Fedora bootc with K3s" \
       org.opencontainers.image.vendor="RamaEdge" \
       org.opencontainers.image.licenses="MIT" \
       containers.bootc=1 \
+      ostree.bootable=1 \
       k3s.version="${K3S_VERSION}" \
       k3s.distribution="k3s" \
       otel.version="${OTEL_VERSION}"
@@ -41,7 +43,7 @@ RUN dnf install -y \
 # Create directory structure first (cached layer)
 RUN mkdir -p /var/lib/rancher/k3s/agent/images /etc/rancher/k3s /usr/local/bin \
              /etc/containers/systemd /etc/otelcol /etc/rancher/k3s/manifests \
-             /var/lib/k3s /var/log/k3s
+             /var/lib/k3s /var/log/k3s /var/empty /opt/cni/bin
 
 # Download K3s binary (separate layer for better caching)
 # Improved architecture detection for aarch64/arm64 compatibility
@@ -73,6 +75,22 @@ RUN RAW_ARCH=$(uname -m) && \
     ln -sf /usr/local/bin/k3s /usr/local/bin/kubectl && \
     ln -sf /usr/local/bin/k3s /usr/local/bin/crictl && \
     ln -sf /usr/local/bin/k3s /usr/local/bin/ctr
+
+# Download and install CNI plugins (separate layer)
+RUN RAW_ARCH=$(uname -m) && \
+    if [ "${RAW_ARCH}" = "aarch64" ] || [ "${RAW_ARCH}" = "arm64" ]; then \
+        ARCH="arm64"; \
+    elif [ "${RAW_ARCH}" = "x86_64" ] || [ "${RAW_ARCH}" = "amd64" ]; then \
+        ARCH="amd64"; \
+    else \
+        ARCH=$(echo "${RAW_ARCH}" | sed 's/x86_64/amd64/;s/aarch64/arm64/'); \
+    fi && \
+    curl -fsSL --retry 3 --retry-delay 5 \
+        "https://github.com/containernetworking/plugins/releases/download/${CNI_VERSION}/cni-plugins-linux-${ARCH}-${CNI_VERSION}.tgz" \
+        -o /tmp/cni-plugins.tgz && \
+    tar -xzf /tmp/cni-plugins.tgz -C /opt/cni/bin && \
+    chmod +x /opt/cni/bin/* && \
+    rm -f /tmp/cni-plugins.tgz
 
 # Download and extract K3s airgap images (separate layer)
 RUN RAW_ARCH=$(uname -m) && \
@@ -123,7 +141,7 @@ COPY systemd/k3s/ /usr/lib/systemd/system/
 COPY systemd/bootc-fetch-apply-updates.timer.d/ /usr/lib/systemd/system/bootc-fetch-apply-updates.timer.d/
 COPY scripts/ /usr/local/bin/
 
-# Final configuration
+# Final configuration and bootc compliance
 RUN chmod +x /usr/local/bin/*.sh 2>/dev/null || true && \
     # Enable all services (simplified)
     systemctl enable sshd chronyd systemd-resolved podman.socket otelcol \
@@ -136,9 +154,22 @@ RUN chmod +x /usr/local/bin/*.sh 2>/dev/null || true && \
                         --add-port=4317/tcp --add-port=4318/tcp --add-port=9090/tcp --add-port=8888/tcp && \
     # Final setup
     restorecon -R /etc /usr/local/bin 2>/dev/null || true && \
+    # Create containeruser with proper /var/empty setup
     useradd -r -s /sbin/nologin -d /var/empty -c "Container user" containeruser && \
-    bootc container lint
+    chown containeruser:containeruser /var/empty
 
+# Required bootc labels for compliance
+LABEL containers.bootc=1
+LABEL ostree.bootable=1
+
+# Optional bootc container runtime labels for systemd compatibility
+STOPSIGNAL SIGRTMIN+3
+CMD ["/sbin/init"]
+
+# Run bootc container lint as the final step for compliance
+RUN bootc container lint
+
+# Switch to containeruser as final step for security
 USER containeruser
 
 # This is a bootc image - no CMD needed as it will be converted to a bootable OS
