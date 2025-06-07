@@ -43,16 +43,43 @@ runs:
         PASSED=0
         FAILED=0
         
-        # Test execution function
+        # Initialize failed tests array
+        FAILED_TESTS=()
+        
+        # Start container once and keep it running
+        echo "🚀 Starting test container..."
+        CONTAINER_ID=$($RUNTIME run -d "$IMAGE_REF" sleep infinity)
+        if [ $? -ne 0 ] || [ -z "$CONTAINER_ID" ]; then
+          echo "❌ Failed to start container"
+          exit 1
+        fi
+        echo "📦 Container started: $CONTAINER_ID"
+        
+        # Cleanup function
+        cleanup_container() {
+          if [ -n "$CONTAINER_ID" ]; then
+            echo "🧹 Cleaning up container: $CONTAINER_ID"
+            $RUNTIME stop "$CONTAINER_ID" >/dev/null 2>&1 || true
+            $RUNTIME rm "$CONTAINER_ID" >/dev/null 2>&1 || true
+          fi
+        }
+        
+        # Ensure cleanup happens on exit
+        trap cleanup_container EXIT
+        
+        # Test execution function - now uses exec instead of run
         run_test() {
           local test_name="$1"
           local test_cmd="$2"
           echo "🔹 Testing: $test_name"
-          if $RUNTIME run --rm "$IMAGE_REF" /bin/bash -c "$test_cmd" >/dev/null 2>&1; then
+          if $RUNTIME exec "$CONTAINER_ID" /bin/bash -c "$test_cmd" >/dev/null 2>&1; then
             echo "  ✅ PASSED"
             return 0
           else
             echo "  ❌ FAILED"
+            # Show command output for debugging
+            echo "  🔍 Debug: Running command for details..."
+            $RUNTIME exec "$CONTAINER_ID" /bin/bash -c "$test_cmd" || true
             # Store failed test name for summary
             FAILED_TESTS+=("$test_name")
             return 1
@@ -61,7 +88,6 @@ runs:
         
         # Common tests for all image types
         echo "📦 Running common tests..."
-        FAILED_TESTS=()
         run_test "bootc status" "bootc status || true" && ((PASSED++)) || ((FAILED++))
         run_test "systemd version" "systemctl --version | head -1" && ((PASSED++)) || ((FAILED++))
         
@@ -79,7 +105,7 @@ runs:
             echo "🎯 Running MicroShift tests..."
             run_test "microshift binary" "microshift version || command -v microshift" && ((PASSED++)) || ((FAILED++))
             run_test "kubectl binary" "kubectl version --client || command -v kubectl" && ((PASSED++)) || ((FAILED++))
-            run_test "microshift manifests" "[ -d /etc/microshift/manifests ] && [ \$(ls -A /etc/microshift/manifests/*.yaml 2>/dev/null | wc -l) -gt 0 ]" && ((PASSED++)) || ((FAILED++))
+            run_test "microshift manifests" "test -d /etc/microshift/manifests && find /etc/microshift/manifests -name '*.yaml' | head -1" && ((PASSED++)) || ((FAILED++))
             ;;
             
           "bootc")
@@ -110,6 +136,9 @@ runs:
         
         # Set output
         echo "test_results=total=$TOTAL,passed=$PASSED,failed=$FAILED" >> $GITHUB_OUTPUT
+        
+        # Explicit cleanup before exit
+        cleanup_container
         
         if [ $FAILED -eq 0 ]; then
           echo "✅ All tests passed!"
