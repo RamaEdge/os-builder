@@ -1,0 +1,176 @@
+# Fedora bootc with K3s for edge computing
+# Simplified and optimized build
+
+# Build arguments (must be before FROM to use in FROM)
+ARG FEDORA_VERSION
+
+FROM quay.io/fedora/fedora-bootc:${FEDORA_VERSION}
+
+# Build arguments
+ARG K3S_VERSION
+ARG OTEL_VERSION
+ARG CNI_VERSION
+ARG VCS_REF
+ARG VERSION
+
+# Metadata labels
+LABEL org.opencontainers.image.title="Edge OS - Fedora bootc with K3s" \
+      org.opencontainers.image.description="Fedora bootc with K3s Kubernetes for edge computing" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.revision="${VCS_REF}" \
+      org.opencontainers.image.vendor="RamaEdge" \
+      org.opencontainers.image.licenses="MIT" \
+      containers.bootc=1 \
+      ostree.bootable=1 \
+      k3s.version="${K3S_VERSION}" \
+      k3s.distribution="k3s" \
+      otel.version="${OTEL_VERSION}"
+
+# Update package cache in separate layer for better caching
+RUN dnf makecache --refresh
+
+# Install packages in optimized layer (leverage dnf's built-in caching)
+RUN dnf install -y \
+        openssh-server sudo podman kubernetes-client NetworkManager \
+        firewalld policycoreutils-python-utils systemd-resolved chrony \
+        curl tar zstd skopeo containerd jq && \
+    # Security hardening
+    find /usr -type f \( \( -perm -4000 -o -perm -2000 \) -a \( -name chfn -o -name chsh -o -name newgrp \) \) \
+        -exec chmod u-s {} \; && \
+    # Clean up package cache (but keep dnf metadata for rebuild cache)
+    dnf clean packages && rm -rf /tmp/* /var/tmp/*
+
+# Create directory structure first (cached layer)
+RUN mkdir -p /var/lib/rancher/k3s/agent/images /etc/rancher/k3s /usr/local/bin \
+             /etc/containers/systemd /etc/otelcol /etc/rancher/k3s/manifests \
+             /var/lib/k3s /var/log/k3s /var/empty /opt/cni/bin
+
+# Download K3s binary (separate layer for better caching)
+# Improved architecture detection for aarch64/arm64 compatibility
+RUN RAW_ARCH=$(uname -m) && \
+    if [ "${RAW_ARCH}" = "aarch64" ] || [ "${RAW_ARCH}" = "arm64" ]; then \
+        ARCH="arm64"; \
+    elif [ "${RAW_ARCH}" = "x86_64" ] || [ "${RAW_ARCH}" = "amd64" ]; then \
+        ARCH="amd64"; \
+    else \
+        ARCH=$(echo "${RAW_ARCH}" | sed 's/x86_64/amd64/;s/aarch64/arm64/'); \
+    fi && \
+    # K3s binary naming: amd64 = 'k3s', others have suffix
+    if [ "$ARCH" = "amd64" ]; then \
+        BINARY_NAME="k3s"; \
+    else \
+        BINARY_NAME="k3s-${ARCH}"; \
+    fi && \
+    # Download with fallback and retry logic
+    if ! curl -fsSL --retry 3 --retry-delay 5 \
+        "https://github.com/k3s-io/k3s/releases/download/${K3S_VERSION}/${BINARY_NAME}" \
+        -o /usr/local/bin/k3s; then \
+        echo "Primary download failed, trying with redirect follow..." && \
+        curl -fsSL --retry 3 --retry-delay 5 -L \
+            "https://github.com/k3s-io/k3s/releases/download/${K3S_VERSION}/${BINARY_NAME}" \
+            -o /usr/local/bin/k3s; \
+    fi && \
+    chmod +x /usr/local/bin/k3s && \
+    # Create K3s symlinks (similar to installer)
+    ln -sf /usr/local/bin/k3s /usr/local/bin/kubectl && \
+    ln -sf /usr/local/bin/k3s /usr/local/bin/crictl && \
+    ln -sf /usr/local/bin/k3s /usr/local/bin/ctr
+
+# Download and install CNI plugins (separate layer)
+RUN RAW_ARCH=$(uname -m) && \
+    if [ "${RAW_ARCH}" = "aarch64" ] || [ "${RAW_ARCH}" = "arm64" ]; then \
+        ARCH="arm64"; \
+    elif [ "${RAW_ARCH}" = "x86_64" ] || [ "${RAW_ARCH}" = "amd64" ]; then \
+        ARCH="amd64"; \
+    else \
+        ARCH=$(echo "${RAW_ARCH}" | sed 's/x86_64/amd64/;s/aarch64/arm64/'); \
+    fi && \
+    curl -fsSL --retry 3 --retry-delay 5 \
+        "https://github.com/containernetworking/plugins/releases/download/${CNI_VERSION}/cni-plugins-linux-${ARCH}-${CNI_VERSION}.tgz" \
+        -o /tmp/cni-plugins.tgz && \
+    tar -xzf /tmp/cni-plugins.tgz -C /opt/cni/bin && \
+    chmod +x /opt/cni/bin/* && \
+    rm -f /tmp/cni-plugins.tgz
+
+# Download and extract K3s airgap images (separate layer)
+RUN RAW_ARCH=$(uname -m) && \
+    if [ "${RAW_ARCH}" = "aarch64" ] || [ "${RAW_ARCH}" = "arm64" ]; then \
+        ARCH="arm64"; \
+    elif [ "${RAW_ARCH}" = "x86_64" ] || [ "${RAW_ARCH}" = "amd64" ]; then \
+        ARCH="amd64"; \
+    else \
+        ARCH=$(echo "${RAW_ARCH}" | sed 's/x86_64/amd64/;s/aarch64/arm64/'); \
+    fi && \
+    # Download the compressed airgap images
+    curl -fsSL --retry 3 --retry-delay 5 \
+        "https://github.com/k3s-io/k3s/releases/download/${K3S_VERSION}/k3s-airgap-images-${ARCH}.tar.zst" \
+        -o "/tmp/k3s-airgap-images-${ARCH}.tar.zst" && \
+    # Extract the airgap images to the K3s images directory
+    zstd -d /tmp/k3s-airgap-images-${ARCH}.tar.zst -o /var/lib/rancher/k3s/agent/images/k3s-airgap-images-${ARCH}.tar && \
+    # Clean up the compressed file to save space
+    rm -f /tmp/k3s-airgap-images-${ARCH}.tar.zst
+
+# Download and install OTEL Collector (separate layer)
+RUN RAW_ARCH=$(uname -m) && \
+    if [ "${RAW_ARCH}" = "aarch64" ] || [ "${RAW_ARCH}" = "arm64" ]; then \
+        ARCH="arm64"; \
+    elif [ "${RAW_ARCH}" = "x86_64" ] || [ "${RAW_ARCH}" = "amd64" ]; then \
+        ARCH="amd64"; \
+    else \
+        ARCH=$(echo "${RAW_ARCH}" | sed 's/x86_64/amd64/;s/aarch64/arm64/'); \
+    fi && \
+    curl -fsSL --retry 3 --retry-delay 5 \
+        "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v${OTEL_VERSION}/otelcol_${OTEL_VERSION}_linux_${ARCH}.tar.gz" \
+        -o /tmp/otelcol.tar.gz && \
+    tar -xzf /tmp/otelcol.tar.gz -C /tmp && \
+    mv /tmp/otelcol /usr/local/bin/otelcol && \
+    chmod +x /usr/local/bin/otelcol && \
+    rm -f /tmp/otelcol.tar.gz && \
+    # Create otelcol user and directories
+    useradd -r -s /sbin/nologin -d /var/lib/otelcol -c "OpenTelemetry Collector" otelcol && \
+    mkdir -p /var/log/otelcol /var/lib/otelcol && \
+    chown -R otelcol:otelcol /var/log/otelcol /var/lib/otelcol /etc/otelcol
+
+# Copy all configuration files
+COPY configs/containers/ /etc/containers/
+COPY configs/otelcol/ /etc/otelcol/
+COPY configs/k3s/ /etc/rancher/k3s/
+COPY manifests/ /etc/rancher/k3s/manifests/
+COPY systemd/*.service /usr/lib/systemd/system/
+COPY systemd/k3s/ /usr/lib/systemd/system/
+COPY systemd/bootc-fetch-apply-updates.timer.d/ /usr/lib/systemd/system/bootc-fetch-apply-updates.timer.d/
+COPY scripts/ /usr/local/bin/
+
+# Final configuration and bootc compliance
+RUN chmod +x /usr/local/bin/*.sh 2>/dev/null || true && \
+    # Enable all services (simplified)
+    systemctl enable sshd chronyd systemd-resolved podman.socket otelcol \
+                    bootc-fetch-apply-updates.timer \
+                    k3s.service k3s-load-images.service edge-setup.service \
+                    k3s-kubeconfig-setup.service observability-deploy.service 2>/dev/null || true && \
+    # Configure firewall (fixed syntax)
+    firewall-offline-cmd --add-service=ssh && \
+    firewall-offline-cmd --add-port=6443/tcp --add-port=8080/tcp --add-port=10250/tcp \
+                        --add-port=4317/tcp --add-port=4318/tcp --add-port=9090/tcp --add-port=8888/tcp && \
+    # Final setup
+    restorecon -R /etc /usr/local/bin 2>/dev/null || true && \
+    # Create containeruser with proper /var/empty setup
+    useradd -r -s /sbin/nologin -d /var/empty -c "Container user" containeruser && \
+    chown containeruser:containeruser /var/empty
+
+# Required bootc labels for compliance
+LABEL containers.bootc=1
+LABEL ostree.bootable=1
+
+# Optional bootc container runtime labels for systemd compatibility
+STOPSIGNAL SIGRTMIN+3
+CMD ["/sbin/init"]
+
+# Run bootc container lint as the final step for compliance
+RUN bootc container lint
+
+# Switch to containeruser as final step for security
+USER containeruser
+
+# This is a bootc image - no CMD needed as it will be converted to a bootable OS
+# When booted, systemd will be PID 1, not a container command 

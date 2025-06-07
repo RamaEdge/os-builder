@@ -1,0 +1,56 @@
+# K3s Configuration for Edge Computing
+# Optimized for offline operation and resource constraints
+
+# Cluster configuration
+cluster-cidr: "10.42.0.0/16"
+service-cidr: "10.43.0.0/16"
+cluster-dns: "10.43.0.10"
+cluster-domain: "cluster.local"
+
+# Network configuration
+flannel-backend: "vxlan"
+flannel-iface: "eth0"
+
+# Security and access
+write-kubeconfig-mode: "0644"
+kube-apiserver-arg:
+  - "enable-admission-plugins=NodeRestriction,ResourceQuota,LimitRanger"
+  - "audit-log-maxage=30"
+  - "audit-log-maxbackup=3"
+  - "audit-log-maxsize=100"
+
+# Edge optimization
+etcd-arg:
+  - "quota-backend-bytes=2147483648"  # 2GB
+  - "max-snapshots=5"
+  - "snapshot-count=10000"
+
+# Disable unnecessary components for edge deployment
+disable:
+  - "traefik"      # Use external ingress if needed
+  - "servicelb"    # Use external load balancer if needed
+
+# Logging
+log: "/var/log/k3s/k3s.log"
+
+# Air-gap / offline support - Use embedded images
+airgap-extra-registry: "/etc/rancher/k3s/registries.yaml"
+
+# Node configuration
+node-label:
+  - "node.kubernetes.io/instance-type=edge"
+  - "topology.kubernetes.io/zone=edge"
+  - "k3s.io/airgap=true"
+
+# Kubelet configuration optimized for embedded images
+kubelet-arg:
+  - "max-pods=50"  # Limit for edge devices
+  - "image-gc-high-threshold=80"
+  - "image-gc-low-threshold=60"
+  - "eviction-hard=memory.available<100Mi,nodefs.available<1Gi"
+  - "image-pull-progress-deadline=5m"  # Longer timeout for slow connections
+
+# Optimize for embedded/offline images
+# K3s will automatically use images from /var/lib/rancher/k3s/agent/images/
+server-arg:
+  - "disable-network-policy"  # Disable for simpler edge deployment 

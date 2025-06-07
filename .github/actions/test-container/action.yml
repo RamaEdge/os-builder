@@ -1,0 +1,28 @@
+name: 'Test Container'
+description: 'Test bootc container image with comprehensive validation for K3s, MicroShift, or bootc functionality'
+
+inputs:
+  image-ref:
+    description: 'Container image reference to test'
+    required: true
+  test-type:
+    description: 'Type of tests to run (k3s, microshift, bootc)'
+    required: true
+
+outputs:
+  test_results:
+    description: 'Test results summary (total,passed,failed)'
+    value: ${{ steps.test.outputs.test_results }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Run container tests
+      id: test
+      shell: bash
+      run: |
+        # Make test script executable
+        chmod +x ${{ github.action_path }}/test-container.sh
+        
+        # Execute the test script
+        ${{ github.action_path }}/test-container.sh "${{ inputs.image-ref }}" "${{ inputs.test-type }}" 

@@ -1,0 +1,56 @@
+name: 'Harbor Registry Authentication'
+description: 'Authenticate with Harbor registry for container operations'
+author: 'os-builder'
+branding:
+  icon: 'lock'
+  color: 'blue'
+
+inputs:
+  registry:
+    description: 'Harbor registry URL'
+    required: true
+    default: 'harbor.local'
+  username:
+    description: 'Harbor username'
+    required: true
+  password:
+    description: 'Harbor password'
+    required: true
+
+outputs:
+  authenticated:
+    description: 'Authentication status'
+    value: ${{ steps.auth.outputs.authenticated }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Verify Harbor certificate configuration
+      shell: bash
+      run: |
+        echo "🔐 Verifying Harbor certificate configuration..."
+        
+        # Check if certificate is already configured locally
+        if [ -f "/etc/containers/certs.d/${{ inputs.registry }}/ca.crt" ]; then
+          echo "✅ Harbor certificate found at /etc/containers/certs.d/${{ inputs.registry }}/ca.crt"
+        else
+          echo "⚠️ Harbor certificate not found. Please ensure it's configured locally on the runner."
+          echo "Expected location: /etc/containers/certs.d/${{ inputs.registry }}/ca.crt"
+          exit 1
+        fi
+
+    - name: Authenticate with Harbor
+      id: auth
+      shell: bash
+      run: |
+        echo "🔐 Authenticating with Harbor registry..."
+        
+        # Login to Harbor registry
+        if podman login ${{ inputs.registry }} -u "${{ inputs.username }}" -p "${{ inputs.password }}"; then
+          echo "✅ Successfully authenticated with Harbor registry"
+          echo "authenticated=true" >> $GITHUB_OUTPUT
+        else
+          echo "❌ Failed to authenticate with Harbor registry"
+          echo "authenticated=false" >> $GITHUB_OUTPUT
+          exit 1
+        fi 

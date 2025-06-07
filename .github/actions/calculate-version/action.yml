@@ -1,0 +1,70 @@
+name: 'Calculate Version'
+description: 'Calculate semantic version based on Git history and branch information'
+author: 'os-builder'
+branding:
+  icon: 'tag'
+  color: 'blue'
+
+outputs:
+  version:
+    description: 'Calculated semantic version'
+    value: ${{ steps.version.outputs.version }}
+  branch:
+    description: 'Current branch name'
+    value: ${{ steps.version.outputs.branch }}
+  sha:
+    description: 'Short commit SHA'
+    value: ${{ steps.version.outputs.sha }}
+  repository-owner:
+    description: 'Repository owner in lowercase'
+    value: ${{ steps.repo.outputs.owner }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Get repository owner
+      id: repo
+      shell: bash
+      run: |
+        OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+        echo "owner=${OWNER}" >> $GITHUB_OUTPUT
+
+    - name: Generate version
+      id: version
+      shell: bash
+      run: |
+        # Get git information
+        SHA=$(git rev-parse --short HEAD)
+        BRANCH=$(git rev-parse --abbrev-ref HEAD)
+        LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.1.0")
+        VERSION_BASE=$(echo "$LATEST_TAG" | sed 's/^v//')
+        COMMITS_SINCE_TAG=$(git rev-list --count ${LATEST_TAG}..HEAD 2>/dev/null || echo "0")
+        
+        # Generate version based on context
+        if [ "${{ github.event_name }}" = "pull_request" ]; then
+          # PR format: base.version-pr.number.safe-branch
+          PR_NUMBER="${{ github.event.number }}"
+          SOURCE_BRANCH="${{ github.head_ref }}"
+          SAFE_BRANCH=$(echo "$SOURCE_BRANCH" | sed 's/[^a-zA-Z0-9]/-/g' | sed 's/^-//' | sed 's/-$//')
+          VERSION="$VERSION_BASE-pr.$PR_NUMBER.$SAFE_BRANCH"
+        elif [ "$BRANCH" = "main" ]; then
+          if [ "$COMMITS_SINCE_TAG" = "0" ]; then
+            VERSION="$VERSION_BASE"  # Release
+          else
+            VERSION="$VERSION_BASE-dev.$COMMITS_SINCE_TAG+$SHA"  # Pre-release
+          fi
+        elif [[ "$BRANCH" =~ ^release/.* ]]; then
+          RELEASE_VERSION=$(echo "$BRANCH" | sed 's/release\///')
+          VERSION="$RELEASE_VERSION-rc.$COMMITS_SINCE_TAG+$SHA"
+        else
+          # Feature branch
+          SAFE_BRANCH=$(echo "$BRANCH" | sed 's/[^a-zA-Z0-9]/-/g')
+          VERSION="$VERSION_BASE-$SAFE_BRANCH.$COMMITS_SINCE_TAG+$SHA"
+        fi
+        
+        # Set outputs
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "branch=$BRANCH" >> $GITHUB_OUTPUT
+        echo "sha=$SHA" >> $GITHUB_OUTPUT
+        
+        echo "📋 Generated version: $VERSION" 

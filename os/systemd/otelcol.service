@@ -2,23 +2,26 @@
 Description=OpenTelemetry Collector
 Documentation=https://opentelemetry.io/docs/collector/
 After=network.target
+Wants=network.target
 
 [Service]
 Type=simple
-User=root
-Group=root
+User=otelcol
+Group=otelcol
 ExecStart=/usr/local/bin/otelcol --config=/etc/otelcol/config.yaml
 Restart=on-failure
 RestartSec=5
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=otel-collector
+SyslogIdentifier=otelcol
 
 # Security settings
 NoNewPrivileges=true
-ProtectSystem=strict
+PrivateTmp=true
 ProtectHome=true
-ReadWritePaths=/var/log /tmp
+ProtectSystem=strict
+ReadWritePaths=/var/log/otelcol
+CapabilityBoundingSet=
 
 [Install]
 WantedBy=multi-user.target 

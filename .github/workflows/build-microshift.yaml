@@ -1,44 +1,36 @@
-name: Build and Container Scan (K3s)
+name: Build MicroShift OS
 
 on:
-  push:
-    branches: ['main']
-    paths: ['os/**']
-  pull_request:
-    branches: ['main']
-    paths: ['os/**']
-  schedule:
-    - cron: '0 1 * * Fri'  # Weekly builds
   workflow_dispatch:
     inputs:
+      microshift_version:
+        description: 'MicroShift Version (default: release-4.19)'
+        default: 'release-4.19'
       iso_config:
         description: 'ISO Configuration'
         default: 'user'
         type: choice
-        options: ['minimal', 'user', 'advanced', 'interactive', 'production']
+        options: ['minimal', 'user', 'advanced', 'interactive']
       build_iso:
-        description: 'Build ISO images'
+        description: 'Build ISO'
         default: true
-        type: boolean
-      force_rebuild:
-        description: 'Force rebuild (ignore cache)'
-        default: false
         type: boolean
 
 # Centralized environment configuration
 env:
-  IMAGE_NAME: ramaedge/os-k3s
+  IMAGE_NAME: ramaedge/os-microshift
   REGISTRY: harbor.local
-  CONTAINERFILE: Containerfile.k3s
+  REPO_OWNER: ramaedge
+  CONTAINERFILE: Containerfile.fedora.optimized
   SCAN_SEVERITY: CRITICAL,HIGH,MEDIUM
 
 jobs:
-  # Combined build and scan job for efficiency
-  build-and-scan:
-    name: Build & Scan K3s OS
-    runs-on: self-hosted
+  # Combined build, scan, and test job for efficiency
+  build-scan-test:
+    name: Build & Test MicroShift OS
+    runs-on: ubuntu-22.04
     outputs:
-      image-ref: ${{ steps.build.outputs.image-ref }}
+      image-ref: ${{ steps.build.outputs.local-tag }}
       version: ${{ steps.version.outputs.version }}
     permissions:
       contents: read
@@ -47,8 +39,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Load version configuration
         id: versions
@@ -69,17 +59,14 @@ jobs:
         id: build
         uses: ./.github/actions/build-container
         with:
-          containerfile: ${{ env.CONTAINERFILE }}
           image-name: ${{ env.IMAGE_NAME }}
           version: ${{ steps.version.outputs.version }}
           sha: ${{ steps.version.outputs.sha }}
+          containerfile: ${{ env.CONTAINERFILE }}
           registry: ${{ env.REGISTRY }}
-          repository-owner: ${{ steps.version.outputs.repository-owner }}
-          k3s-version: ${{ steps.versions.outputs.k3s-version }}
-          otel-version: ${{ steps.versions.outputs.otel-version }}
+          repository-owner: ${{ env.REPO_OWNER }}
+          microshift-version: ${{ github.event.inputs.microshift_version || steps.versions.outputs.microshift-version }}
           fedora-version: ${{ steps.versions.outputs.fedora-version }}
-          cni-version: ${{ steps.versions.outputs.cni-version }}
-          enable-cache: ${{ github.event.inputs.force_rebuild != 'true' }}
 
       - name: Security scan
         uses: ./.github/actions/trivy-scan
@@ -88,29 +75,19 @@ jobs:
           severity: ${{ env.SCAN_SEVERITY }}
           output-format: 'sarif'
           upload-sarif: 'true'
-          sarif-category: 'trivy-container-k3s'
+          sarif-category: 'trivy-container-microshift'
 
-  # Conditional test job (PR only)
-  test:
-    name: Test K3s Container
-    runs-on: self-hosted
-    needs: build-and-scan
-    if: github.event_name == 'pull_request'
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Test K3s container
+      - name: Test container image
         uses: ./.github/actions/test-container
         with:
-          image-ref: ${{ needs.build-and-scan.outputs.image-ref }}
-          test-type: 'k3s'
+          image-ref: ${{ steps.build.outputs.image-ref }}
+          test-type: 'microshift'
 
   # Push to Harbor registry (main branch only)
   push:
     name: Push to Harbor Registry
-    runs-on: self-hosted
-    needs: build-and-scan
+    runs-on: ubuntu-22.04
+    needs: build-scan-test
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     steps:
       - name: Checkout repository
@@ -125,8 +102,8 @@ jobs:
 
       - name: Tag and push to Harbor
         run: |
-          LOCAL_IMAGE="${{ needs.build-and-scan.outputs.image-ref }}"
-          HARBOR_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build-and-scan.outputs.version }}"
+          LOCAL_IMAGE="${{ needs.build-scan-test.outputs.image-ref }}"
+          HARBOR_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build-scan-test.outputs.version }}"
           
           echo "🏷️  Tagging image for Harbor registry..."
           echo "Source: $LOCAL_IMAGE"
@@ -139,24 +116,19 @@ jobs:
           
           echo "✅ Successfully pushed: $HARBOR_IMAGE"
 
-  # Conditional ISO build (non-PR, configurable)
+  # Conditional ISO build
   build-iso:
-    name: Build K3s ISO
-    runs-on: self-hosted
-    needs: build-and-scan
-    if: >-
-      github.event_name != 'pull_request' && 
-      (github.event_name != 'workflow_dispatch' || github.event.inputs.build_iso == 'true')
-    strategy:
-      matrix:
-        config: ${{ github.event_name == 'workflow_dispatch' && fromJSON(format('["{0}"]', github.event.inputs.iso_config)) || fromJSON('["user"]') }}
+    name: Build MicroShift ISO
+    runs-on: ubuntu-22.04
+    needs: build-scan-test
+    if: github.event.inputs.build_iso == 'true'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Build K3s ISO
+      - name: Build MicroShift ISO
         id: iso
         uses: ./.github/actions/build-iso
         with:
-          image-ref: ${{ needs.build-and-scan.outputs.image-ref }}
-          config: ${{ matrix.config }} 
+          image-ref: ${{ needs.build-scan-test.outputs.image-ref }}
+          config: ${{ github.event.inputs.iso_config || 'user' }}

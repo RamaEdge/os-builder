@@ -44,7 +44,7 @@ fi
 # Configure firewall for edge deployment
 firewall-cmd --permanent --zone=public --add-service=ssh
 firewall-cmd --permanent --zone=public --add-service=cockpit
-# MicroShift firewall rules
+# K3s firewall rules
 firewall-cmd --permanent --zone=public --add-port=6443/tcp  # Kubernetes API
 firewall-cmd --permanent --zone=public --add-port=8080/tcp  # Health checks
 firewall-cmd --permanent --zone=public --add-port=10250/tcp # Kubelet API
@@ -57,7 +57,7 @@ firewall-cmd --permanent --zone=public --add-port=4318/tcp  # OTLP HTTP
 firewall-cmd --permanent --zone=public --add-port=9090/tcp  # Prometheus metrics
 firewall-cmd --permanent --zone=public --add-port=8888/tcp  # OTel internal metrics
 firewall-cmd --reload
-log "Configured firewall rules including MicroShift and OpenTelemetry ports"
+log "Configured firewall rules including K3s and OpenTelemetry ports"
 
 # Set up log rotation for edge devices (smaller logs)
 cat > /etc/logrotate.d/edge-logs << 'EOF'
@@ -90,35 +90,32 @@ log "Enabled container auto-update"
 timedatectl set-ntp true
 log "Enabled NTP synchronization"
 
-# Configure MicroShift
-if systemctl is-enabled microshift &>/dev/null; then
-    log "Configuring MicroShift for edge deployment"
-    
-    # Ensure cri-o is started before microshift
-    systemctl enable --now crio
+# Configure K3s
+if systemctl is-enabled k3s &>/dev/null; then
+    log "Configuring K3s for edge deployment"
     
     # Create kubeconfig directory for fedora user
     mkdir -p /home/fedora/.kube
-    
-    # Set proper ownership (MicroShift will create the actual kubeconfig after it starts)
     chown fedora:fedora /home/fedora/.kube
     
-    # Create a script to copy kubeconfig when MicroShift is ready
+    # Create a script to copy kubeconfig when K3s is ready
     cat > /usr/local/bin/setup-kubeconfig.sh << 'EOF'
 #!/bin/bash
-# Wait for MicroShift to be ready and copy kubeconfig
+# Wait for K3s to be ready and copy kubeconfig
 set -euo pipefail
 
-# Wait for MicroShift to generate the kubeconfig
+# Wait for K3s to generate the kubeconfig
 max_attempts=60
 attempt=0
 
 while [ $attempt -lt $max_attempts ]; do
-    if [ -f /var/lib/microshift/resources/kubeadmin/kubeconfig ]; then
+    if [ -f /etc/rancher/k3s/k3s.yaml ]; then
         # Copy kubeconfig for fedora user
-        cp /var/lib/microshift/resources/kubeadmin/kubeconfig /home/fedora/.kube/config
+        cp /etc/rancher/k3s/k3s.yaml /home/fedora/.kube/config
         chown fedora:fedora /home/fedora/.kube/config
         chmod 600 /home/fedora/.kube/config
+        # Update server URL to use localhost
+        sed -i 's/127\.0\.0\.1/localhost/g' /home/fedora/.kube/config
         echo "Kubeconfig setup complete for user fedora"
         exit 0
     fi
@@ -126,38 +123,36 @@ while [ $attempt -lt $max_attempts ]; do
     ((attempt++))
 done
 
-echo "Warning: MicroShift kubeconfig not available after 5 minutes"
+echo "Warning: K3s kubeconfig not available after 5 minutes"
 exit 1
 EOF
     chmod +x /usr/local/bin/setup-kubeconfig.sh
     
-    log "MicroShift configuration completed"
+    log "K3s configuration completed"
     
     # Deploy observability stack automatically
     cat > /usr/local/bin/deploy-observability.sh << 'EOF'
 #!/bin/bash
-# Deploy observability stack to MicroShift
+# Deploy observability stack to K3s
 set -euo pipefail
 
-# Wait for MicroShift to be ready
+# Wait for K3s to be ready
 max_attempts=60
 attempt=0
 
 while [ $attempt -lt $max_attempts ]; do
     if kubectl get nodes &>/dev/null; then
-        echo "MicroShift is ready, deploying observability stack..."
+        echo "K3s is ready, deploying observability stack..."
         
         # Deploy the observability manifests
-        kubectl apply -f /etc/microshift/manifests/observability-stack.yaml
+        kubectl apply -f /etc/rancher/k3s/manifests/observability-stack.yaml
         
         # Wait for deployments to be ready
         kubectl wait --for=condition=available --timeout=300s deployment/otel-collector -n observability
-        kubectl wait --for=condition=available --timeout=300s deployment/jaeger -n observability
         
         echo "Observability stack deployed successfully!"
         echo "Access points:"
-        echo "- Jaeger UI: http://localhost:30686"
-        echo "- OpenTelemetry Metrics: http://localhost:30464/metrics"
+        echo "- OpenTelemetry Metrics: http://localhost:8888/metrics"
         echo "- Host Prometheus: http://localhost:9090/metrics"
         
         exit 0
@@ -166,7 +161,7 @@ while [ $attempt -lt $max_attempts ]; do
     ((attempt++))
 done
 
-echo "Warning: MicroShift not ready after 5 minutes, observability deployment skipped"
+echo "Warning: K3s not ready after 5 minutes, observability deployment skipped"
 exit 1
 EOF
     chmod +x /usr/local/bin/deploy-observability.sh

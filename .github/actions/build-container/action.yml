@@ -1,0 +1,195 @@
+name: 'Build Container Image'
+description: 'Build container image with optimized caching and labeling'
+author: 'os-builder'
+branding:
+  icon: 'package'
+  color: 'green'
+
+inputs:
+  containerfile:
+    description: 'Path to Containerfile'
+    required: true
+  image-name:
+    description: 'Container image name'
+    required: true
+  version:
+    description: 'Version tag for the image'
+    required: true
+  sha:
+    description: 'Git commit SHA'
+    required: true
+  microshift-version:
+    description: 'MicroShift version (for MicroShift builds)'
+    required: false
+    default: ''
+  k3s-version:
+    description: 'K3s version'
+    required: false
+    default: ''
+  otel-version:
+    description: 'OpenTelemetry version'
+    required: false
+    default: ''
+  fedora-version:
+    description: 'Fedora version'
+    required: false
+    default: ''
+  cni-version:
+    description: 'CNI plugins version'
+    required: false
+    default: ''
+  registry:
+    description: 'Container registry'
+    required: true
+  repository-owner:
+    description: 'Repository owner'
+    required: true
+  enable-cache:
+    description: 'Enable build cache (default: true)'
+    required: false
+    default: 'true'
+
+outputs:
+  image-id:
+    description: 'Built/pulled image ID'
+    value: ${{ steps.main.outputs.image_id }}
+  image-ref:
+    description: 'Container image reference (registry/name:tag)'
+    value: ${{ steps.main.outputs.image_ref }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Build or reuse container image
+      id: main
+      shell: bash
+      working-directory: ./os
+      run: |
+        # Handle image name that might already include repository owner
+        if [[ "${{ inputs.image-name }}" == *"/"* ]]; then
+          # Image name already includes repository path
+          IMAGE_REF="${{ inputs.registry }}/${{ inputs.image-name }}:${{ inputs.version }}"
+          CACHE_TAG="${{ inputs.registry }}/${{ inputs.image-name }}:latest"
+        else
+          # Image name is just the name, add repository owner
+          IMAGE_REF="${{ inputs.registry }}/${{ inputs.repository-owner }}/${{ inputs.image-name }}:${{ inputs.version }}"
+          CACHE_TAG="${{ inputs.registry }}/${{ inputs.repository-owner }}/${{ inputs.image-name }}:latest"
+        fi
+        
+        echo "🔍 Image build/pull check:"
+        echo "   Image name input: ${{ inputs.image-name }}"
+        echo "   Repository owner: ${{ inputs.repository-owner }}"
+        echo "   Registry: ${{ inputs.registry }}"
+        echo "   Image reference: $IMAGE_REF"
+        echo "   Cache tag: $CACHE_TAG"
+        
+        # Check if Containerfile has changed by computing its hash
+        CONTAINERFILE_HASH=$(sha256sum "${{ inputs.containerfile }}" | cut -d' ' -f1)
+        echo "📝 Containerfile hash: $CONTAINERFILE_HASH"
+        
+        # Check registry for existing image (GitHub Actions - no local images persist)
+        FORCE_REBUILD=false
+        echo "🔍 Checking registry for existing image: $IMAGE_REF"
+        if podman pull "$IMAGE_REF" 2>/dev/null; then
+          echo "✅ Found existing registry image: $IMAGE_REF"
+          
+          # Check if the existing image was built with the same Containerfile
+          EXISTING_HASH=$(podman inspect "$IMAGE_REF" --format '{{index .Config.Labels "containerfile.hash"}}' 2>/dev/null || echo "")
+          
+          if [ "$EXISTING_HASH" = "$CONTAINERFILE_HASH" ]; then
+            echo "✅ Containerfile unchanged, reusing existing image"
+            STATUS="pulled-registry"
+          else
+            echo "📝 Containerfile changed (existing: $EXISTING_HASH, current: $CONTAINERFILE_HASH)"
+            echo "🔨 Forcing rebuild due to Containerfile changes"
+            FORCE_REBUILD=true
+            STATUS="rebuilt-containerfile-changed"
+          fi
+        else
+          echo "❌ No existing image found in registry"
+          echo "🔨 Proceeding with new build: $IMAGE_REF"
+          STATUS="built-new"
+          FORCE_REBUILD=true
+        fi
+        
+        # Build if forced or no existing image
+        if [ "$FORCE_REBUILD" = "true" ]; then
+          # Setup Podman configuration for builds
+          mkdir -p ~/.config/containers
+          cat > ~/.config/containers/storage.conf << 'EOF'
+        [storage]
+        driver = "overlay"
+        [storage.options.overlay]
+        mount_program = "/usr/bin/fuse-overlayfs"
+        mountopt = "nodev,metacopy=on"
+        EOF
+
+          # Setup cache if enabled
+          CACHE_FROM=""
+          if [ "${{ inputs.enable-cache }}" == "true" ] && podman pull "$CACHE_TAG" 2>/dev/null; then
+            CACHE_FROM="--cache-from $CACHE_TAG"
+            echo "📦 Using cache: $CACHE_TAG"
+          fi
+          
+          # Build arguments
+          BUILD_ARGS="--build-arg VCS_REF=${{ inputs.sha }} --build-arg VERSION=${{ inputs.version }}"
+          
+          # Add conditional version arguments (required for versions.txt sourcing)
+          [ -n "${{ inputs.k3s-version }}" ] && BUILD_ARGS="$BUILD_ARGS --build-arg K3S_VERSION=${{ inputs.k3s-version }}"
+          [ -n "${{ inputs.otel-version }}" ] && BUILD_ARGS="$BUILD_ARGS --build-arg OTEL_VERSION=${{ inputs.otel-version }}"
+          [ -n "${{ inputs.fedora-version }}" ] && BUILD_ARGS="$BUILD_ARGS --build-arg FEDORA_VERSION=${{ inputs.fedora-version }}"
+          [ -n "${{ inputs.cni-version }}" ] && BUILD_ARGS="$BUILD_ARGS --build-arg CNI_VERSION=${{ inputs.cni-version }}"
+          
+          if [ -n "${{ inputs.microshift-version }}" ]; then
+            BUILD_ARGS="$BUILD_ARGS --build-arg MICROSHIFT_VERSION=${{ inputs.microshift-version }}"
+            BUILD_ARGS="$BUILD_ARGS --build-arg MICROSHIFT_IMAGE_BASE=${{ inputs.registry }}/ramaedge/microshift-builder"
+          fi
+          
+          # Standard labels
+          LABELS="--label org.opencontainers.image.version=${{ inputs.version }}"
+          LABELS="$LABELS --label org.opencontainers.image.revision=${{ inputs.sha }}"
+          LABELS="$LABELS --label org.opencontainers.image.source=https://github.com/${{ github.repository }}"
+          LABELS="$LABELS --label org.opencontainers.image.created=$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          LABELS="$LABELS --label containerfile.hash=$CONTAINERFILE_HASH"
+          
+          # Build image
+          podman build \
+            -f ${{ inputs.containerfile }} \
+            -t "$IMAGE_REF" \
+            $BUILD_ARGS \
+            $CACHE_FROM \
+            $LABELS \
+            --jobs=4 \
+            .
+        fi
+        
+        # Validate image is available for subsequent actions
+        if ! podman images "$IMAGE_REF" --format "{{.Repository}}:{{.Tag}}" | grep -q "^$IMAGE_REF$"; then
+          echo "❌ ERROR: Image not available as $IMAGE_REF after $STATUS process"
+          echo "Available images:"
+          podman images
+          exit 1
+        fi
+        
+        IMAGE_ID=$(podman images --filter reference="$IMAGE_REF" -q)
+        IMAGE_SIZE=$(podman images --format "{{.Size}}" --filter reference="$IMAGE_REF")
+        
+        # Validate outputs before setting them
+        if [ -z "$IMAGE_ID" ] || [ -z "$IMAGE_REF" ]; then
+          echo "❌ ERROR: Failed to get image information"
+          echo "Image ID: '$IMAGE_ID', Image Ref: '$IMAGE_REF'"
+          exit 1
+        fi
+        
+        echo "image_id=${IMAGE_ID}" >> $GITHUB_OUTPUT
+        echo "image_ref=${IMAGE_REF}" >> $GITHUB_OUTPUT
+        
+        # Summary and workflow continuity confirmation
+        echo "✅ Image ready: $IMAGE_REF"
+        echo "   ID: $IMAGE_ID | Size: $IMAGE_SIZE | Status: $STATUS"
+        echo "   Containerfile Hash: $CONTAINERFILE_HASH"
+        echo ""
+        echo "🔗 Outputs set for subsequent actions:"
+        echo "   image-id: $IMAGE_ID"
+        echo "   image-ref: $IMAGE_REF"
+        echo "✅ Ready for: trivy-scan, test-container, build-iso, registry operations" 

@@ -1,0 +1,67 @@
+# Trivy Configuration for os-builder repository
+# Container image vulnerability scanning only - no secrets
+
+# General settings
+format: table
+exit-code: 0  # Keep at 0 for SARIF reporting - don't fail CI pipeline
+quiet: false
+
+# Scanner configuration - Only vulnerability scanning
+scanners:
+  - vuln      # Vulnerability scanning only
+
+# Severity levels to scan for - all levels for comprehensive SARIF reporting
+severity:
+  - CRITICAL
+  - HIGH
+  - MEDIUM  # Re-enabled for comprehensive security reporting
+
+# Skip directories that don't need scanning
+skip-dirs:
+  - .git/
+  - .github/
+  - node_modules/
+  - .vscode/
+  - .idea/
+  - dist/
+  - build/
+  - target/
+  - vendor/
+  - /var/cache/
+  - /var/log/
+  - /var/lib/dnf/
+  - /tmp/
+  - .cache/trivy/
+  - /root/.cache/trivy/
+
+# Skip files that don't need scanning
+skip-files:
+  - "*.md"
+  - "*.txt"
+  - "*.log"
+  - "*.tar.gz"
+  - "*.tar.xz"
+  - "*.tar.zst"
+  - "*.zip"
+  - "*.rpm"
+  - "*.deb"
+  - "LICENSE*"
+  - "NOTICE*"
+  - "CHANGELOG*"
+  - "*.cache"
+
+# Vulnerability scanning settings
+vuln:
+  type:
+    - os
+    - library
+
+# Performance settings - increased timeout for large images
+timeout: 30m
+ignore-unfixed: true
+
+# CVE ignore list - add ignorefile: .trivyignore when needed
+
+# Cache settings
+cache:
+  cache-dir: ~/.cache/trivy 
