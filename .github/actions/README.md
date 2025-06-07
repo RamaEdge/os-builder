@@ -70,26 +70,26 @@ This directory contains reusable GitHub Actions for the OS Builder project.
 
 **Outputs**:
 
-- `image-id`: Built/reused image ID
-- `local-tag`: Local image tag
+- `image-id`: Built/pulled image ID  
+- `image-ref`: Container image reference (registry/name:tag)
 
 **Smart Build Process**:
 
-1. **🔍 Check Local**: First checks if image exists locally
-2. **⬇️ Check Registry**: Falls back to pulling from registry if available  
-3. **🔨 Build New**: Only builds if image doesn't exist anywhere
+1. **🔍 Check Registry**: Checks if image exists in container registry
+2. **⬇️ Pull Existing**: Pulls and tags existing image if found
+3. **🔨 Build New**: Only builds if image doesn't exist in registry
 4. **📦 Cache Optimization**: Uses layer cache when building
 5. **✅ Validation**: Ensures image is ready for subsequent actions
 
 **Features**:
 
 - **⚡ Intelligent Reuse**: Avoids unnecessary rebuilds (~90% time savings)
-- **🔄 Registry Integration**: Seamlessly pulls existing images from registry
+- **🔄 Registry-First**: Checks container registry for existing images
 - **📦 Optimized Caching**: Uses latest tag for build layer cache
 - **🏷️ OCI-Compliant Labels**: Full container metadata and provenance
 - **🔧 Multi-Platform Support**: K3s, MicroShift, and bootc builds  
 - **🛡️ Robust Validation**: Comprehensive error checking and output validation
-- **📋 Clear Reporting**: Detailed status (reused-local, pulled-registry, built-new)
+- **📋 Clear Reporting**: Detailed status (pulled-registry, built-new)
 
 ### 🛡️ trivy-scan (Container Vulnerability Scanning)
 
@@ -155,22 +155,22 @@ The action uses a centralized `.trivy.yaml` configuration file that provides:
 - name: Test K3s container
   uses: ./.github/actions/test-container
   with:
-    image-ref: 'harbor.local/myorg/k3s-image:latest'
+    image-ref: ${{ steps.build.outputs.image-ref }}
     test-type: 'k3s'
 
 # MicroShift container testing  
 - name: Test MicroShift container
   uses: ./.github/actions/test-container
   with:
-    image-ref: 'harbor.local/myorg/microshift-image:latest'
+    image-ref: ${{ steps.build.outputs.image-ref }}
     test-type: 'microshift'
 
-# Base bootc testing
-- name: Test bootc container
-  uses: ./.github/actions/test-container
+# Security scanning
+- name: Container security scan
+  uses: ./.github/actions/trivy-scan
   with:
-    image-ref: 'harbor.local/myorg/base-image:latest'
-    test-type: 'bootc'
+    scan-ref: ${{ steps.build.outputs.image-ref }}
+    severity: 'CRITICAL,HIGH'
 ```
 
 **Supported Test Types**:
@@ -293,7 +293,7 @@ The action uses a centralized `.trivy.yaml` configuration file that provides:
 
 ### 🚀 Performance
 
-- **Intelligent build optimization**: ~90% time savings through image reuse detection
+- **Registry-based optimization**: ~90% time savings through registry image reuse
 - **Container testing efficiency**: ~85% reduction in container overhead via single-instance execution
 - **Reduced complexity**: 80-90% fewer lines in workflows and action code
 - **Better caching**: Layer cache optimization and intelligent cache usage

@@ -47,11 +47,11 @@ inputs:
 
 outputs:
   image-id:
-    description: 'Built image ID'
+    description: 'Built/pulled image ID'
     value: ${{ steps.main.outputs.image_id }}
-  local-tag:
-    description: 'Local image tag'
-    value: ${{ steps.main.outputs.local_tag }}
+  image-ref:
+    description: 'Container image reference (registry/name:tag)'
+    value: ${{ steps.main.outputs.image_ref }}
 
 runs:
   using: 'composite'
@@ -61,28 +61,32 @@ runs:
       shell: bash
       working-directory: ./os
       run: |
-        LOCAL_TAG="${{ inputs.image-name }}:${{ inputs.version }}"
-        REGISTRY_TAG="${{ inputs.registry }}/${{ inputs.repository-owner }}/${{ inputs.image-name }}:${{ inputs.version }}"
-        CACHE_TAG="${{ inputs.registry }}/${{ inputs.repository-owner }}/${{ inputs.image-name }}:latest"
+        # Handle image name that might already include repository owner
+        if [[ "${{ inputs.image-name }}" == *"/"* ]]; then
+          # Image name already includes repository path
+          IMAGE_REF="${{ inputs.registry }}/${{ inputs.image-name }}:${{ inputs.version }}"
+          CACHE_TAG="${{ inputs.registry }}/${{ inputs.image-name }}:latest"
+        else
+          # Image name is just the name, add repository owner
+          IMAGE_REF="${{ inputs.registry }}/${{ inputs.repository-owner }}/${{ inputs.image-name }}:${{ inputs.version }}"
+          CACHE_TAG="${{ inputs.registry }}/${{ inputs.repository-owner }}/${{ inputs.image-name }}:latest"
+        fi
         
-        echo "🔍 Image existence check:"
-        echo "   Local tag: $LOCAL_TAG"
-        echo "   Registry tag: $REGISTRY_TAG"
+        echo "🔍 Image build/pull check:"
+        echo "   Image name input: ${{ inputs.image-name }}"
+        echo "   Repository owner: ${{ inputs.repository-owner }}"
+        echo "   Registry: ${{ inputs.registry }}"
+        echo "   Image reference: $IMAGE_REF"
         echo "   Cache tag: $CACHE_TAG"
         
-        # Check local image first
-        if podman images "$LOCAL_TAG" --format "{{.Repository}}:{{.Tag}}" | grep -q "^$LOCAL_TAG$"; then
-          echo "✅ Found existing local image: $LOCAL_TAG"
-          STATUS="reused-local"
-        # Check registry image
-        elif podman pull "$REGISTRY_TAG" 2>/dev/null; then
-          echo "✅ Found existing registry image, pulled: $REGISTRY_TAG"
-          podman tag "$REGISTRY_TAG" "$LOCAL_TAG"
-          echo "   Tagged as local: $LOCAL_TAG"
+        # Check registry for existing image (GitHub Actions - no local images persist)
+        echo "🔍 Checking registry for existing image: $IMAGE_REF"
+        if podman pull "$IMAGE_REF" 2>/dev/null; then
+          echo "✅ Found existing registry image: $IMAGE_REF"
           STATUS="pulled-registry"
         else
-          echo "❌ No existing image found locally or in registry"
-          echo "🔨 Proceeding with new build: $LOCAL_TAG"
+          echo "❌ No existing image found in registry"
+          echo "🔨 Proceeding with new build: $IMAGE_REF"
           STATUS="built-new"
           
           # Setup Podman configuration for builds
@@ -124,7 +128,7 @@ runs:
           # Build image
           podman build \
             -f ${{ inputs.containerfile }} \
-            -t "$LOCAL_TAG" \
+            -t "$IMAGE_REF" \
             $BUILD_ARGS \
             $CACHE_FROM \
             $LABELS \
@@ -132,32 +136,32 @@ runs:
             .
         fi
         
-        # Validate image exists and get final info
-        if ! podman images "$LOCAL_TAG" --format "{{.Repository}}:{{.Tag}}" | grep -q "^$LOCAL_TAG$"; then
-          echo "❌ ERROR: Expected image $LOCAL_TAG not found after $STATUS process"
+        # Validate image is available for subsequent actions
+        if ! podman images "$IMAGE_REF" --format "{{.Repository}}:{{.Tag}}" | grep -q "^$IMAGE_REF$"; then
+          echo "❌ ERROR: Image not available as $IMAGE_REF after $STATUS process"
           echo "Available images:"
           podman images
           exit 1
         fi
         
-        IMAGE_ID=$(podman images --filter reference="$LOCAL_TAG" -q)
-        IMAGE_SIZE=$(podman images --format "{{.Size}}" --filter reference="$LOCAL_TAG")
+        IMAGE_ID=$(podman images --filter reference="$IMAGE_REF" -q)
+        IMAGE_SIZE=$(podman images --format "{{.Size}}" --filter reference="$IMAGE_REF")
         
         # Validate outputs before setting them
-        if [ -z "$IMAGE_ID" ] || [ -z "$LOCAL_TAG" ]; then
+        if [ -z "$IMAGE_ID" ] || [ -z "$IMAGE_REF" ]; then
           echo "❌ ERROR: Failed to get image information"
-          echo "Image ID: '$IMAGE_ID', Local Tag: '$LOCAL_TAG'"
+          echo "Image ID: '$IMAGE_ID', Image Ref: '$IMAGE_REF'"
           exit 1
         fi
         
         echo "image_id=${IMAGE_ID}" >> $GITHUB_OUTPUT
-        echo "local_tag=${LOCAL_TAG}" >> $GITHUB_OUTPUT
+        echo "image_ref=${IMAGE_REF}" >> $GITHUB_OUTPUT
         
         # Summary and workflow continuity confirmation
-        echo "✅ Image ready: $LOCAL_TAG"
+        echo "✅ Image ready: $IMAGE_REF"
         echo "   ID: $IMAGE_ID | Size: $IMAGE_SIZE | Status: $STATUS"
         echo ""
         echo "🔗 Outputs set for subsequent actions:"
         echo "   image-id: $IMAGE_ID"
-        echo "   local-tag: $LOCAL_TAG"
+        echo "   image-ref: $IMAGE_REF"
         echo "✅ Ready for: trivy-scan, test-container, build-iso, registry operations" 

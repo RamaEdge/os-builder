@@ -38,7 +38,7 @@ jobs:
     name: Build & Scan K3s OS
     runs-on: self-hosted
     outputs:
-      image-ref: ${{ steps.build.outputs.local-tag }}
+      image-ref: ${{ steps.build.outputs.image-ref }}
       version: ${{ steps.version.outputs.version }}
     permissions:
       contents: read
@@ -83,7 +83,7 @@ jobs:
       - name: Security scan
         uses: ./.github/actions/trivy-scan
         with:
-          scan-ref: ${{ steps.build.outputs.local-tag }}
+          scan-ref: ${{ steps.build.outputs.image-ref }}
           severity: ${{ env.SCAN_SEVERITY }}
           output-format: 'sarif'
           upload-sarif: 'true'
