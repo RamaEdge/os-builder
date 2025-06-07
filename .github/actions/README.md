@@ -192,9 +192,15 @@ The action uses a centralized `.trivy.yaml` configuration file that provides:
 
 1. **🚀 Single Container**: Starts one container instance with `sleep infinity`
 2. **⚡ Fast Execution**: All tests run via `exec` in same container (~5x faster)
-3. **🧹 Auto Cleanup**: Container automatically stopped and removed
+3. **🧹 Reliable Cleanup**: Trap-based cleanup ensures containers are always removed
 4. **🔍 Debug Output**: Failed tests show command output for troubleshooting
 5. **✅ Isolated Tests**: Each test type only runs appropriate components
+
+**Architecture**:
+
+- **Action YAML**: Simple wrapper that executes the test script
+- **Test Script**: `test-container.sh` contains all test logic and can be run locally
+- **Modular Tests**: Separate test functions for common, K3s, MicroShift, and bootc validation
 
 **Features**:
 
@@ -203,7 +209,8 @@ The action uses a centralized `.trivy.yaml` configuration file that provides:
 - **🎯 Type-Specific Testing**: Tests only match container capabilities
 - **📊 Comprehensive Reporting**: Detailed test summaries with failure tracking
 - **🛡️ Robust Error Handling**: Enhanced debugging and graceful cleanup
-- **🔄 Trap-Based Cleanup**: Ensures container cleanup even on interruption
+- **🔄 Robust Cleanup**: Single trap-based cleanup prevents double cleanup issues
+- **🧪 Local Testing**: Standalone script can be executed locally for development
 
 ### 📀 build-iso
 
