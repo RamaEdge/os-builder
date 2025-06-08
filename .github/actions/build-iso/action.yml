@@ -81,13 +81,44 @@ runs:
           exit 1
         fi
         
+        # Check if kickstart.ks exists and embed it into the config
+        KICKSTART_FILE="${{ inputs.working-path }}/kickstart.ks"
+        if [ -f "$KICKSTART_FILE" ]; then
+          echo "📋 Found kickstart.ks file, embedding into configuration..."
+          
+          # Create a temporary config file with kickstart content embedded
+          TEMP_CONFIG="$(pwd)/iso-config-temp.toml"
+          
+          # Start with base config (if it has any non-kickstart content)
+          cp "$CONFIG_FILE" "$TEMP_CONFIG"
+          
+          # Create the kickstart configuration section
+          echo "" >> "$TEMP_CONFIG"
+          echo "[customizations.installer.kickstart]" >> "$TEMP_CONFIG"
+          echo 'contents = """' >> "$TEMP_CONFIG"
+          
+          # Embed the kickstart content directly
+          cat "$KICKSTART_FILE" >> "$TEMP_CONFIG"
+          
+          echo '"""' >> "$TEMP_CONFIG"
+          
+          # Update the config file path to use our temporary file
+          echo "config_file=${TEMP_CONFIG}" >> $GITHUB_OUTPUT
+          echo "✅ Kickstart file embedded into configuration"
+          
+          # Show a portion of the final config for debugging
+          echo "📋 Final configuration preview:"
+          head -20 "$TEMP_CONFIG"
+          echo "..."
+          tail -10 "$TEMP_CONFIG"
+        else
+          echo "⚠️  No kickstart.ks file found at $KICKSTART_FILE"
+          echo "Using configuration without custom kickstart"
+        fi
+        
         # Create output directory
         mkdir -p "${{ inputs.output-dir }}"
         echo "📁 Created output directory: ${{ inputs.output-dir }}"
-        
-        # Show config file content for debugging
-        echo "📋 Configuration file content:"
-        cat "$CONFIG_FILE"
 
     - name: Pull bootc-image-builder
       shell: bash
