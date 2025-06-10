@@ -1,324 +1,192 @@
-# Interactive Kickstart Configuration for Fedora bootc
-# This kickstart file provides interactive installation with user customization options
-
-# Use text mode installation but allow interaction
-text
-
-# Language and keyboard
 lang en_US.UTF-8
 keyboard us
+timezone UTC
+reboot
+text
 
-# Network configuration - interactive
-# This will prompt user for network configuration during installation
-network --bootproto=dhcp --device=link --activate --onboot=on --hostname=fedora-bootc
+zerombr
+#autopart --type=plain --fstype=xfs --nohome --encrypted --passphrase=WELLKN0WN
+clearpart --all --disklabel gpt
+part biosboot --fstype=biosboot --size=1
+part /boot/efi --fstype=efi --asprimary --size=600
+part /boot --fstype=xfs --asprimary --size=1024
+# Uncomment this line to add a SWAP partition of the recommended size
+#part swap --fstype=swap --recommended
+part pv.01 --grow
+volgroup eos pv.01
+logvol none --fstype="None" --size=1 --grow --thinpool --metadatasize=4 --chunksize=65536 --name=thin --vgname=eos
+logvol / --vgname=eos --fstype=xfs --size=100000 --name=root --thin --poolname=thin
 
-# Time zone (can be changed during installation)
-timezone --utc America/New_York
 
-# Interactive user creation
-# The installer will prompt for user details during installation
-user --name=bootc-user --groups=wheel --plaintext --password=changeme
+network --bootproto=dhcp --device=link --activate --onboot=on
 
-# Root password (will be prompted during installation)
-rootpw --lock
+# bootc uses container images directly - no ostreesetup needed
+# Container image will be specified during bootc install command
 
-# Security and authentication
-authselect select sssd
-selinux --enforcing
 
-# Services
-services --enabled=sshd,chronyd,systemd-networkd,systemd-resolved
-services --disabled=kdump
+%post --log=/var/log/anaconda/post-install.log --erroronfail
 
-# Firewall
-firewall --enabled --ssh
+#chage -M 180 -m 1 -E $(date -d +180days +%Y-%m-%d) -d $(date +%Y-%m-%d) abb
 
-# Interactive partitioning
-# This provides a menu for users to customize their disk layout
-%include /tmp/part-include
+# bootc manages remotes automatically - no manual ostree remote commands needed
 
-# Pre-installation script to create interactive partitioning menu
-%pre --interpreter=/bin/bash
-#!/bin/bash
+# Allow pod network and service network traffic on firewall
+firewall-offline-cmd --zone=trusted --add-source=10.42.0.0/16
+firewall-offline-cmd --zone=trusted --add-source=169.254.169.1
 
-# Create interactive partitioning configuration
-cat > /tmp/part-include << 'EOF'
-# Clear all partitions
-clearpart --all --initlabel --disklabel=gpt
 
-# Create boot partitions
-reqpart --add-boot
+#echo -e 'RamaEdge REPLACE_VERSION \nKernel \\r on an \\m' > /etc/issue
 
-# Interactive partitioning menu will be presented here
-# Users can choose from predefined layouts or custom partitioning
-
-# Default layout if no interaction
-part / --grow --fstype=xfs --label=root
+# Configure systemd journal service to persist logs between boots and limit their size to 1G
+sudo mkdir -p /etc/systemd/journald.conf.d
+cat > /etc/systemd/journald.conf.d/microshift.conf <<EOF
+[Journal]
+Storage=persistent
+SystemMaxUse=1G
+RuntimeMaxUse=1G
 EOF
 
-# Display partitioning options to user
-clear
-echo "==================================="
-echo "Fedora bootc Interactive Installer"
-echo "==================================="
-echo ""
-echo "Choose your disk partitioning layout:"
-echo ""
-echo "1) Simple Layout (Recommended)"
-echo "   - Single root partition (XFS)"
-echo "   - Automatic sizing"
-echo ""
-echo "2) Advanced Layout" 
-echo "   - Separate /home partition"
-echo "   - Separate /var partition"
-echo "   - Custom sizing"
-echo ""
-echo "3) Developer Layout"
-echo "   - Separate /home, /var, /opt partitions"
-echo "   - Extra space for containers"
-echo ""
-echo "4) Custom Layout"
-echo "   - Manual partitioning"
-echo ""
+exec < /dev/tty6 > /dev/tty6 2> /dev/tty6
+chvt 6
+echo "**************************************"
+echo "          HOST Configuration          "
+echo "**************************************"
+# Set hostname 
+read -p "Enter fully qualified hostname: " NAME
+echo "$NAME" > /etc/hostname
+echo "Hostname is set to $NAME"
 
+# Create User
+echo "**************************************"
+echo "           USERNAME                   "
+echo "**************************************"
+echo " "
+echo "Username must be between 3 and 10 characters long and contain only lowercase letters, numbers and underscores."
+read -p "Please enter username and press [ENTER]: " USERNAME
+while [[ ! $USERNAME =~ ^[a-z0-9_]{3,10}$ ]]; do
+  echo "Username must be between 3 and 10 characters long and contain only lowercase letters, numbers and underscores."
+  read USERNAME
+done
 while true; do
-    echo -n "Enter your choice (1-4): "
-    read choice
-    case $choice in
-        1)
-            echo "Creating simple layout..."
-            cat > /tmp/part-include << 'EOF'
-clearpart --all --initlabel --disklabel=gpt
-reqpart --add-boot
-part / --grow --fstype=xfs --label=root --size=8192
-EOF
-            break
-            ;;
-        2)
-            echo "Creating advanced layout..."
-            cat > /tmp/part-include << 'EOF'
-clearpart --all --initlabel --disklabel=gpt
-reqpart --add-boot
-part / --fstype=xfs --label=root --size=10240
-part /home --fstype=xfs --label=home --size=10240
-part /var --fstype=xfs --label=var --size=8192 --grow
-EOF
-            break
-            ;;
-        3)
-            echo "Creating developer layout..."
-            cat > /tmp/part-include << 'EOF'
-clearpart --all --initlabel --disklabel=gpt
-reqpart --add-boot
-part / --fstype=xfs --label=root --size=12288
-part /home --fstype=xfs --label=home --size=20480
-part /var --fstype=xfs --label=var --size=10240
-part /opt --fstype=xfs --label=opt --size=8192 --grow
-EOF
-            break
-            ;;
-        4)
-            echo "Manual partitioning will be available during installation."
-            cat > /tmp/part-include << 'EOF'
-clearpart --all --initlabel --disklabel=gpt
-reqpart --add-boot
-# Manual partitioning - installer will prompt
-EOF
-            break
-            ;;
-        *)
-            echo "Invalid choice. Please enter 1, 2, 3, or 4."
-            ;;
-    esac
-done
-
-echo ""
-echo "Partitioning layout configured."
-echo "Installation will continue..."
-echo ""
-
-%end
-
-# Post-installation script for additional configuration
-%post --interpreter=/bin/bash
-#!/bin/bash
-
-# Security hardening - deployment-specific configuration
-echo "Applying security hardening..."
-
-# File permission hardening
-find /usr /etc -xdev -type f -perm -0002 -exec chmod o-w {} \; 2>/dev/null || true
-find /usr /etc -xdev -type d -perm -0002 -exec chmod o-w {} \; 2>/dev/null || true
-
-# Secure sensitive files
-chmod 600 /etc/ssh/ssh_host_*_key 2>/dev/null || true
-chmod 644 /etc/ssh/ssh_host_*_key.pub 2>/dev/null || true
-chmod 600 /etc/ssh/sshd_config 2>/dev/null || true
-chmod 644 /etc/passwd /etc/group
-chmod 640 /etc/shadow /etc/gshadow
-
-# Remove unnecessary system accounts (if they exist)
-for user in games ftp; do
-    if id "$user" &>/dev/null; then
-        userdel -r "$user" 2>/dev/null || true
+  echo "Password must be more than 8 characters long, contain at least one number, at least one uppercase letter, at least one lower case letter and at least one special character."
+  read -s "Please enter password and press [ENTER]: " PASSWORD
+  # Start POSIX-compliant password checks
+  if echo "$PASSWORD" | grep -Eq '.{8,}'; then
+    if echo "$PASSWORD" | grep -Eq '[0-9]'; then
+      if echo "$PASSWORD" | grep -Eq '[a-z]'; then
+        if echo "$PASSWORD" | grep -Eq '[A-Z]'; then
+          if echo "$PASSWORD" | grep -Eq '[^a-zA-Z0-9]'; then
+            echo "Password meets all requirements."
+          else
+            echo "Password must contain at least one special character."
+            continue
+          fi
+        else
+          echo "Password must contain at least one uppercase letter."
+          continue
+        fi
+      else
+        echo "Password must contain at least one lowercase letter."
+        continue
+      fi
+    else
+      echo "Password must contain at least one digit."
+      continue
     fi
+  else
+    echo "Password must be at least 8 characters long."
+    continue
+  fi
+  read -s "Please enter password again and press [ENTER]: " PASSWORD2
+  [ "$PASSWORD" = "$PASSWORD2" ] && break
+  echo "You have entered different passwords. Please try again"
 done
+useradd -p $(openssl passwd -1 $PASSWORD) $USERNAME
+usermod -a -G wheel $USERNAME
+echo -e '$USERNAME\tALL=(ALL)\tNOPASSWD: ALL' >> /etc/sudoers
+# Workaround for home directory owned by root
+install -d -o $USERNAME -g $USERNAME /home/$USERNAME/
+install -d -o $USERNAME -g $USERNAME -m 0700 /home/$USERNAME/.kube
+echo "User created with username $USERNAME"
 
-# Remove unnecessary groups
-for group in games; do
-    if getent group "$group" &>/dev/null; then
-        groupdel "$group" 2>/dev/null || true
-    fi
-done
-
-# Secure kernel parameters
-cat >> /etc/sysctl.d/99-security.conf << 'EOF'
-# Network security
-net.ipv4.ip_forward = 1
-net.ipv4.conf.all.send_redirects = 0
-net.ipv4.conf.default.send_redirects = 0
-net.ipv4.conf.all.accept_redirects = 0
-net.ipv4.conf.default.accept_redirects = 0
-net.ipv4.conf.all.accept_source_route = 0
-net.ipv4.conf.default.accept_source_route = 0
-net.ipv4.conf.all.log_martians = 1
-net.ipv4.conf.default.log_martians = 1
-net.ipv4.icmp_echo_ignore_broadcasts = 1
-net.ipv4.icmp_ignore_bogus_error_responses = 1
-net.ipv4.tcp_syncookies = 1
-
-# Memory protection
-kernel.dmesg_restrict = 1
-kernel.kptr_restrict = 1
-kernel.yama.ptrace_scope = 1
+# Configure Proxy
+read -p "Do you want to setup EdgeniusOS behind a proxy(y/n): " YN
+if [ $YN == "y" ] ; then
+read -p "Enter HTTP Proxy(http://<proxy>): " HTTPPROXY
+read -p "Enter Local Domain Name for NO_PROXY: " NOPROXY
+sudo mkdir /etc/systemd/system/crio.service.d
+sudo cat > /etc/systemd/system/crio.service.d/override.conf << EOF
+[Service]
+Environment=HTTP_PROXY=$HTTPPROXY
+Environment=HTTPS_PROXY=$HTTPPROXY
+Environment=NO_PROXY=127.0.0.1,10.42.*,10.43.*,cluster.local,$NOPROXY
 EOF
-
-# Configure SSH security
-sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
-sed -i 's/#PermitRootLogin yes/PermitRootLogin no/' /etc/ssh/sshd_config
-sed -i 's/#MaxAuthTries 6/MaxAuthTries 3/' /etc/ssh/sshd_config
-echo "AllowGroups wheel" >> /etc/ssh/sshd_config
-
-# Create welcome message
-cat > /etc/motd << 'EOF'
-==========================================
-Welcome to Fedora bootc Edge OS
-==========================================
-
-This system was installed using an interactive
-Kickstart configuration with your custom settings.
-
-Default user: bootc-user (member of wheel group)
-SSH access: Enabled
-Container runtime: Podman (pre-installed)
-Kubernetes: MicroShift (available)
-
-For more information:
-- Check system status: bootc status
-- View container images: podman images
-- MicroShift status: systemctl status microshift
-
-To get started:
-- sudo systemctl enable --now microshift
-- export KUBECONFIG=/var/lib/microshift/resources/kubeadmin/kubeconfig
-
-==========================================
+sudo mkdir /etc/systemd/system/rpm-ostreed.service.d
+sudo cat > /etc/systemd/system/rpm-ostreed.service.d/override.conf << EOF
+[Service]
+Environment="http_proxy=$HTTPPROXY"
+Environment="https_proxy=$HTTPPROXY"
+Environment="no_proxy=127.0.0.1,10.42.*,10.43.*,cluster.local,$NOPROXY"
 EOF
-
-# Enable and configure essential services
-systemctl enable sshd
-systemctl enable chronyd
-
-# Configure container storage
-mkdir -p /etc/containers
-cat > /etc/containers/storage.conf << 'EOF'
-[storage]
-driver = "overlay"
-runroot = "/run/containers/storage"
-graphroot = "/var/lib/containers/storage"
-
-[storage.options]
-additionalimagestores = [
-]
-
-[storage.options.overlay]
-mountopt = "nodev,metacopy=on"
+sudo cat << EOF >> /etc/environment
+export http_proxy=$HTTPPROXY
+export https_proxy=$HTTPPROXY
+export no_proxy=127.0.0.1,10.42.*,10.43.*,cluster.local,$NOPROXY
 EOF
-
-# Set up sudoers for wheel group
-echo "%wheel ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/wheel-nopasswd
-
-# Configure NetworkManager for better container networking
-cat > /etc/NetworkManager/conf.d/cni.conf << 'EOF'
-[main]
-dns=none
-
-[logging]
-level=INFO
-EOF
-
-# Create startup script for first boot configuration
-cat > /usr/local/bin/first-boot-setup.sh << 'EOF'
-#!/bin/bash
-# First boot setup script
-
-echo "==================================="
-echo "Fedora bootc First Boot Setup"
-echo "==================================="
-echo ""
-
-# Check if this is the first boot
-if [ ! -f /var/lib/first-boot-done ]; then
-    echo "Performing first boot setup..."
-    
-    # Update bootc
-    bootc upgrade --check || true
-    
-    # Pull essential container images
-    echo "Pulling essential container images..."
-    systemctl --user enable --now podman.socket || true
-    
-    # Mark first boot as done
-    touch /var/lib/first-boot-done
-    
-    echo "First boot setup completed!"
+echo "Proxy is set."
 else
-    echo "System already configured."
+echo "OS will be installed without Proxy Configuration."
 fi
 
-echo ""
-echo "System ready for use!"
-echo "==================================="
+
+# Setup NTP Server Address. Only two addresses supported
+read -p "Do you want to setup NTP Server IP Address(y/n): " YN
+if [ $YN == "y" ] ; then
+read -p "Enter NTP Server Address (Server1,Server2): " NTPSERVER
+IFS=,
+read SERVER1 SERVER2 <<< $NTPSERVER
+if [[ -z "$SERVER2" ]] ; then
+sudo cat << EOF >> /etc/chrony.conf
+server $SERVER1 iburst
+server 0.pool.ntp.org iburst
+server 1.pool.ntp.org iburst
 EOF
-
-chmod +x /usr/local/bin/first-boot-setup.sh
-
-# Create systemd service for first boot
-cat > /etc/systemd/system/first-boot-setup.service << 'EOF'
-[Unit]
-Description=First Boot Setup
-After=network-online.target
-Wants=network-online.target
-ConditionPathExists=!/var/lib/first-boot-done
-
-[Service]
-Type=oneshot
-ExecStart=/usr/local/bin/first-boot-setup.sh
-RemainAfterExit=yes
-StandardOutput=journal+console
-
-[Install]
-WantedBy=multi-user.target
+else
+sudo cat << EOF >> /etc/chrony.conf
+server $SERVER1 iburst
+server $SERVER2 iburst
+server 0.pool.ntp.org iburst
+server 1.pool.ntp.org iburst
 EOF
+fi
+fi
 
-systemctl enable first-boot-setup.service
+chvt 1
+exec < /dev/tty1 > /dev/tty1 2> /dev/tty1
 
-echo "Post-installation configuration completed."
+echo "******************************************"
 
+echo -e 'export KUBECONFIG=/var/lib/microshift/resources/kubeadmin/kubeconfig' >> /root/.profile
+
+# bootc handles container image storage automatically - no manual ostree repo setup needed
+
+# Disabled as per #64
+#if [ -c /dev/tpm0 ]; then 
+#echo "Found a TPM chip. Applying full disk encryption..."
+#    BLKDS=$(lsblk --noheadings -o NAME,FSTYPE -r | grep crypto_LUKS | cut -d ' ' -f 1)
+#    for blkd in ${BLKDS}; do
+#    echo Binding LUKS partition /dev/$blkd to the TPM pin...
+#    dev="/dev/$blkd"
+#    if [ "`clevis luks list -d $dev`" == "" ]; then
+#      clevis luks bind -f -k - -d $dev tpm2 '{"pcr_ids":"7","pcr_bank":"sha256"}' <<< "WELLKN0WN"
+#      cryptsetup luksRemoveKey $dev <<< "WELLKN0WN"
+#    else
+#      echo "$dev already pinned using clevis"
+#    fi
+#    done
+#else
+#    echo "No TPM chip found."
+#    echo "!!! Use WELLKN0WN to decrypt your partitions at each boot !!!"
+#    echo "TODO: create a no-password token in LUKS"
+#fi
 %end
-
-# Package selection is handled by the bootc container image
-# No %packages section needed as we're installing a container image
-
-# Reboot after installation
-reboot --eject 
