@@ -28,6 +28,7 @@ image-*.log
 *~
 .build-*
 .tmp-*
+*.toml
 
 # Fedora/RPM build artifacts
 *.rpm
