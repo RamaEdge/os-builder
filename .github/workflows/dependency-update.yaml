@@ -37,7 +37,7 @@ jobs:
           echo "Current digest: ${DIGEST}"
 
       - name: Scan base image for vulnerabilities
-        uses: aquasecurity/trivy-action@0.30.0
+        uses: aquasecurity/trivy-action@0.32.0
         with:
           image-ref: ${{ steps.base-image.outputs.base-image }}
           format: 'sarif'
