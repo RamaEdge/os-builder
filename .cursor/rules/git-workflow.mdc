@@ -1,0 +1,62 @@
+---
+description: Git workflow and commit message standards for OS builder project
+globs: [".git/**", "*.md", "CHANGELOG*"]
+---
+# Git Flow and Commit Standards
+
+## Commit Message Format
+Use conventional commits with these specific types:
+
+### Required Format
+```
+type: description
+
+Optional body explaining what and why
+
+Optional footer with breaking changes or issue references
+```
+
+### Commit Types
+- `feat:` - New features (K3s offline image support, ISO configurations)  
+- `fix:` - Bug fixes (container runtime detection, build script issues)
+- `docs:` - Documentation updates (README, installation guides)
+- `chore:` - Version bumps, dependency updates (K3s v1.32.5+k3s1)
+- `ci:` - GitHub Actions workflow improvements (caching, optimization)
+- `security:` - Security updates (CVE fixes, base image updates)
+- `refactor:` - Code restructuring (multi-stage build simplification)
+- `test:` - Test additions/updates (container runtime detection tests)
+
+## Branch Naming Convention
+- `main` - Production ready code
+- `feature/issue-number-description` - New features
+- `fix/issue-number-description` - Bug fixes  
+- `security/cve-or-issue-number` - Security updates
+- `docs/topic` - Documentation updates
+- `ci/workflow-name` - CI/CD improvements
+
+## Pull Request Requirements
+### PR Title
+- Follow conventional commit format
+- Be specific and descriptive
+
+### PR Description Must Include
+- **Issue Link**: `Closes #123` or `Fixes #456`
+- **Testing**: Describe test steps and validation
+- **Security**: Note any security implications or changes
+- **Breaking Changes**: Clearly document any breaking changes  
+- **Version Impact**: Note if `versions.txt` was updated
+- **Build Impact**: Note changes to Containerfiles or build scripts
+
+### Examples
+```
+feat: add offline K3s image support for air-gapped deployments
+
+- Pre-loads K3s container images during build
+- Configures additional image stores for offline access  
+- Updates build scripts to handle image extraction
+
+Closes #45
+Testing: Built and tested ISO with offline deployment
+Security: No security impact, improves supply chain reliability
+Version Impact: Updated K3S_VERSION to v1.32.5+k3s1
+```

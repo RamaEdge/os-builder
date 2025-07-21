@@ -1,0 +1,102 @@
+---
+description: Version management and centralized configuration standards
+globs: ["versions.txt", "VERSION_MANAGEMENT.md", "**/Makefile"]
+---
+
+# Version Management Standards
+
+## Centralized Version Configuration
+All versions are managed in `versions.txt`:
+
+```bash
+# K3s version - Kubernetes distribution
+K3S_VERSION=v1.32.5+k3s1
+
+# OpenTelemetry Collector version
+OTEL_VERSION=0.127.0
+
+# MicroShift version (Red Hat's Kubernetes distribution)
+MICROSHIFT_VERSION=release-4.19
+
+# Container image versions
+FEDORA_VERSION=42
+BOOTC_VERSION=42
+CNI_VERSION=v1.6.0
+```
+
+## Version Update Process
+When updating `versions.txt`:
+```bash
+# Always document why versions are being updated
+# Include security advisories, bug fixes, or feature requirements
+K3S_VERSION=v1.32.5+k3s1        # Security update for CVE-2024-xxxx
+OTEL_VERSION=0.127.0            # Bug fixes for memory leaks
+MICROSHIFT_VERSION=release-4.19 # Latest stable release
+```
+
+## Build Integration
+### Makefile Integration
+```makefile
+# Load version configuration from centralized file
+K3S_VERSION ?= $(shell grep '^K3S_VERSION=' versions.txt | cut -d'=' -f2)
+OTEL_VERSION ?= $(shell grep '^OTEL_VERSION=' versions.txt | cut -d'=' -f2)
+```
+
+### Containerfile Integration
+```dockerfile
+# In Containerfile - accept as build args
+ARG K3S_VERSION
+ARG OTEL_VERSION
+ARG MICROSHIFT_VERSION
+ARG FEDORA_VERSION
+
+# Use in RUN commands
+RUN curl -L https://github.com/k3s-io/k3s/releases/download/${K3S_VERSION}/k3s
+```
+
+### Build Script Integration
+```bash
+# In build scripts - pass from versions.txt
+--build-arg K3S_VERSION="${K3S_VERSION}" \
+--build-arg OTEL_VERSION="${OTEL_VERSION}"
+```
+
+## GitHub Actions Integration
+Use the `load-versions` action:
+```yaml
+- name: Load version configuration
+  id: versions
+  uses: ./.github/actions/load-versions
+
+- name: Build container image
+  uses: ./.github/actions/build-container
+  with:
+    k3s-version: ${{ steps.versions.outputs.k3s-version }}
+    otel-version: ${{ steps.versions.outputs.otel-version }}
+```
+
+## Version Override Priority
+1. **Environment variables** (highest priority)
+2. **Makefile defaults** from `versions.txt`
+3. **GitHub Action inputs**
+4. **Workflow dispatch inputs**
+5. **versions.txt values** (fallback)
+
+## Semantic Versioning
+- Use semantic versioning for project releases: `MAJOR.MINOR.PATCH`
+- Use upstream versioning for dependencies
+- Document version compatibility in commit messages
+- Include version impact in PR descriptions
+
+## Security Considerations
+- Always check for security advisories when updating versions
+- Test updated versions in isolated environments first
+- Document security implications of version changes
+- Use specific versions, avoid `latest` tags in production
+
+## Automated Updates
+- Weekly dependency update checks via GitHub Actions
+- Automated PRs for version updates when possible
+- Security scanning of new versions before merge
+- Rollback procedures documented for version issues
+

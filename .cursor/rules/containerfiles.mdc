@@ -1,0 +1,92 @@
+---
+description: Container image and Containerfile standards for bootc images
+globs: ["**/Containerfile*", "**/Dockerfile*", "os/Containerfile*"]
+---
+
+# Container Image Standards
+
+## Containerfile Structure
+Follow this multi-stage pattern:
+
+```dockerfile
+# Build arguments at top (before FROM for use in FROM)
+ARG FEDORA_VERSION
+ARG K3S_VERSION
+ARG OTEL_VERSION
+
+FROM quay.io/fedora/fedora-bootc:${FEDORA_VERSION}
+
+# Build arguments after FROM
+ARG VCS_REF
+ARG VERSION
+
+# Comprehensive OCI labels
+LABEL org.opencontainers.image.title="Edge OS - Description" \
+      org.opencontainers.image.description="Detailed description" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.revision="${VCS_REF}" \
+      org.opencontainers.image.vendor="RamaEdge" \
+      org.opencontainers.image.licenses="MIT" \
+      containers.bootc=1 \
+      ostree.bootable=1 \
+      k3s.version="${K3S_VERSION}"
+```
+
+## Layer Optimization
+- Optimize layer caching: `RUN dnf makecache --refresh` in separate layer
+- Combine RUN instructions for fewer layers
+- Use multi-stage builds to reduce runtime image size
+- Clean up package cache: `dnf clean packages && rm -rf /tmp/* /var/tmp/*`
+
+## Security Best Practices
+```dockerfile
+# Remove setuid/setgid binaries for security hardening
+RUN find /usr -type f \( \( -perm -4000 -o -perm -2000 \) -a \( -name chfn -o -name chsh \) \) \
+    -exec chmod u-s {} \;
+
+# Create non-root user for containers
+RUN useradd -r -u 1001 -g 0 containeruser
+USER 1001
+```
+
+## Architecture Handling
+```dockerfile
+# Handle multi-architecture downloads
+RUN ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/') && \
+    BINARY_NAME=$([ "$ARCH" = "amd64" ] && echo "k3s" || echo "k3s-${ARCH}") && \
+    curl -L "https://github.com/k3s-io/k3s/releases/download/${K3S_VERSION}/${BINARY_NAME}" \
+    > /usr/local/bin/k3s && \
+    chmod +x /usr/local/bin/k3s
+```
+
+## OCI Labels Requirements
+Always include these labels:
+- `org.opencontainers.image.title` - Human readable title
+- `org.opencontainers.image.description` - Detailed description
+- `org.opencontainers.image.version` - Semantic version
+- `org.opencontainers.image.revision` - Git commit SHA
+- `org.opencontainers.image.vendor` - "RamaEdge"
+- `org.opencontainers.image.licenses` - "MIT"
+- `containers.bootc=1` - Marks as bootc container
+- `ostree.bootable=1` - Marks as bootable
+
+## Version Management
+```dockerfile
+# Use centralized versions from build arguments
+ARG K3S_VERSION
+ARG OTEL_VERSION
+ARG MICROSHIFT_VERSION
+ARG FEDORA_VERSION
+
+# Pass versions from build scripts
+--build-arg K3S_VERSION="${K3S_VERSION}" \
+--build-arg OTEL_VERSION="${OTEL_VERSION}"
+```
+
+## Performance Optimization
+- Use BuildKit cache for faster builds
+- Leverage dnf's built-in caching
+- Create directory structures first (cached layer)
+- Download binaries in separate layers for better caching
+- Use `.containerignore` to exclude unnecessary files
+

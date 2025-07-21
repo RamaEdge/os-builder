@@ -1,0 +1,116 @@
+---
+description: GitHub Actions workflow and reusable action standards
+globs: [".github/**/*.yml", ".github/**/*.yaml", ".github/actions/**"]
+---
+
+# GitHub Actions Standards
+
+## Workflow Structure
+```yaml
+name: Descriptive Workflow Name
+
+on:
+  push:
+    branches: ['main']
+    paths: ['relevant/**']
+  pull_request:
+    branches: ['main']
+    paths: ['relevant/**']
+  workflow_dispatch:
+    inputs:
+      parameter:
+        description: 'Parameter description'
+        default: 'default-value'
+
+# Centralized environment configuration
+env:
+  IMAGE_NAME: ramaedge/os-component
+  REGISTRY: harbor.local
+
+jobs:
+  job-name:
+    name: Human Readable Job Name
+    runs-on: self-hosted  # Use self-hosted for container builds
+    outputs:
+      key: ${{ steps.step.outputs.value }}
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
+```
+
+## Reusable Action Structure
+```yaml
+name: 'Action Name'
+description: 'What this action accomplishes'
+author: 'os-builder'
+branding:
+  icon: 'disc'
+  color: 'orange'
+
+inputs:
+  required-input:
+    description: 'Description with examples'
+    required: true
+  optional-input:
+    description: 'Description with default behavior'
+    required: false
+    default: 'default-value'
+
+outputs:
+  output-name:
+    description: 'What this provides to subsequent steps'
+    value: ${{ steps.main.outputs.result }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Descriptive step name
+      shell: bash
+      run: |
+        # Implementation
+```
+
+## Action Development Best Practices
+- Always include comprehensive input descriptions with examples
+- Provide clear output descriptions explaining usage
+- Use meaningful step names that describe what's happening
+- Include error handling and validation
+- Use `composite` actions for shell script logic
+- Use `javascript` actions for complex logic requiring dependencies
+
+## Security Integration
+Always include security scanning in workflows:
+```yaml
+- name: Security scan
+  uses: ./.github/actions/trivy-scan
+  with:
+    scan-ref: ${{ steps.build.outputs.image-ref }}
+    severity: 'CRITICAL,HIGH,MEDIUM'
+    output-format: 'sarif'
+```
+
+## Workflow Naming Convention
+- Use descriptive names that explain the workflow purpose
+- Include the component being built: "Build and Scan K3s OS"
+- Use title case for workflow names
+- Use kebab-case for workflow files
+
+## Job Dependencies
+- Use `needs:` to create proper job dependencies
+- Pass outputs between jobs using `outputs:` and `needs.job.outputs.key`
+- Use conditional execution with `if:` for different triggers
+- Optimize job execution with parallel jobs where possible
+
+## Environment Variables
+- Define common variables at workflow level in `env:`
+- Use consistent naming: `IMAGE_NAME`, `REGISTRY`, `SCAN_SEVERITY`
+- Override defaults using workflow dispatch inputs
+- Load versions from centralized `versions.txt` using load-versions action
+
+## Runner Selection
+- Use `self-hosted` for container builds (resource intensive)
+- Use `ubuntu-latest` for lightweight tasks
+- Consider resource requirements when selecting runners
+- Use matrix builds for multi-platform or multi-configuration builds
+
