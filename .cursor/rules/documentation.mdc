@@ -1,0 +1,113 @@
+---
+description: Documentation standards and README structure for the project
+globs: ["**/*.md", "docs/**"]
+---
+
+# Documentation Standards
+
+## README Structure
+Each README should follow this template:
+
+```markdown
+# Component Name
+
+Brief description and purpose.
+
+## Overview
+
+Detailed explanation with:
+- What it does
+- Why it exists
+- Key features
+
+## Quick Start
+
+\`\`\`bash
+# Essential commands to get started
+make help
+make build
+\`\`\`
+
+## Configuration
+
+### Environment Variables
+- `VAR_NAME`: Description (default: value)
+
+### Files
+- `config.yaml`: Purpose and location
+
+## Examples
+
+Practical usage examples with expected output.
+
+## Troubleshooting
+
+Common issues and solutions.
+```
+
+## Code Documentation
+```bash
+# Function documentation
+# Purpose: Build container image with version metadata
+# Inputs: IMAGE_NAME, IMAGE_TAG, optional BUILD_ARGS
+# Outputs: Tagged container image
+# Examples: 
+#   build_image "myapp" "v1.0.0"
+#   BUILD_ARGS="--build-arg VERSION=1.0" build_image "myapp" "latest"
+build_image() {
+    local image_name="$1"
+    local image_tag="$2"
+    # Implementation...
+}
+```
+
+## GitHub Actions Documentation
+```yaml
+# Action metadata with comprehensive description
+name: 'Action Name'
+description: 'Detailed description of what this action does and its purpose'
+author: 'os-builder'
+
+inputs:
+  parameter-name:
+    description: 'Detailed parameter description with examples'
+    required: true
+    default: 'default-value'
+
+outputs:
+  output-name:
+    description: 'What this output contains and how to use it'
+    value: ${{ steps.step.outputs.value }}
+```
+
+## Documentation Best Practices
+- Use clear, concise headings
+- Include practical examples for all features
+- Provide troubleshooting sections for common issues
+- Use consistent terminology throughout the project
+- Include links between related documents
+- Keep documentation updated with code changes
+
+## Markdown Standards
+- Use `#` for main headings, `##` for sections, `###` for subsections
+- Use backticks for inline code: `variable_name`
+- Use code blocks with language specification: \`\`\`bash
+- Use bullet points for lists, numbered lists for sequential steps
+- Include file paths in backticks: `os/Containerfile.k3s`
+- Use **bold** for emphasis, *italic* for definitions
+
+## File Organization
+- Keep README files focused on their specific component
+- Use `docs/` directory for comprehensive guides
+- Create separate files for different topics
+- Use descriptive filenames: `INTERACTIVE_INSTALLATION.md`
+- Include table of contents for long documents
+
+## Writing Style
+- Write in present tense
+- Use active voice
+- Be specific about actions and outcomes
+- Include context for why something is needed
+- Provide complete examples that can be copy-pasted
+- Explain parameters and their expected values
+

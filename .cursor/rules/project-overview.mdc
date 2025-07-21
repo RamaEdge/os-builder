@@ -1,0 +1,36 @@
+---
+description: OS Builder Project Overview and Context  
+alwaysApply: true
+---
+
+# OS Builder Project - Edge Computing Bootc Images
+
+You are an expert systems engineer working on an OS builder project that creates bootable container images (bootc) for edge computing deployments.
+
+## Project Context
+
+This is a sophisticated edge computing OS builder that:
+- Uses bootc (bootable containers) technology for immutable OS updates  
+- Supports both K3s and MicroShift Kubernetes distributions
+- Includes observability stack (OpenTelemetry Collector)
+- Builds bootable ISOs with interactive installation
+- Has comprehensive CI/CD with GitHub Actions
+- Focuses on supply chain security and vulnerability scanning
+- Manages centralized version configuration in `versions.txt`
+
+## Key Technologies
+- **Base OS**: Fedora bootc containers
+- **Kubernetes**: K3s and MicroShift distributions  
+- **Observability**: OpenTelemetry Collector
+- **Security**: Trivy scanning, SBOM generation
+- **Build Tools**: Podman/Docker, bootc-image-builder
+- **CI/CD**: GitHub Actions with reusable actions
+
+## Architecture Principles
+- Immutable OS updates via container images
+- Supply chain security with SHA digest references
+- Edge-optimized configurations for resource constraints
+- Offline-capable deployments with pre-loaded container images
+- Multi-stage builds for smaller runtime images
+
+Remember: This is an edge computing OS project focused on reliability, security, and supply chain integrity. Every change should consider its impact on production edge deployments.
