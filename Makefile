@@ -243,13 +243,12 @@ disk-image:
 		--type qcow2 $(IMAGE_NAME):$(IMAGE_TAG)
 
 build-iso:
-	@echo "📀 Building ISO..."
-	@mkdir -p $(ISO_DIR)
-	@$(CONTAINER_RUNTIME) pull quay.io/centos-bootc/bootc-image-builder:latest
-	@$(CONTAINER_RUNTIME) run --rm --privileged \
-		-v $(PWD)/$(ISO_DIR):/output \
-		quay.io/centos-bootc/bootc-image-builder:latest \
-		--type iso $(IMAGE_NAME):$(IMAGE_TAG)
+	@chmod +x os/build-iso.sh
+	@IMAGE_NAME="$(IMAGE_NAME)" \
+	IMAGE_TAG="$(IMAGE_TAG)" \
+	ISO_DIR="$(ISO_DIR)" \
+	PWD="$(PWD)" \
+	./os/build-iso.sh
 
 # =============================================================================
 # Installation Targets (Simplified)
