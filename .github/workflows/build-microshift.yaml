@@ -38,7 +38,7 @@ jobs:
       security-events: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Load version configuration
         id: versions
@@ -91,7 +91,7 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Authenticate with Harbor
         uses: ./.github/actions/harbor-auth
@@ -124,7 +124,7 @@ jobs:
     if: github.event.inputs.build_iso == 'true'
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Build MicroShift ISO
         id: iso
