@@ -83,7 +83,7 @@ jobs:
           cat package-list.txt
 
       - name: Upload package list
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: package-analysis
           path: package-list.txt
@@ -148,7 +148,7 @@ jobs:
           echo "- [Fedora Security Advisories](https://bodhi.fedoraproject.org/)" >> security-advisory.md
 
       - name: Upload security advisory
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: security-advisory
           path: security-advisory.md
