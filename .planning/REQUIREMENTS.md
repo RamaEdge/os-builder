@@ -73,36 +73,36 @@ Requirements for the `edgeworks-bundle` CLI tool. Each maps to roadmap phases.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SCAF-01 | — | Pending |
-| SCAF-02 | — | Pending |
-| MNFST-01 | — | Pending |
-| MNFST-02 | — | Pending |
-| MNFST-03 | — | Pending |
-| MNFST-04 | — | Pending |
-| CREATE-01 | — | Pending |
-| CREATE-02 | — | Pending |
-| CREATE-03 | — | Pending |
-| CREATE-04 | — | Pending |
-| CREATE-05 | — | Pending |
-| CREATE-06 | — | Pending |
-| VERIFY-01 | — | Pending |
-| VERIFY-02 | — | Pending |
-| VERIFY-03 | — | Pending |
-| VERIFY-04 | — | Pending |
-| INSP-01 | — | Pending |
-| INSP-02 | — | Pending |
-| INSP-03 | — | Pending |
-| INSP-04 | — | Pending |
-| CI-01 | — | Pending |
-| CI-02 | — | Pending |
-| CI-03 | — | Pending |
-| CI-04 | — | Pending |
+| SCAF-01 | Phase 4 | Pending |
+| SCAF-02 | Phase 4 | Pending |
+| MNFST-01 | Phase 4 | Pending |
+| MNFST-02 | Phase 4 | Pending |
+| MNFST-03 | Phase 4 | Pending |
+| MNFST-04 | Phase 4 | Pending |
+| CREATE-01 | Phase 5 | Pending |
+| CREATE-02 | Phase 5 | Pending |
+| CREATE-03 | Phase 5 | Pending |
+| CREATE-04 | Phase 5 | Pending |
+| CREATE-05 | Phase 5 | Pending |
+| CREATE-06 | Phase 5 | Pending |
+| VERIFY-01 | Phase 6 | Pending |
+| VERIFY-02 | Phase 6 | Pending |
+| VERIFY-03 | Phase 6 | Pending |
+| VERIFY-04 | Phase 6 | Pending |
+| INSP-01 | Phase 6 | Pending |
+| INSP-02 | Phase 6 | Pending |
+| INSP-03 | Phase 6 | Pending |
+| INSP-04 | Phase 6 | Pending |
+| CI-01 | Phase 7 | Pending |
+| CI-02 | Phase 7 | Pending |
+| CI-03 | Phase 7 | Pending |
+| CI-04 | Phase 7 | Pending |
 
 **Coverage:**
 - v1.1 requirements: 22 total
-- Mapped to phases: 0
-- Unmapped: 22 (pending roadmap creation)
+- Mapped to phases: 22
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-01*
-*Last updated: 2026-03-01 after initial definition*
+*Last updated: 2026-03-01 after roadmap creation*
