@@ -90,6 +90,6 @@ See: `.planning/milestones/v1.0-ROADMAP.md` for full details.
 | 2. Cleanup | v1.0 | 2/2 | Complete | 2026-03-01 |
 | 3. CI | v1.0 | 1/1 | Complete | 2026-03-01 |
 | 4. Foundation | v1.1 | 2/2 | Complete | 2026-03-01 |
-| 5. Create Command | v1.1 | 0/? | Not started | - |
+| 5. Create Command | 1/2 | In Progress|  | - |
 | 6. Verify + Inspect | v1.1 | 0/2 | Planned | - |
 | 7. CI/CD Integration | v1.1 | 0/? | Not started | - |

@@ -21,12 +21,12 @@ Requirements for the `edgeworks-bundle` CLI tool. Each maps to roadmap phases.
 
 ### Create Command
 
-- [ ] **CREATE-01**: `create` pulls image via skopeo and produces valid bundle directory (THE-881)
-- [ ] **CREATE-02**: Bundle directory structure matches spec: 3 files (manifest.json, checksums.sha256, .oci.tar) (THE-881)
-- [ ] **CREATE-03**: `checksums.sha256` verifiable with `sha256sum -c` (THE-881)
+- [x] **CREATE-01**: `create` pulls image via skopeo and produces valid bundle directory (THE-881)
+- [x] **CREATE-02**: Bundle directory structure matches spec: 3 files (manifest.json, checksums.sha256, .oci.tar) (THE-881)
+- [x] **CREATE-03**: `checksums.sha256` verifiable with `sha256sum -c` (THE-881)
 - [ ] **CREATE-04**: `--json` produces machine-readable output (THE-881)
-- [ ] **CREATE-05**: Progress bars during pull and checksum computation (THE-881)
-- [ ] **CREATE-06**: Proper errors for missing skopeo, invalid image ref, existing output dir (THE-881)
+- [x] **CREATE-05**: Progress bars during pull and checksum computation (THE-881)
+- [x] **CREATE-06**: Proper errors for missing skopeo, invalid image ref, existing output dir (THE-881)
 
 ### Verify Command
 
@@ -79,12 +79,12 @@ Requirements for the `edgeworks-bundle` CLI tool. Each maps to roadmap phases.
 | MNFST-02 | Phase 4 | Complete |
 | MNFST-03 | Phase 4 | Complete |
 | MNFST-04 | Phase 4 | Complete |
-| CREATE-01 | Phase 5 | Pending |
-| CREATE-02 | Phase 5 | Pending |
-| CREATE-03 | Phase 5 | Pending |
+| CREATE-01 | Phase 5 | Complete |
+| CREATE-02 | Phase 5 | Complete |
+| CREATE-03 | Phase 5 | Complete |
 | CREATE-04 | Phase 5 | Pending |
-| CREATE-05 | Phase 5 | Pending |
-| CREATE-06 | Phase 5 | Pending |
+| CREATE-05 | Phase 5 | Complete |
+| CREATE-06 | Phase 5 | Complete |
 | VERIFY-01 | Phase 6 | Pending |
 | VERIFY-02 | Phase 6 | Pending |
 | VERIFY-03 | Phase 6 | Pending |
