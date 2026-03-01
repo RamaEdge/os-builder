@@ -37,10 +37,10 @@ Requirements for the `edgeworks-bundle` CLI tool. Each maps to roadmap phases.
 
 ### Inspect Command
 
-- [ ] **INSP-01**: Displays all manifest fields in human-readable format (THE-883)
-- [ ] **INSP-02**: `--json` outputs manifest as JSON (THE-883)
-- [ ] **INSP-03**: Fast — no checksum computation (THE-883)
-- [ ] **INSP-04**: Proper error if manifest missing or malformed (THE-883)
+- [x] **INSP-01**: Displays all manifest fields in human-readable format (THE-883)
+- [x] **INSP-02**: `--json` outputs manifest as JSON (THE-883)
+- [x] **INSP-03**: Fast — no checksum computation (THE-883)
+- [x] **INSP-04**: Proper error if manifest missing or malformed (THE-883)
 
 ### CI/CD
 
@@ -89,10 +89,10 @@ Requirements for the `edgeworks-bundle` CLI tool. Each maps to roadmap phases.
 | VERIFY-02 | Phase 6 | Complete |
 | VERIFY-03 | Phase 6 | Complete |
 | VERIFY-04 | Phase 6 | Complete |
-| INSP-01 | Phase 6 | Pending |
-| INSP-02 | Phase 6 | Pending |
-| INSP-03 | Phase 6 | Pending |
-| INSP-04 | Phase 6 | Pending |
+| INSP-01 | Phase 6 | Complete |
+| INSP-02 | Phase 6 | Complete |
+| INSP-03 | Phase 6 | Complete |
+| INSP-04 | Phase 6 | Complete |
 | CI-01 | Phase 7 | Pending |
 | CI-02 | Phase 7 | Pending |
 | CI-03 | Phase 7 | Pending |
