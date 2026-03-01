@@ -95,6 +95,14 @@ None - no external service configuration required.
 - create, verify, and inspect stub commands can now reference full types (currently they just use BundleError for return type)
 - Ready for 04-03: implement `create` command using skopeo to pull images and write manifest.json
 
+## Self-Check: PASSED
+
+- FOUND: crates/bundle-cli/src/manifest.rs
+- FOUND: crates/bundle-cli/src/error.rs
+- FOUND: .planning/phases/04-foundation/04-02-SUMMARY.md
+- FOUND commit: 82dea4a (feat: implement types)
+- All 7 tests pass: cargo test exits 0
+
 ---
 *Phase: 04-foundation*
 *Completed: 2026-03-01*
