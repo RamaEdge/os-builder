@@ -9,8 +9,8 @@ Requirements for the `edgeworks-bundle` CLI tool. Each maps to roadmap phases.
 
 ### Scaffolding
 
-- [ ] **SCAF-01**: Cargo crate at `crates/bundle-cli/` compiles with all dependencies (THE-879)
-- [ ] **SCAF-02**: CLI entry point shows subcommands (`create`, `verify`, `inspect`) and `--json` global flag (THE-879)
+- [x] **SCAF-01**: Cargo crate at `crates/bundle-cli/` compiles with all dependencies (THE-879)
+- [x] **SCAF-02**: CLI entry point shows subcommands (`create`, `verify`, `inspect`) and `--json` global flag (THE-879)
 
 ### Manifest & Errors
 
@@ -73,8 +73,8 @@ Requirements for the `edgeworks-bundle` CLI tool. Each maps to roadmap phases.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SCAF-01 | Phase 4 | Pending |
-| SCAF-02 | Phase 4 | Pending |
+| SCAF-01 | Phase 4 | Complete |
+| SCAF-02 | Phase 4 | Complete |
 | MNFST-01 | Phase 4 | Pending |
 | MNFST-02 | Phase 4 | Pending |
 | MNFST-03 | Phase 4 | Pending |

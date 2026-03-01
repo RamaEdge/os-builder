@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Bundle CLI
-status: ready_to_plan
-last_updated: "2026-03-01T18:00:00.000Z"
+status: in_progress
+last_updated: "2026-03-01T18:02:00.000Z"
 progress:
   total_phases: 4
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 2
+  completed_plans: 1
 ---
 
 # Project State
@@ -23,24 +23,24 @@ See: .planning/PROJECT.md (updated 2026-03-01)
 ## Current Position
 
 Phase: 4 of 7 (Foundation)
-Plan: — of — (not yet planned)
-Status: Ready to plan
-Last activity: 2026-03-01 — Roadmap created for v1.1 Bundle CLI
+Plan: 1 of 2 (04-01 complete — 04-02 next)
+Status: In progress
+Last activity: 2026-03-01 — Completed 04-01: edgeworks-bundle crate scaffold + CLI entry point
 
-Progress: [░░░░░░░░░░] 0% (v1.1)
+Progress: [█░░░░░░░░░] 10% (v1.1)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 0 (v1.1)
-- Average duration: —
-- Total execution time: —
+- Total plans completed: 1 (v1.1)
+- Average duration: ~2 min
+- Total execution time: ~2 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| - | - | - | - |
+| 04-foundation | 1 | ~2 min | ~2 min |
 
 *Updated after each plan completion*
 
@@ -51,6 +51,11 @@ Progress: [░░░░░░░░░░] 0% (v1.1)
 All v1.0 decisions logged in PROJECT.md Key Decisions table. All marked Good.
 
 v1.1 design authority: `docs/bundle-cli-design.md` — bundle format, CLI commands, data types, CI integration.
+
+**04-01 decisions:**
+- Standalone Cargo project (not workspace) for bundle-cli independence
+- Global `--json` flag via `#[arg(long, global = true)]` on top-level Cli struct
+- Stub functions use `todo!()` so `cargo build` passes but runtime is obviously incomplete
 
 ### Pending Todos
 
@@ -63,5 +68,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-01
-Stopped at: Roadmap created — ready to plan Phase 4
+Stopped at: Completed 04-01-PLAN.md — edgeworks-bundle crate scaffolded and compiling
 Resume file: None

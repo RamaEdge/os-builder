@@ -40,7 +40,7 @@ See: `.planning/milestones/v1.0-ROADMAP.md` for full details.
   4. All `BundleError` variants format descriptive human-readable messages
   5. Unit tests for manifest parsing pass — valid input, missing fields, unknown schema version
 **Plans**: 2 plans
-- [ ] 04-01-PLAN.md — Cargo crate scaffolding + CLI entry point with subcommands
+- [x] 04-01-PLAN.md — Cargo crate scaffolding + CLI entry point with subcommands (2026-03-01)
 - [ ] 04-02-PLAN.md — Manifest types, error types, and unit tests (TDD)
 
 ### Phase 5: Create Command
@@ -89,7 +89,7 @@ See: `.planning/milestones/v1.0-ROADMAP.md` for full details.
 | 1. Containerfile + Offline | v1.0 | 4/4 | Complete | 2026-03-01 |
 | 2. Cleanup | v1.0 | 2/2 | Complete | 2026-03-01 |
 | 3. CI | v1.0 | 1/1 | Complete | 2026-03-01 |
-| 4. Foundation | v1.1 | 0/? | Not started | - |
+| 4. Foundation | v1.1 | 1/2 | In progress | - |
 | 5. Create Command | v1.1 | 0/? | Not started | - |
 | 6. Verify + Inspect | v1.1 | 0/2 | Planned | - |
 | 7. CI/CD Integration | v1.1 | 0/? | Not started | - |
