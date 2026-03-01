@@ -14,10 +14,10 @@ Requirements for the `edgeworks-bundle` CLI tool. Each maps to roadmap phases.
 
 ### Manifest & Errors
 
-- [ ] **MNFST-01**: `BundleManifest` and `BundleImage` structs round-trip through serde_json (THE-880)
-- [ ] **MNFST-02**: `manifest.json` output matches schema in design doc §2.2 (THE-880)
-- [ ] **MNFST-03**: All `BundleError` variants produce descriptive messages (THE-880)
-- [ ] **MNFST-04**: Unit tests for manifest parsing — valid, missing fields, unknown schema version (THE-880)
+- [x] **MNFST-01**: `BundleManifest` and `BundleImage` structs round-trip through serde_json (THE-880)
+- [x] **MNFST-02**: `manifest.json` output matches schema in design doc §2.2 (THE-880)
+- [x] **MNFST-03**: All `BundleError` variants produce descriptive messages (THE-880)
+- [x] **MNFST-04**: Unit tests for manifest parsing — valid, missing fields, unknown schema version (THE-880)
 
 ### Create Command
 
@@ -75,10 +75,10 @@ Requirements for the `edgeworks-bundle` CLI tool. Each maps to roadmap phases.
 |-------------|-------|--------|
 | SCAF-01 | Phase 4 | Complete |
 | SCAF-02 | Phase 4 | Complete |
-| MNFST-01 | Phase 4 | Pending |
-| MNFST-02 | Phase 4 | Pending |
-| MNFST-03 | Phase 4 | Pending |
-| MNFST-04 | Phase 4 | Pending |
+| MNFST-01 | Phase 4 | Complete |
+| MNFST-02 | Phase 4 | Complete |
+| MNFST-03 | Phase 4 | Complete |
+| MNFST-04 | Phase 4 | Complete |
 | CREATE-01 | Phase 5 | Pending |
 | CREATE-02 | Phase 5 | Pending |
 | CREATE-03 | Phase 5 | Pending |

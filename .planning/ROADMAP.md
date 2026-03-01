@@ -22,7 +22,7 @@ See: `.planning/milestones/v1.0-ROADMAP.md` for full details.
 
 **Milestone Goal:** Build the `edgeworks-bundle` Rust CLI tool — create, verify, and inspect offline update bundles for air-gapped edge devices.
 
-- [ ] **Phase 4: Foundation** - Cargo crate, manifest types, and error handling
+- [x] **Phase 4: Foundation** - Cargo crate, manifest types, and error handling (2026-03-01)
 - [ ] **Phase 5: Create Command** - Pull image via skopeo and write a valid bundle directory
 - [ ] **Phase 6: Verify + Inspect Commands** - Validate bundle integrity and display metadata
 - [ ] **Phase 7: CI/CD Integration** - Makefile targets, GitHub Actions pipeline, release artifact
@@ -41,7 +41,7 @@ See: `.planning/milestones/v1.0-ROADMAP.md` for full details.
   5. Unit tests for manifest parsing pass — valid input, missing fields, unknown schema version
 **Plans**: 2 plans
 - [x] 04-01-PLAN.md — Cargo crate scaffolding + CLI entry point with subcommands (2026-03-01)
-- [ ] 04-02-PLAN.md — Manifest types, error types, and unit tests (TDD)
+- [x] 04-02-PLAN.md — Manifest types, error types, and unit tests (TDD) (2026-03-01)
 
 ### Phase 5: Create Command
 **Goal**: Users can run `edgeworks-bundle create` to produce a valid, verifiable bundle directory from an OCI image reference
@@ -89,7 +89,7 @@ See: `.planning/milestones/v1.0-ROADMAP.md` for full details.
 | 1. Containerfile + Offline | v1.0 | 4/4 | Complete | 2026-03-01 |
 | 2. Cleanup | v1.0 | 2/2 | Complete | 2026-03-01 |
 | 3. CI | v1.0 | 1/1 | Complete | 2026-03-01 |
-| 4. Foundation | v1.1 | 1/2 | In progress | - |
+| 4. Foundation | v1.1 | 2/2 | Complete | 2026-03-01 |
 | 5. Create Command | v1.1 | 0/? | Not started | - |
 | 6. Verify + Inspect | v1.1 | 0/2 | Planned | - |
 | 7. CI/CD Integration | v1.1 | 0/? | Not started | - |

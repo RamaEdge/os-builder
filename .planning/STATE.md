@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Bundle CLI
 status: in_progress
-last_updated: "2026-03-01T18:02:00.000Z"
+last_updated: "2026-03-01T18:15:00.000Z"
 progress:
   total_phases: 4
   completed_phases: 0
   total_plans: 2
-  completed_plans: 1
+  completed_plans: 2
 ---
 
 # Project State
@@ -23,24 +23,24 @@ See: .planning/PROJECT.md (updated 2026-03-01)
 ## Current Position
 
 Phase: 4 of 7 (Foundation)
-Plan: 1 of 2 (04-01 complete — 04-02 next)
+Plan: 2 of 2 (04-02 complete — phase 04 complete)
 Status: In progress
-Last activity: 2026-03-01 — Completed 04-01: edgeworks-bundle crate scaffold + CLI entry point
+Last activity: 2026-03-01 — Completed 04-02: BundleManifest, BundleImage, BundleError types with 7 unit tests
 
-Progress: [█░░░░░░░░░] 10% (v1.1)
+Progress: [██░░░░░░░░] 20% (v1.1)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 1 (v1.1)
-- Average duration: ~2 min
-- Total execution time: ~2 min
+- Total plans completed: 2 (v1.1)
+- Average duration: ~3.5 min
+- Total execution time: ~7 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 04-foundation | 1 | ~2 min | ~2 min |
+| 04-foundation | 2 | ~7 min | ~3.5 min |
 
 *Updated after each plan completion*
 
@@ -57,6 +57,11 @@ v1.1 design authority: `docs/bundle-cli-design.md` — bundle format, CLI comman
 - Global `--json` flag via `#[arg(long, global = true)]` on top-level Cli struct
 - Stub functions use `todo!()` so `cargo build` passes but runtime is obviously incomplete
 
+**04-02 decisions:**
+- `BundleManifest.notes` uses `#[serde(default)]` so missing field deserializes to empty string per §2.2
+- Removed stub `NotImplemented` variant — replaced with 10 production variants from design doc §4.2
+- Unknown schema versions parse via serde successfully — version validation deferred to application logic in create/verify commands
+
 ### Pending Todos
 
 None.
@@ -68,5 +73,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-01
-Stopped at: Completed 04-01-PLAN.md — edgeworks-bundle crate scaffolded and compiling
+Stopped at: Completed 04-02-PLAN.md — BundleManifest, BundleImage, BundleError types with 7 unit tests
 Resume file: None
