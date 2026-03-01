@@ -6,19 +6,13 @@ set -euo pipefail
 # Configuration
 IMAGE_NAME="${IMAGE_NAME:-localhost/fedora-edge-os}"
 IMAGE_TAG="${IMAGE_TAG:-latest}"
-CONTAINERFILE="${CONTAINERFILE:-Containerfile.k3s}"
+CONTAINERFILE="${CONTAINERFILE:-Containerfile.microshift}"
 CONTAINER_RUNTIME="${CONTAINER_RUNTIME:-podman}"
 
 # Version configuration (passed from Makefile via environment variables)
-K3S_VERSION="${K3S_VERSION}"
 OTEL_VERSION="${OTEL_VERSION}"
-MICROSHIFT_VERSION="${MICROSHIFT_VERSION:-release-4.19}"
 FEDORA_VERSION="${FEDORA_VERSION}"
 BOOTC_VERSION="${BOOTC_VERSION}"
-CNI_VERSION="${CNI_VERSION}"
-
-# MicroShift specific
-MICROSHIFT_IMAGE_BASE="${MICROSHIFT_IMAGE_BASE:-ghcr.io/ramaedge/microshift-builder}"
 
 # Colors for output
 GREEN='\033[0;32m'
@@ -51,7 +45,7 @@ get_git_metadata() {
 build_image() {
     info "Building: ${IMAGE_NAME}:${IMAGE_TAG}"
     info "Using: ${CONTAINER_RUNTIME}"
-    info "Versions: K3s=${K3S_VERSION}, OTEL=${OTEL_VERSION}, Fedora=${FEDORA_VERSION}, CNI=${CNI_VERSION}"
+    info "Versions: OTEL=${OTEL_VERSION}, Fedora=${FEDORA_VERSION}"
     
     cd "$(dirname "$0")"
     
@@ -72,27 +66,14 @@ build_image() {
     BUILD_CMD="$BUILD_CMD --build-arg VERSION=${IMAGE_TAG}"
     
     # Version arguments from centralized versions.txt
-    BUILD_CMD="$BUILD_CMD --build-arg K3S_VERSION=${K3S_VERSION}"
     BUILD_CMD="$BUILD_CMD --build-arg OTEL_VERSION=${OTEL_VERSION}"
     BUILD_CMD="$BUILD_CMD --build-arg FEDORA_VERSION=${FEDORA_VERSION}"
     BUILD_CMD="$BUILD_CMD --build-arg BOOTC_VERSION=${BOOTC_VERSION}"
-    BUILD_CMD="$BUILD_CMD --build-arg CNI_VERSION=${CNI_VERSION}"
     
     # Labels (removed created label to prevent cache invalidation)
     BUILD_CMD="$BUILD_CMD --label org.opencontainers.image.version=${IMAGE_TAG}"
     BUILD_CMD="$BUILD_CMD --label org.opencontainers.image.revision=${git_commit}"
     BUILD_CMD="$BUILD_CMD --label org.opencontainers.image.source=${git_repo_url}"
-    
-    # MicroShift-specific args
-    if [[ "$CONTAINERFILE" == *"microshift"* ]] || [[ "$CONTAINERFILE" == *"fedora.optimized"* ]]; then
-        BUILD_CMD="$BUILD_CMD --build-arg MICROSHIFT_VERSION=${MICROSHIFT_VERSION}"
-        BUILD_CMD="$BUILD_CMD --build-arg MICROSHIFT_IMAGE_BASE=${MICROSHIFT_IMAGE_BASE}"
-        BUILD_CMD="$BUILD_CMD --label microshift.version=${MICROSHIFT_VERSION}"
-        info "MicroShift build: ${MICROSHIFT_VERSION}"
-    else
-        BUILD_CMD="$BUILD_CMD --label k3s.distribution=k3s"
-        info "K3s build"
-    fi
     
     BUILD_CMD="$BUILD_CMD ."
     
@@ -136,13 +117,11 @@ if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
     echo "Environment variables:"
     echo "  IMAGE_NAME         - Image name (default: localhost/fedora-edge-os)"
     echo "  IMAGE_TAG          - Image tag (default: latest)"
-    echo "  CONTAINERFILE      - Containerfile path (default: Containerfile.k3s)"
+    echo "  CONTAINERFILE      - Containerfile path (default: Containerfile.microshift)"
     echo "  CONTAINER_RUNTIME  - Runtime (default: podman)"
     echo ""
     echo "Version variables (passed from Makefile via versions.txt):"
-    echo "  K3S_VERSION        - K3s version"
     echo "  OTEL_VERSION       - OpenTelemetry version"
-    echo "  MICROSHIFT_VERSION - MicroShift version"
     echo "  FEDORA_VERSION     - Fedora version"
     echo ""
     echo "Examples:"
