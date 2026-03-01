@@ -87,9 +87,9 @@ COPY configs/containers/ /etc/containers/
 COPY configs/otelcol/ /etc/otelcol/
 COPY configs/microshift/ /etc/microshift/
 COPY manifests/ /etc/microshift/manifests/
+COPY manifests/manifests.d/ /usr/lib/microshift/manifests.d/
 COPY systemd/edge-setup.service /usr/lib/systemd/system/
 COPY systemd/otelcol.service /usr/lib/systemd/system/
-COPY systemd/observability-deploy.service /usr/lib/systemd/system/
 COPY systemd/microshift-kubeconfig-setup.service /usr/lib/systemd/system/
 COPY systemd/bootc-fetch-apply-updates.timer.d/ /usr/lib/systemd/system/bootc-fetch-apply-updates.timer.d/
 COPY scripts/edge-setup.sh /usr/local/bin/
@@ -100,7 +100,7 @@ COPY scripts/health-check.sh /usr/local/bin/
 # NOTE: Do NOT enable microshift-make-rshared.service — RPM postinstall does that too.
 RUN chmod +x /usr/local/bin/*.sh 2>/dev/null || true && \
     systemctl enable sshd chronyd systemd-resolved podman.socket crio \
-                    otelcol edge-setup.service observability-deploy.service \
+                    otelcol edge-setup.service \
                     microshift-kubeconfig-setup.service \
                     bootc-fetch-apply-updates.timer 2>/dev/null || true && \
     firewall-offline-cmd --add-service=ssh \

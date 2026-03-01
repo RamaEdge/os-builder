@@ -38,8 +38,10 @@ ingress:
 # Cluster monitoring and observability
 manifests:
   kustomizePaths:
-    - /usr/share/microshift/manifests
+    - /usr/lib/microshift/manifests
+    - /usr/lib/microshift/manifests.d/*
     - /etc/microshift/manifests
+    - /etc/microshift/manifests.d/*
 
 # Log verbosity (0-10, higher is more verbose)
 debugging:
