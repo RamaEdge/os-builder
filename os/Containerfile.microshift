@@ -50,6 +50,8 @@ RUN dnf copr enable -y @microshift-io/microshift-nightly && \
 # images are always repopulated before MicroShift starts.
 # =============================================================================
 
+COPY configs/edgeworks-images.txt /usr/share/edgeworks/image-list.txt
+
 # UID/GID mapping required for skopeo during container build
 RUN echo "root:1:65536" >> /etc/subuid && \
     echo "root:1:65536" >> /etc/subgid
