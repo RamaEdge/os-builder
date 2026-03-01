@@ -7,13 +7,13 @@ branding:
 
 inputs:
   version-key:
-    description: 'The version key to update (e.g., K3S_VERSION)'
+    description: 'The version key to update (e.g., OTEL_VERSION)'
     required: true
   new-version:
     description: 'The new version value'
     required: true
   component-name:
-    description: 'Human-readable component name (e.g., K3s)'
+    description: 'Human-readable component name (e.g., OpenTelemetry)'
     required: true
 
 outputs:

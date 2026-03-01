@@ -12,7 +12,6 @@ CONTAINER_RUNTIME="${CONTAINER_RUNTIME:-podman}"
 # Version configuration (passed from Makefile via environment variables)
 OTEL_VERSION="${OTEL_VERSION}"
 FEDORA_VERSION="${FEDORA_VERSION}"
-BOOTC_VERSION="${BOOTC_VERSION}"
 
 # Colors for output
 GREEN='\033[0;32m'
@@ -68,7 +67,6 @@ build_image() {
     # Version arguments from centralized versions.txt
     BUILD_CMD="$BUILD_CMD --build-arg OTEL_VERSION=${OTEL_VERSION}"
     BUILD_CMD="$BUILD_CMD --build-arg FEDORA_VERSION=${FEDORA_VERSION}"
-    BUILD_CMD="$BUILD_CMD --build-arg BOOTC_VERSION=${BOOTC_VERSION}"
     
     # Labels (removed created label to prevent cache invalidation)
     BUILD_CMD="$BUILD_CMD --label org.opencontainers.image.version=${IMAGE_TAG}"

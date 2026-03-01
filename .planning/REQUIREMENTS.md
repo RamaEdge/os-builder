@@ -38,7 +38,7 @@ Requirements for MicroShift migration. Each maps to roadmap phases.
 - [x] **SIMP-01**: edge-setup.sh contains only OS-level first-boot config (hostname, SSH, journald, log rotation, auto-update, NTP)
 - [x] **SIMP-02**: Makefile has single `build` target using `Containerfile.microshift`, no K3s/MicroShift version variables
 - [x] **SIMP-03**: build.sh has no K3s detection branch
-- [x] **SIMP-04**: versions.txt contains only OTEL_VERSION, FEDORA_VERSION, BOOTC_VERSION
+- [x] **SIMP-04**: versions.txt contains only OTEL_VERSION, FEDORA_VERSION
 
 ### CI/CD
 

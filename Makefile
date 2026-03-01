@@ -11,7 +11,6 @@ REGISTRY ?= harbor.local
 # Load version configuration from centralized file
 OTEL_VERSION ?= $(shell grep '^OTEL_VERSION=' versions.txt | cut -d'=' -f2)
 FEDORA_VERSION ?= $(shell grep '^FEDORA_VERSION=' versions.txt | cut -d'=' -f2)
-BOOTC_VERSION ?= $(shell grep '^BOOTC_VERSION=' versions.txt | cut -d'=' -f2)
 
 # Build metadata
 GIT_SHA := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
