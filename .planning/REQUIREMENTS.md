@@ -30,10 +30,10 @@ Requirements for the `edgeworks-bundle` CLI tool. Each maps to roadmap phases.
 
 ### Verify Command
 
-- [ ] **VERIFY-01**: All 6 integrity checks implemented (schema, checksums file, tarball exists, SHA256 match, size match, schema version) (THE-882)
-- [ ] **VERIFY-02**: Correct exit codes — 0 valid, 1 failed, 2 not found (THE-882)
-- [ ] **VERIFY-03**: Human and JSON output modes (THE-882)
-- [ ] **VERIFY-04**: Tests: valid bundle passes, corrupted checksum fails, missing file fails, bad schema fails (THE-882)
+- [x] **VERIFY-01**: All 6 integrity checks implemented (schema, checksums file, tarball exists, SHA256 match, size match, schema version) (THE-882)
+- [x] **VERIFY-02**: Correct exit codes — 0 valid, 1 failed, 2 not found (THE-882)
+- [x] **VERIFY-03**: Human and JSON output modes (THE-882)
+- [x] **VERIFY-04**: Tests: valid bundle passes, corrupted checksum fails, missing file fails, bad schema fails (THE-882)
 
 ### Inspect Command
 
@@ -85,10 +85,10 @@ Requirements for the `edgeworks-bundle` CLI tool. Each maps to roadmap phases.
 | CREATE-04 | Phase 5 | Complete |
 | CREATE-05 | Phase 5 | Complete |
 | CREATE-06 | Phase 5 | Complete |
-| VERIFY-01 | Phase 6 | Pending |
-| VERIFY-02 | Phase 6 | Pending |
-| VERIFY-03 | Phase 6 | Pending |
-| VERIFY-04 | Phase 6 | Pending |
+| VERIFY-01 | Phase 6 | Complete |
+| VERIFY-02 | Phase 6 | Complete |
+| VERIFY-03 | Phase 6 | Complete |
+| VERIFY-04 | Phase 6 | Complete |
 | INSP-01 | Phase 6 | Pending |
 | INSP-02 | Phase 6 | Pending |
 | INSP-03 | Phase 6 | Pending |

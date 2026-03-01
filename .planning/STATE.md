@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Bundle CLI
 status: unknown
-last_updated: "2026-03-01T18:18:36.000Z"
+last_updated: "2026-03-01T18:21:32.000Z"
 progress:
   total_phases: 4
   completed_phases: 2
   total_plans: 8
-  completed_plans: 4
+  completed_plans: 5
 ---
 
 # Project State
@@ -18,16 +18,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-01)
 
 **Core value:** Edge devices boot fully functional with all MicroShift system pods and edgeworks application pods running — without any network connectivity.
-**Current focus:** Phase 5 — Create command (skopeo pull, SHA256, bundle output)
+**Current focus:** Phase 6 — Verify + Inspect commands
 
 ## Current Position
 
-Phase: 5 of 7 (Create command)
-Plan: 2 of 3 (05-02 complete — JSON output mode and integration tests)
+Phase: 6 of 7 (Verify + Inspect)
+Plan: 1 of 2 (06-01 complete — verify subcommand with 6 checks and 11 tests)
 Status: In progress
-Last activity: 2026-03-01 — Completed 05-02: JSON output mode, CreateOutput struct, 5 integration tests
+Last activity: 2026-03-01 — Completed 06-01: verify subcommand, run_verify(), human/JSON formatters, 11 tests
 
-Progress: [████░░░░░░] 40% (v1.1)
+Progress: [█████░░░░░] 50% (v1.1)
 
 ## Performance Metrics
 
@@ -42,6 +42,7 @@ Progress: [████░░░░░░] 40% (v1.1)
 |-------|-------|-------|----------|
 | 04-foundation | 2 | ~7 min | ~3.5 min |
 | 05-create-command | 2 | ~5 min | ~2.5 min |
+| 06-verify-inspect | 1 | ~2.5 min | ~2.5 min |
 
 *Updated after each plan completion*
 
@@ -72,6 +73,12 @@ v1.1 design authority: `docs/bundle-cli-design.md` — bundle format, CLI comman
 - assert_cmd::cargo::cargo_bin_cmd! macro used (non-deprecated) instead of Command::cargo_bin()
 - std::fs::canonicalize() with fallback for absolute output path in JSON success output
 
+**06-01 decisions:**
+- run_verify returns Err only for missing dir (exit 2); Ok(invalid) for logical failures (exit 1)
+- VerifyResult accumulates all checks so human/JSON formatters share one source of truth
+- Checks abort early on manifest parse/schema failure (later checks depend on a valid manifest)
+- format_verify_human uses [OK] / [FAIL] tags matching design doc §3.2 exactly
+
 ### Pending Todos
 
 None.
@@ -83,5 +90,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-01
-Stopped at: Completed 05-02-PLAN.md — JSON output mode, CreateOutput struct, integration tests
+Stopped at: Completed 06-01-PLAN.md — verify subcommand, run_verify(), human/JSON formatters, 11 tests
 Resume file: None
