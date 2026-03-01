@@ -3,18 +3,15 @@
 # =============================================================================
 # Configuration
 # =============================================================================
-IMAGE_NAME ?= harbor.local/ramaedge/os-k3s
+IMAGE_NAME ?= harbor.local/ramaedge/os-microshift
 IMAGE_TAG ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "latest")
-CONTAINERFILE ?= os/Containerfile.k3s
+CONTAINERFILE ?= os/Containerfile.microshift
 REGISTRY ?= harbor.local
 
 # Load version configuration from centralized file
-K3S_VERSION ?= $(shell grep '^K3S_VERSION=' versions.txt | cut -d'=' -f2)
 OTEL_VERSION ?= $(shell grep '^OTEL_VERSION=' versions.txt | cut -d'=' -f2)
-MICROSHIFT_VERSION ?= $(shell grep '^MICROSHIFT_VERSION=' versions.txt | cut -d'=' -f2)
 FEDORA_VERSION ?= $(shell grep '^FEDORA_VERSION=' versions.txt | cut -d'=' -f2)
 BOOTC_VERSION ?= $(shell grep '^BOOTC_VERSION=' versions.txt | cut -d'=' -f2)
-CNI_VERSION ?= $(shell grep '^CNI_VERSION=' versions.txt | cut -d'=' -f2)
 
 # Build metadata
 GIT_SHA := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
@@ -49,7 +46,7 @@ ISO_DIR := iso-output
 TRIVY_ENV := TRIVY_SKIP_CHECK_UPDATE=true TRIVY_CLOUD_DISABLE=true TRIVY_SCANNERS=vuln
 
 # Common targets
-.PHONY: help build build-microshift test test-k3s test-microshift test-bootc test-all clean push pull info scan sbom
+.PHONY: help build test test-microshift test-bootc test-all clean push pull info scan sbom
 .PHONY: install-deps install-trivy install-syft disk-image build-iso
 
 # =============================================================================
@@ -58,8 +55,8 @@ TRIVY_ENV := TRIVY_SKIP_CHECK_UPDATE=true TRIVY_CLOUD_DISABLE=true TRIVY_SCANNER
 help:
 	@echo "Fedora bootc Container Image Builder"
 	@echo ""
-	@echo "Build:      build, build-microshift"
-	@echo "Test:       test, test-k3s, test-microshift, test-bootc, test-all"
+	@echo "Build:      build"
+	@echo "Test:       test, test-microshift, test-bootc, test-all"
 	@echo "Security:   scan, sbom"
 	@echo "Deploy:     push, pull, disk-image, build-iso"
 	@echo "Install:    install-deps, install-trivy, install-syft"
@@ -70,14 +67,10 @@ help:
 	@echo "            CONTAINER_RUNTIME=$(CONTAINER_RUNTIME)"
 	@echo "            TEST_TYPE=$(TEST_TYPE)"
 	@echo ""
-	@echo "Versions:   K3S_VERSION=$(K3S_VERSION)"
-	@echo "            OTEL_VERSION=$(OTEL_VERSION)"
-	@echo "            MICROSHIFT_VERSION=$(MICROSHIFT_VERSION)"
+	@echo "Versions:   OTEL_VERSION=$(OTEL_VERSION)"
 	@echo "            FEDORA_VERSION=$(FEDORA_VERSION)"
-	@echo "            CNI_VERSION=$(CNI_VERSION)"
 	@echo ""
 	@echo "Examples:   make build IMAGE_TAG=v1.0.0"
-	@echo "            make test TEST_TYPE=k3s"
 	@echo "            make scan TRIVY_SEVERITY=CRITICAL,HIGH,MEDIUM"
 
 # =============================================================================
@@ -111,47 +104,23 @@ endef
 # =============================================================================
 build:
 	@echo "🔨 Building $(IMAGE_NAME):$(IMAGE_TAG) with $(CONTAINER_RUNTIME)..."
-	@echo "📋 Using versions: K3S=$(K3S_VERSION), OTEL=$(OTEL_VERSION), CNI=$(CNI_VERSION)"
+	@echo "📋 Using versions: OTEL=$(OTEL_VERSION), Fedora=$(FEDORA_VERSION)"
 	@chmod +x os/build.sh
 	@cd os && \
 	CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" \
 	IMAGE_NAME="$(IMAGE_NAME)" \
 	IMAGE_TAG="$(IMAGE_TAG)" \
-	CONTAINERFILE="$(notdir $(CONTAINERFILE))" \
-	K3S_VERSION="$(K3S_VERSION)" \
+	CONTAINERFILE="Containerfile.microshift" \
 	OTEL_VERSION="$(OTEL_VERSION)" \
 	FEDORA_VERSION="$(FEDORA_VERSION)" \
-	BOOTC_VERSION="$(BOOTC_VERSION)" \
-	CNI_VERSION="$(CNI_VERSION)" \
 	GIT_SHA="$(GIT_SHA)" \
-	BUILD_DATE="$(BUILD_DATE)" \
-	./build.sh
-
-build-microshift:
-	@echo "🔨 Building MicroShift image with $(CONTAINER_RUNTIME)..."
-	@echo "📋 Using versions: MicroShift=$(MICROSHIFT_VERSION), Fedora=$(FEDORA_VERSION)"
-	@test -f os/Containerfile.fedora.optimized || (echo "❌ Missing MicroShift Containerfile" && exit 1)
-	@chmod +x os/build.sh
-	@cd os && \
-	CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" \
-	IMAGE_NAME="$(IMAGE_NAME)" \
-	IMAGE_TAG="$(IMAGE_TAG)" \
-	CONTAINERFILE="Containerfile.fedora.optimized" \
-	MICROSHIFT_VERSION="$(MICROSHIFT_VERSION)" \
-	FEDORA_VERSION="$(FEDORA_VERSION)" \
-	BOOTC_VERSION="$(BOOTC_VERSION)" \
-	K3S_VERSION="$(K3S_VERSION)" \
-	OTEL_VERSION="$(OTEL_VERSION)" \
-	GIT_SHA="$(GIT_SHA)" \
-	BUILD_DATE="$(BUILD_DATE)" \
-	MICROSHIFT_IMAGE_BASE="$(REGISTRY)/ramaedge/microshift-builder" \
 	./build.sh
 
 # =============================================================================
 # Test and Info Targets
 # =============================================================================
 # Test type configuration
-TEST_TYPE ?= k3s
+TEST_TYPE ?= microshift
 
 test:
 	@echo "🧪 Testing container image with comprehensive test suite..."
@@ -161,9 +130,6 @@ test:
 	chmod +x .github/actions/test-container/test-container.sh; \
 	.github/actions/test-container/test-container.sh "$$TARGET_IMAGE" "$(TEST_TYPE)"
 
-test-k3s:
-	@$(MAKE) test TEST_TYPE=k3s
-
 test-microshift:
 	@$(MAKE) test TEST_TYPE=microshift
 
@@ -172,8 +138,7 @@ test-bootc:
 
 test-all:
 	@echo "🧪 Running all test types..."
-	@$(MAKE) test-k3s || true
-	@$(MAKE) test-microshift || true  
+	@$(MAKE) test-microshift || true
 	@$(MAKE) test-bootc || true
 
 info:

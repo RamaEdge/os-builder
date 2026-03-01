@@ -1,19 +1,28 @@
 name: Build MicroShift OS
 
 on:
+  push:
+    branches: ['main']
+    paths: ['os/**']
+  pull_request:
+    branches: ['main']
+    paths: ['os/**']
+  schedule:
+    - cron: '0 1 * * Fri'
   workflow_dispatch:
     inputs:
-      microshift_version:
-        description: 'MicroShift Version (default: release-4.19)'
-        default: 'release-4.19'
       iso_config:
         description: 'ISO Configuration'
         default: 'user'
         type: choice
-        options: ['minimal', 'user', 'advanced', 'interactive']
+        options: ['minimal', 'user', 'advanced', 'interactive', 'production']
       build_iso:
-        description: 'Build ISO'
+        description: 'Build ISO images'
         default: true
+        type: boolean
+      force_rebuild:
+        description: 'Force rebuild (ignore cache)'
+        default: false
         type: boolean
 
 # Centralized environment configuration
@@ -21,7 +30,7 @@ env:
   IMAGE_NAME: ramaedge/os-microshift
   REGISTRY: harbor.local
   REPO_OWNER: ramaedge
-  CONTAINERFILE: Containerfile.fedora.optimized
+  CONTAINERFILE: Containerfile.microshift
   SCAN_SEVERITY: CRITICAL,HIGH,MEDIUM
 
 jobs:
@@ -30,7 +39,7 @@ jobs:
     name: Build & Test MicroShift OS
     runs-on: ubuntu-22.04
     outputs:
-      image-ref: ${{ steps.build.outputs.local-tag }}
+      image-ref: ${{ steps.build.outputs.image-ref }}
       version: ${{ steps.version.outputs.version }}
     permissions:
       contents: read
@@ -65,7 +74,7 @@ jobs:
           containerfile: ${{ env.CONTAINERFILE }}
           registry: ${{ env.REGISTRY }}
           repository-owner: ${{ env.REPO_OWNER }}
-          microshift-version: ${{ github.event.inputs.microshift_version || steps.versions.outputs.microshift-version }}
+          otel-version: ${{ steps.versions.outputs.otel-version }}
           fedora-version: ${{ steps.versions.outputs.fedora-version }}
 
       - name: Security scan
@@ -104,24 +113,24 @@ jobs:
         run: |
           LOCAL_IMAGE="${{ needs.build-scan-test.outputs.image-ref }}"
           HARBOR_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build-scan-test.outputs.version }}"
-          
-          echo "🏷️  Tagging image for Harbor registry..."
+
+          echo "Tagging image for Harbor registry..."
           echo "Source: $LOCAL_IMAGE"
           echo "Target: $HARBOR_IMAGE"
-          
+
           podman tag "$LOCAL_IMAGE" "$HARBOR_IMAGE"
-          
-          echo "⬆️  Pushing to Harbor registry..."
+
+          echo "Pushing to Harbor registry..."
           podman push "$HARBOR_IMAGE"
-          
-          echo "✅ Successfully pushed: $HARBOR_IMAGE"
+
+          echo "Successfully pushed: $HARBOR_IMAGE"
 
   # Conditional ISO build
   build-iso:
     name: Build MicroShift ISO
     runs-on: ubuntu-22.04
     needs: build-scan-test
-    if: github.event.inputs.build_iso == 'true'
+    if: github.event.inputs.build_iso == 'true' || (github.event_name == 'schedule')
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
