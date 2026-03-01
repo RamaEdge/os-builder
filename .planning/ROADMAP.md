@@ -93,4 +93,4 @@ See: `.planning/milestones/v1.0-ROADMAP.md` for full details.
 | 4. Foundation | v1.1 | 2/2 | Complete | 2026-03-01 |
 | 5. Create Command | 2/2 | Complete   | 2026-03-01 | - |
 | 6. Verify + Inspect | 2/2 | Complete   | 2026-03-01 | - |
-| 7. CI/CD Integration | v1.1 | 1/1 | Complete | 2026-03-01 |
+| 7. CI/CD Integration | 2/2 | Complete   | 2026-03-01 | 2026-03-01 |

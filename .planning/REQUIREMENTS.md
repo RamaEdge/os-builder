@@ -46,8 +46,8 @@ Requirements for the `edgeworks-bundle` CLI tool. Each maps to roadmap phases.
 
 - [x] **CI-01**: `make bundle-cli` builds the release binary (THE-884)
 - [x] **CI-02**: `make bundle-cli-test` runs all tests (THE-884)
-- [ ] **CI-03**: CI pipeline builds and tests the bundle CLI (THE-884)
-- [ ] **CI-04**: Release binary available as CI artifact (THE-884)
+- [x] **CI-03**: CI pipeline builds and tests the bundle CLI (THE-884)
+- [x] **CI-04**: Release binary available as CI artifact (THE-884)
 
 ## Future Requirements
 
@@ -95,8 +95,8 @@ Requirements for the `edgeworks-bundle` CLI tool. Each maps to roadmap phases.
 | INSP-04 | Phase 6 | Complete |
 | CI-01 | Phase 7 | Complete |
 | CI-02 | Phase 7 | Complete |
-| CI-03 | Phase 7 | Pending |
-| CI-04 | Phase 7 | Pending |
+| CI-03 | Phase 7 | Complete |
+| CI-04 | Phase 7 | Complete |
 
 **Coverage:**
 - v1.1 requirements: 22 total
