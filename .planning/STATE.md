@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Bundle CLI
-status: in_progress
-last_updated: "2026-03-01T18:15:00.000Z"
+status: unknown
+last_updated: "2026-03-01T18:07:37.544Z"
 progress:
   total_phases: 4
-  completed_phases: 0
-  total_plans: 2
+  completed_phases: 1
+  total_plans: 8
   completed_plans: 2
 ---
 
