@@ -63,7 +63,27 @@ fn main() {
         Commands::Create { image, output, notes, target_device } => {
             create::run(image, output, notes, target_device, cli.json)
         }
-        Commands::Verify { path } => verify::run(path),
+        Commands::Verify { path } => {
+            match verify::run_verify(path) {
+                Ok(result) => {
+                    if cli.json {
+                        print!("{}", verify::format_verify_json(&result, path));
+                    } else {
+                        print!("{}", verify::format_verify_human(&result, path));
+                    }
+                    if result.valid {
+                        std::process::exit(0);
+                    } else {
+                        std::process::exit(1);
+                    }
+                }
+                Err(e) => {
+                    // Bundle directory not found -> exit 2
+                    eprintln!("Error: {e}");
+                    std::process::exit(2);
+                }
+            }
+        }
         Commands::Inspect { path } => inspect::run(path),
     };
 
