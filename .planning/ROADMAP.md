@@ -39,7 +39,9 @@ See: `.planning/milestones/v1.0-ROADMAP.md` for full details.
   3. `BundleManifest` and `BundleImage` structs round-trip through `serde_json` (serialize then deserialize without data loss)
   4. All `BundleError` variants format descriptive human-readable messages
   5. Unit tests for manifest parsing pass — valid input, missing fields, unknown schema version
-**Plans**: TBD
+**Plans**: 2 plans
+- [ ] 04-01-PLAN.md — Cargo crate scaffolding + CLI entry point with subcommands
+- [ ] 04-02-PLAN.md — Manifest types, error types, and unit tests (TDD)
 
 ### Phase 5: Create Command
 **Goal**: Users can run `edgeworks-bundle create` to produce a valid, verifiable bundle directory from an OCI image reference
