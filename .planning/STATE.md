@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Bundle CLI
 status: unknown
-last_updated: "2026-03-01T18:21:32.000Z"
+last_updated: "2026-03-01T18:26:19.924Z"
 progress:
   total_phases: 4
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 8
-  completed_plans: 5
+  completed_plans: 6
 ---
 
 # Project State
@@ -18,16 +18,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-01)
 
 **Core value:** Edge devices boot fully functional with all MicroShift system pods and edgeworks application pods running — without any network connectivity.
-**Current focus:** Phase 6 — Verify + Inspect commands
+**Current focus:** Phase 7 — Integration + End-to-End tests
 
 ## Current Position
 
-Phase: 6 of 7 (Verify + Inspect)
-Plan: 1 of 2 (06-01 complete — verify subcommand with 6 checks and 11 tests)
+Phase: 6 of 7 (Verify + Inspect) — COMPLETE
+Plan: 2 of 2 (06-02 complete — inspect subcommand with human/JSON output, 8 tests)
 Status: In progress
-Last activity: 2026-03-01 — Completed 06-01: verify subcommand, run_verify(), human/JSON formatters, 11 tests
+Last activity: 2026-03-01 — Completed 06-02: inspect subcommand, run_inspect(), human/JSON formatters, 8 tests
 
-Progress: [█████░░░░░] 50% (v1.1)
+Progress: [███████░░░] 75% (v1.1)
 
 ## Performance Metrics
 
@@ -42,9 +42,10 @@ Progress: [█████░░░░░] 50% (v1.1)
 |-------|-------|-------|----------|
 | 04-foundation | 2 | ~7 min | ~3.5 min |
 | 05-create-command | 2 | ~5 min | ~2.5 min |
-| 06-verify-inspect | 1 | ~2.5 min | ~2.5 min |
+| 06-verify-inspect | 2 | ~4 min | ~2 min |
 
 *Updated after each plan completion*
+| Phase 06-verify-inspect P02 | 90 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -78,6 +79,9 @@ v1.1 design authority: `docs/bundle-cli-design.md` — bundle format, CLI comman
 - VerifyResult accumulates all checks so human/JSON formatters share one source of truth
 - Checks abort early on manifest parse/schema failure (later checks depend on a valid manifest)
 - format_verify_human uses [OK] / [FAIL] tags matching design doc §3.2 exactly
+- [Phase 06-verify-inspect]: run_inspect returns Err(ManifestNotFound) for both nonexistent directory and missing manifest, mapping both to exit 2
+- [Phase 06-verify-inspect]: format_size helper duplicated in inspect.rs (not extracted to shared module) - kept self-contained, deferred to future refactor
+- [Phase 06-verify-inspect]: Empty notes field displays as '—' for consistency rather than omitting the line
 
 ### Pending Todos
 
@@ -90,5 +94,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-01
-Stopped at: Completed 06-01-PLAN.md — verify subcommand, run_verify(), human/JSON formatters, 11 tests
+Stopped at: Completed 06-02-PLAN.md — inspect subcommand, run_inspect(), human/JSON formatters, 8 tests
 Resume file: None
