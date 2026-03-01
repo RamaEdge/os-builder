@@ -1,0 +1,108 @@
+# Requirements: Bundle CLI
+
+**Defined:** 2026-03-01
+**Core Value:** Edge devices boot fully functional with all MicroShift system pods and edgeworks application pods running — without any network connectivity.
+
+## v1.1 Requirements
+
+Requirements for the `edgeworks-bundle` CLI tool. Each maps to roadmap phases.
+
+### Scaffolding
+
+- [ ] **SCAF-01**: Cargo crate at `crates/bundle-cli/` compiles with all dependencies (THE-879)
+- [ ] **SCAF-02**: CLI entry point shows subcommands (`create`, `verify`, `inspect`) and `--json` global flag (THE-879)
+
+### Manifest & Errors
+
+- [ ] **MNFST-01**: `BundleManifest` and `BundleImage` structs round-trip through serde_json (THE-880)
+- [ ] **MNFST-02**: `manifest.json` output matches schema in design doc §2.2 (THE-880)
+- [ ] **MNFST-03**: All `BundleError` variants produce descriptive messages (THE-880)
+- [ ] **MNFST-04**: Unit tests for manifest parsing — valid, missing fields, unknown schema version (THE-880)
+
+### Create Command
+
+- [ ] **CREATE-01**: `create` pulls image via skopeo and produces valid bundle directory (THE-881)
+- [ ] **CREATE-02**: Bundle directory structure matches spec: 3 files (manifest.json, checksums.sha256, .oci.tar) (THE-881)
+- [ ] **CREATE-03**: `checksums.sha256` verifiable with `sha256sum -c` (THE-881)
+- [ ] **CREATE-04**: `--json` produces machine-readable output (THE-881)
+- [ ] **CREATE-05**: Progress bars during pull and checksum computation (THE-881)
+- [ ] **CREATE-06**: Proper errors for missing skopeo, invalid image ref, existing output dir (THE-881)
+
+### Verify Command
+
+- [ ] **VERIFY-01**: All 6 integrity checks implemented (schema, checksums file, tarball exists, SHA256 match, size match, schema version) (THE-882)
+- [ ] **VERIFY-02**: Correct exit codes — 0 valid, 1 failed, 2 not found (THE-882)
+- [ ] **VERIFY-03**: Human and JSON output modes (THE-882)
+- [ ] **VERIFY-04**: Tests: valid bundle passes, corrupted checksum fails, missing file fails, bad schema fails (THE-882)
+
+### Inspect Command
+
+- [ ] **INSP-01**: Displays all manifest fields in human-readable format (THE-883)
+- [ ] **INSP-02**: `--json` outputs manifest as JSON (THE-883)
+- [ ] **INSP-03**: Fast — no checksum computation (THE-883)
+- [ ] **INSP-04**: Proper error if manifest missing or malformed (THE-883)
+
+### CI/CD
+
+- [ ] **CI-01**: `make bundle-cli` builds the release binary (THE-884)
+- [ ] **CI-02**: `make bundle-cli-test` runs all tests (THE-884)
+- [ ] **CI-03**: CI pipeline builds and tests the bundle CLI (THE-884)
+- [ ] **CI-04**: Release binary available as CI artifact (THE-884)
+
+## Future Requirements
+
+### Bundle Security (Phase 2)
+
+- **SEC-01**: GPG signing of manifest.json
+- **SEC-02**: Version enforcement / downgrade prevention
+- **SEC-03**: Multi-arch bundle support
+- **SEC-04**: Delta bundles (layer diffing)
+
+## Out of Scope
+
+| Feature | Reason |
+|---------|--------|
+| GPG signing | Deferred to future — design doc §9 |
+| Version enforcement / downgrade prevention | Deferred to future — design doc §9 |
+| Multi-arch bundles | Deferred to future — design doc §9 |
+| Delta bundles (layer diffing) | Deferred to future — design doc §9 |
+| Runtime component on device | Bundle CLI is a workstation/CI tool only |
+| Multi-image bundles | Single bootc image model per design doc §1 |
+
+## Traceability
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| SCAF-01 | — | Pending |
+| SCAF-02 | — | Pending |
+| MNFST-01 | — | Pending |
+| MNFST-02 | — | Pending |
+| MNFST-03 | — | Pending |
+| MNFST-04 | — | Pending |
+| CREATE-01 | — | Pending |
+| CREATE-02 | — | Pending |
+| CREATE-03 | — | Pending |
+| CREATE-04 | — | Pending |
+| CREATE-05 | — | Pending |
+| CREATE-06 | — | Pending |
+| VERIFY-01 | — | Pending |
+| VERIFY-02 | — | Pending |
+| VERIFY-03 | — | Pending |
+| VERIFY-04 | — | Pending |
+| INSP-01 | — | Pending |
+| INSP-02 | — | Pending |
+| INSP-03 | — | Pending |
+| INSP-04 | — | Pending |
+| CI-01 | — | Pending |
+| CI-02 | — | Pending |
+| CI-03 | — | Pending |
+| CI-04 | — | Pending |
+
+**Coverage:**
+- v1.1 requirements: 22 total
+- Mapped to phases: 0
+- Unmapped: 22 (pending roadmap creation)
+
+---
+*Requirements defined: 2026-03-01*
+*Last updated: 2026-03-01 after initial definition*
