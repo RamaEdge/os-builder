@@ -1,5 +1,5 @@
 name: 'Load Version Configuration'
-description: 'Load version configuration from centralized versions.txt file'
+description: 'Load version configuration from centralized versions.json file'
 author: 'os-builder'
 branding:
   icon: 'tag'
@@ -12,6 +12,9 @@ outputs:
   fedora-version:
     description: 'Fedora version'
     value: ${{ steps.versions.outputs.fedora-version }}
+  microshift-version:
+    description: 'MicroShift version'
+    value: ${{ steps.versions.outputs.microshift-version }}
 
 runs:
   using: 'composite'
@@ -20,19 +23,22 @@ runs:
       id: versions
       shell: bash
       run: |
-        echo "Loading versions from versions.txt..."
+        echo "Loading versions from versions.json..."
 
-        if [ ! -f "versions.txt" ]; then
-          echo "versions.txt not found!"
+        if [ ! -f "versions.json" ]; then
+          echo "versions.json not found!"
           exit 1
         fi
 
-        # Source the file and export outputs
-        source versions.txt
+        OTEL_VERSION=$(jq -r '.components.otel_collector' versions.json)
+        FEDORA_VERSION=$(jq -r '.base.fedora' versions.json)
+        MICROSHIFT_VERSION=$(jq -r '.components.microshift' versions.json)
 
         echo "otel-version=${OTEL_VERSION}" >> $GITHUB_OUTPUT
         echo "fedora-version=${FEDORA_VERSION}" >> $GITHUB_OUTPUT
+        echo "microshift-version=${MICROSHIFT_VERSION}" >> $GITHUB_OUTPUT
 
         echo "Loaded versions:"
         echo "  OpenTelemetry: ${OTEL_VERSION}"
         echo "  Fedora: ${FEDORA_VERSION}"
+        echo "  MicroShift: ${MICROSHIFT_VERSION}"

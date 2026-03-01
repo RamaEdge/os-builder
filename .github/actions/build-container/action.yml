@@ -133,6 +133,21 @@ runs:
           LABELS="$LABELS --label org.opencontainers.image.created=$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
           LABELS="$LABELS --label containerfile.hash=$CONTAINERFILE_HASH"
           
+          # Locate registry auth file and copy into .build/ for build secrets
+          mkdir -p .build
+          AUTH_FILE="${XDG_RUNTIME_DIR}/containers/auth.json"
+          [ ! -f "$AUTH_FILE" ] && AUTH_FILE="${HOME}/.config/containers/auth.json"
+          [ ! -f "$AUTH_FILE" ] && AUTH_FILE="${HOME}/.docker/config.json"
+
+          SECRET_ARG=""
+          if [ -f "$AUTH_FILE" ]; then
+            cp "$AUTH_FILE" .build/registry-auth.json
+            SECRET_ARG="--secret id=registry-auth,src=.build/registry-auth.json"
+            echo "🔑 Passing registry auth as build secret"
+          else
+            echo "⚠️ No registry auth file found, private registry pulls may fail"
+          fi
+
           # Build image
           podman build \
             -f ${{ inputs.containerfile }} \
@@ -140,6 +155,7 @@ runs:
             $BUILD_ARGS \
             $CACHE_FROM \
             $LABELS \
+            $SECRET_ARG \
             --jobs=4 \
             .
         fi

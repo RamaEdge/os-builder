@@ -21,6 +21,13 @@ log() {
     echo "[embed-microshift-images] $*"
 }
 
+# Registry auth file (mounted as build secret, never baked into image)
+AUTHFILE_ARGS=""
+if [ -n "${REGISTRY_AUTH_FILE:-}" ] && [ -f "${REGISTRY_AUTH_FILE}" ]; then
+    AUTHFILE_ARGS="--authfile ${REGISTRY_AUTH_FILE}"
+    log "Using registry auth from ${REGISTRY_AUTH_FILE}"
+fi
+
 # --- Root check ---
 if [ "$(id -u)" -ne 0 ]; then
     echo "ERROR: This script must run as root" >&2
@@ -71,7 +78,7 @@ for manifest in ${RELEASE_FILES}; do
         else
             log "PULL: ${img}"
             mkdir -p "${DEST}"
-            if skopeo copy --all --preserve-digests \
+            if skopeo copy --all --preserve-digests ${AUTHFILE_ARGS} \
                 "docker://${img}" "dir:${DEST}"; then
                 PULLED=$((PULLED + 1))
             else
@@ -106,7 +113,7 @@ if [ -f "${APP_IMAGE_LIST}" ]; then
         else
             log "PULL: ${img}"
             mkdir -p "${DEST}"
-            if skopeo copy --all --preserve-digests \
+            if skopeo copy --all --preserve-digests ${AUTHFILE_ARGS} \
                 "docker://${img}" "dir:${DEST}"; then
                 PULLED=$((PULLED + 1))
             else

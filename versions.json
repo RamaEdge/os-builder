@@ -1,0 +1,30 @@
+{
+  "base": {
+    "fedora": "43",
+    "bootc_image": "quay.io/fedora/fedora-bootc"
+  },
+  "components": {
+    "microshift": "4.21.0_g29f429c21_4.21.0_okd_scos.ec.15",
+    "otel_collector": "0.127.0"
+  },
+  "images": {
+    "edgeworks": {
+      "edge_supervisor": "harbor.theedgeworks.ai/edgeworks/edge-supervisor:latest",
+      "edge_governor": "harbor.theedgeworks.ai/edgeworks/edge-governor:latest",
+      "event_journal": "harbor.theedgeworks.ai/edgeworks/event-journal:latest",
+      "source_registry": "harbor.theedgeworks.ai/edgeworks/source-registry:latest",
+      "stream_runtime": "harbor.theedgeworks.ai/edgeworks/stream-runtime:latest",
+      "query_api": "harbor.theedgeworks.ai/edgeworks/query-api:latest",
+      "edge_management_api": "harbor.theedgeworks.ai/edgeworks/edge-management-api:latest",
+      "edgeworks_ui": "harbor.theedgeworks.ai/edgeworks/edgeworks-ui:latest",
+      "opcua_adapter": "harbor.theedgeworks.ai/edgeworks/opcua-adapter:latest"
+    },
+    "infra": {
+      "dex": "ghcr.io/dexidp/dex:latest",
+      "cert_manager_cainjector": "quay.io/jetstack/cert-manager-cainjector:v1.19.2",
+      "cert_manager_controller": "quay.io/jetstack/cert-manager-controller:v1.19.2",
+      "cert_manager_webhook": "quay.io/jetstack/cert-manager-webhook:v1.19.2",
+      "otel_collector_contrib": "otel/opentelemetry-collector-contrib:latest"
+    }
+  }
+}

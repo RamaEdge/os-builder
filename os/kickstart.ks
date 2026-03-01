@@ -1,324 +1,313 @@
-# Interactive Kickstart Configuration for Fedora bootc
-# This kickstart file provides interactive installation with user customization options
+# Kickstart for Fedora bootc Edge OS
+# Install-time concerns only — OS configuration lives in the container image.
+#
+# Usage with bootc-image-builder:
+#   Embed this in a TOML config under [customizations.installer.kickstart].contents
+#   The ostreecontainer directive is auto-injected — do NOT add it here.
+#
+# What this handles:
+#   - Disk partitioning (with optional LUKS2 encryption)
+#   - First-boot user creation via systemd-firstboot
+#   - Optional TPM2 auto-unlock enrollment
+#
+# What the container image handles (NOT here):
+#   - Packages, services, SSH hardening, firewall, sysctl, storage.conf
 
-# Use text mode installation but allow interaction
+# Installation mode
 text
 
-# Language and keyboard
+# Localization
 lang en_US.UTF-8
 keyboard us
+timezone --utc UTC
 
-# Network configuration - interactive
-# This will prompt user for network configuration during installation
-network --bootproto=dhcp --device=link --activate --onboot=on --hostname=fedora-bootc
+# Networking — DHCP on first available link
+network --bootproto=dhcp --device=link --activate --onboot=on
 
-# Time zone (can be changed during installation)
-timezone --utc America/New_York
-
-# Interactive user creation
-# The installer will prompt for user details during installation
-user --name=bootc-user --groups=wheel --plaintext --password=changeme
-
-# Root password (will be prompted during installation)
+# Lock root — user creation deferred to first boot
 rootpw --lock
 
-# Security and authentication
-authselect select sssd
+# SELinux (matches container image)
 selinux --enforcing
 
-# Services
-services --enabled=sshd,chronyd,systemd-networkd,systemd-resolved
-services --disabled=kdump
+# Reboot after installation
+reboot --eject
 
-# Firewall
-firewall --enabled --ssh
-
-# Interactive partitioning
-# This provides a menu for users to customize their disk layout
-%include /tmp/part-include
-
-# Pre-installation script to create interactive partitioning menu
-%pre --interpreter=/bin/bash
+# =============================================================================
+# Pre-installation: detect disk and offer partitioning choices
+# =============================================================================
+%pre --interpreter=/bin/bash --log=/tmp/ks-pre.log
 #!/bin/bash
+set -euo pipefail
 
-# Create interactive partitioning configuration
-cat > /tmp/part-include << 'EOF'
-# Clear all partitions
-clearpart --all --initlabel --disklabel=gpt
+# Detect available disks
+mapfile -t DISKS < <(lsblk -dno NAME,SIZE,TYPE | grep disk | awk '{print $1, $2}')
 
-# Create boot partitions
-reqpart --add-boot
-
-# Interactive partitioning menu will be presented here
-# Users can choose from predefined layouts or custom partitioning
-
-# Default layout if no interaction
-part / --grow --fstype=xfs --label=root
-EOF
-
-# Display partitioning options to user
-clear
-echo "==================================="
-echo "Fedora bootc Interactive Installer"
-echo "==================================="
-echo ""
-echo "Choose your disk partitioning layout:"
-echo ""
-echo "1) Simple Layout (Recommended)"
-echo "   - Single root partition (XFS)"
-echo "   - Automatic sizing"
-echo ""
-echo "2) Advanced Layout" 
-echo "   - Separate /home partition"
-echo "   - Separate /var partition"
-echo "   - Custom sizing"
-echo ""
-echo "3) Developer Layout"
-echo "   - Separate /home, /var, /opt partitions"
-echo "   - Extra space for containers"
-echo ""
-echo "4) Custom Layout"
-echo "   - Manual partitioning"
-echo ""
-
-while true; do
-    echo -n "Enter your choice (1-4): "
-    read choice
-    case $choice in
-        1)
-            echo "Creating simple layout..."
-            cat > /tmp/part-include << 'EOF'
-clearpart --all --initlabel --disklabel=gpt
-reqpart --add-boot
-part / --grow --fstype=xfs --label=root --size=8192
-EOF
-            break
-            ;;
-        2)
-            echo "Creating advanced layout..."
-            cat > /tmp/part-include << 'EOF'
-clearpart --all --initlabel --disklabel=gpt
-reqpart --add-boot
-part / --fstype=xfs --label=root --size=10240
-part /home --fstype=xfs --label=home --size=10240
-part /var --fstype=xfs --label=var --size=8192 --grow
-EOF
-            break
-            ;;
-        3)
-            echo "Creating developer layout..."
-            cat > /tmp/part-include << 'EOF'
-clearpart --all --initlabel --disklabel=gpt
-reqpart --add-boot
-part / --fstype=xfs --label=root --size=12288
-part /home --fstype=xfs --label=home --size=20480
-part /var --fstype=xfs --label=var --size=10240
-part /opt --fstype=xfs --label=opt --size=8192 --grow
-EOF
-            break
-            ;;
-        4)
-            echo "Manual partitioning will be available during installation."
-            cat > /tmp/part-include << 'EOF'
-clearpart --all --initlabel --disklabel=gpt
-reqpart --add-boot
-# Manual partitioning - installer will prompt
-EOF
-            break
-            ;;
-        *)
-            echo "Invalid choice. Please enter 1, 2, 3, or 4."
-            ;;
-    esac
-done
-
-echo ""
-echo "Partitioning layout configured."
-echo "Installation will continue..."
-echo ""
-
-%end
-
-# Post-installation script for additional configuration
-%post --interpreter=/bin/bash
-#!/bin/bash
-
-# Security hardening - deployment-specific configuration
-echo "Applying security hardening..."
-
-# File permission hardening
-find /usr /etc -xdev -type f -perm -0002 -exec chmod o-w {} \; 2>/dev/null || true
-find /usr /etc -xdev -type d -perm -0002 -exec chmod o-w {} \; 2>/dev/null || true
-
-# Secure sensitive files
-chmod 600 /etc/ssh/ssh_host_*_key 2>/dev/null || true
-chmod 644 /etc/ssh/ssh_host_*_key.pub 2>/dev/null || true
-chmod 600 /etc/ssh/sshd_config 2>/dev/null || true
-chmod 644 /etc/passwd /etc/group
-chmod 640 /etc/shadow /etc/gshadow
-
-# Remove unnecessary system accounts (if they exist)
-for user in games ftp; do
-    if id "$user" &>/dev/null; then
-        userdel -r "$user" 2>/dev/null || true
-    fi
-done
-
-# Remove unnecessary groups
-for group in games; do
-    if getent group "$group" &>/dev/null; then
-        groupdel "$group" 2>/dev/null || true
-    fi
-done
-
-# Secure kernel parameters
-cat >> /etc/sysctl.d/99-security.conf << 'EOF'
-# Network security
-net.ipv4.ip_forward = 1
-net.ipv4.conf.all.send_redirects = 0
-net.ipv4.conf.default.send_redirects = 0
-net.ipv4.conf.all.accept_redirects = 0
-net.ipv4.conf.default.accept_redirects = 0
-net.ipv4.conf.all.accept_source_route = 0
-net.ipv4.conf.default.accept_source_route = 0
-net.ipv4.conf.all.log_martians = 1
-net.ipv4.conf.default.log_martians = 1
-net.ipv4.icmp_echo_ignore_broadcasts = 1
-net.ipv4.icmp_ignore_bogus_error_responses = 1
-net.ipv4.tcp_syncookies = 1
-
-# Memory protection
-kernel.dmesg_restrict = 1
-kernel.kptr_restrict = 1
-kernel.yama.ptrace_scope = 1
-EOF
-
-# Configure SSH security
-sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
-sed -i 's/#PermitRootLogin yes/PermitRootLogin no/' /etc/ssh/sshd_config
-sed -i 's/#MaxAuthTries 6/MaxAuthTries 3/' /etc/ssh/sshd_config
-echo "AllowGroups wheel" >> /etc/ssh/sshd_config
-
-# Create welcome message
-cat > /etc/motd << 'EOF'
-==========================================
-Welcome to Fedora bootc Edge OS
-==========================================
-
-This system was installed using an interactive
-Kickstart configuration with your custom settings.
-
-Default user: bootc-user (member of wheel group)
-SSH access: Enabled
-Container runtime: Podman (pre-installed)
-Kubernetes: MicroShift (available)
-
-For more information:
-- Check system status: bootc status
-- View container images: podman images
-- MicroShift status: systemctl status microshift
-
-To get started:
-- sudo systemctl enable --now microshift
-- export KUBECONFIG=/var/lib/microshift/resources/kubeadmin/kubeconfig
-
-==========================================
-EOF
-
-# Enable and configure essential services
-systemctl enable sshd
-systemctl enable chronyd
-
-# Configure container storage
-mkdir -p /etc/containers
-cat > /etc/containers/storage.conf << 'EOF'
-[storage]
-driver = "overlay"
-runroot = "/run/containers/storage"
-graphroot = "/var/lib/containers/storage"
-
-[storage.options]
-additionalimagestores = [
-]
-
-[storage.options.overlay]
-mountopt = "nodev,metacopy=on"
-EOF
-
-# Set up sudoers for wheel group
-echo "%wheel ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/wheel-nopasswd
-
-# Configure NetworkManager for better container networking
-cat > /etc/NetworkManager/conf.d/cni.conf << 'EOF'
-[main]
-dns=none
-
-[logging]
-level=INFO
-EOF
-
-# Create startup script for first boot configuration
-cat > /usr/local/bin/first-boot-setup.sh << 'EOF'
-#!/bin/bash
-# First boot setup script
-
-echo "==================================="
-echo "Fedora bootc First Boot Setup"
-echo "==================================="
-echo ""
-
-# Check if this is the first boot
-if [ ! -f /var/lib/first-boot-done ]; then
-    echo "Performing first boot setup..."
-    
-    # Update bootc
-    bootc upgrade --check || true
-    
-    # Pull essential container images
-    echo "Pulling essential container images..."
-    systemctl --user enable --now podman.socket || true
-    
-    # Mark first boot as done
-    touch /var/lib/first-boot-done
-    
-    echo "First boot setup completed!"
-else
-    echo "System already configured."
+if [ ${#DISKS[@]} -eq 0 ]; then
+    echo "ERROR: No disks found" >&2
+    exit 1
 fi
 
 echo ""
-echo "System ready for use!"
-echo "==================================="
-EOF
+echo "============================================"
+echo "  Fedora bootc Edge OS — Disk Setup"
+echo "============================================"
+echo ""
 
-chmod +x /usr/local/bin/first-boot-setup.sh
+# Show available disks
+echo "Available disks:"
+i=1
+for disk in "${DISKS[@]}"; do
+    echo "  $i) /dev/$disk"
+    i=$((i + 1))
+done
+echo ""
 
-# Create systemd service for first boot
-cat > /etc/systemd/system/first-boot-setup.service << 'EOF'
-[Unit]
-Description=First Boot Setup
-After=network-online.target
-Wants=network-online.target
-ConditionPathExists=!/var/lib/first-boot-done
+# Select disk
+if [ ${#DISKS[@]} -eq 1 ]; then
+    TARGET_DISK="/dev/$(echo "${DISKS[0]}" | awk '{print $1}')"
+    echo "Using only available disk: $TARGET_DISK"
+else
+    while true; do
+        echo -n "Select disk (1-${#DISKS[@]}): "
+        read -r choice
+        if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -le ${#DISKS[@]} ]; then
+            TARGET_DISK="/dev/$(echo "${DISKS[$((choice - 1))]}" | awk '{print $1}')"
+            break
+        fi
+        echo "Invalid choice."
+    done
+fi
 
-[Service]
-Type=oneshot
-ExecStart=/usr/local/bin/first-boot-setup.sh
-RemainAfterExit=yes
-StandardOutput=journal+console
+echo ""
+echo "Selected disk: $TARGET_DISK"
 
-[Install]
-WantedBy=multi-user.target
-EOF
+# Ask about encryption
+echo ""
+echo "Disk encryption:"
+echo "  1) No encryption"
+echo "  2) LUKS2 encryption (passphrase required at boot)"
+echo "  3) LUKS2 + TPM2 auto-unlock (requires TPM2 hardware)"
+echo ""
 
-systemctl enable first-boot-setup.service
+while true; do
+    echo -n "Choose encryption (1-3) [1]: "
+    read -r enc_choice
+    enc_choice=${enc_choice:-1}
+    case $enc_choice in
+        1|2|3) break ;;
+        *) echo "Invalid choice." ;;
+    esac
+done
 
-echo "Post-installation configuration completed."
+# If encrypting, get passphrase
+LUKS_PASS=""
+if [ "$enc_choice" != "1" ]; then
+    while true; do
+        echo -n "Enter LUKS passphrase: "
+        read -rs pass1
+        echo ""
+        echo -n "Confirm passphrase: "
+        read -rs pass2
+        echo ""
+        if [ "$pass1" = "$pass2" ] && [ -n "$pass1" ]; then
+            LUKS_PASS="$pass1"
+            break
+        fi
+        echo "Passwords don't match or are empty. Try again."
+    done
+fi
 
+# Write partitioning config
+if [ "$enc_choice" = "1" ]; then
+    cat > /tmp/part-include << PARTEOF
+ignoredisk --only-use=${TARGET_DISK##*/}
+zerombr
+clearpart --all --initlabel --disklabel=gpt --drives=${TARGET_DISK##*/}
+reqpart --add-boot
+part / --grow --fstype=xfs
+PARTEOF
+else
+    cat > /tmp/part-include << PARTEOF
+ignoredisk --only-use=${TARGET_DISK##*/}
+zerombr
+clearpart --all --initlabel --disklabel=gpt --drives=${TARGET_DISK##*/}
+reqpart --add-boot
+part / --grow --fstype=xfs --encrypted --luks-version=luks2 --passphrase=${LUKS_PASS}
+PARTEOF
+fi
+
+# Save encryption choice for %post
+echo "$enc_choice" > /tmp/enc-choice
+echo "$TARGET_DISK" > /tmp/target-disk
+
+echo ""
+echo "Disk configuration complete. Proceeding with installation..."
+echo ""
 %end
 
-# Package selection is handled by the bootc container image
-# No %packages section needed as we're installing a container image
+# Include the partitioning config generated by %pre
+%include /tmp/part-include
 
-# Reboot after installation
-reboot --eject 
+# =============================================================================
+# Post-installation: user setup and optional TPM2 enrollment
+# =============================================================================
+%post --interpreter=/bin/bash --log=/root/ks-post.log
+#!/bin/bash
+set -euo pipefail
+
+echo "============================================"
+echo "  Post-Installation Configuration"
+echo "============================================"
+echo ""
+
+# --- Hostname ---
+echo -n "Hostname [edge-device]: "
+read -r hostname_input
+hostname_input=${hostname_input:-edge-device}
+hostnamectl set-hostname "$hostname_input"
+echo "Hostname set to: $hostname_input"
+echo ""
+
+# --- User creation ---
+echo "Create your admin user account:"
+echo ""
+
+while true; do
+    echo -n "Username: "
+    read -r username
+    if [[ "$username" =~ ^[a-z_][a-z0-9_-]*$ ]] && [ -n "$username" ]; then
+        break
+    fi
+    echo "Invalid username. Use lowercase letters, numbers, hyphens, underscores."
+done
+
+while true; do
+    echo -n "Password: "
+    read -rs pass1
+    echo ""
+    echo -n "Confirm password: "
+    read -rs pass2
+    echo ""
+    if [ "$pass1" = "$pass2" ] && [ ${#pass1} -ge 8 ]; then
+        break
+    fi
+    echo "Passwords don't match or are too short (minimum 8 characters)."
+done
+
+# Create the user with wheel group
+useradd -m -G wheel "$username"
+echo "${username}:${pass1}" | chpasswd
+
+echo ""
+echo "User '$username' created with sudo access."
+
+# SSH key (optional)
+echo ""
+echo -n "Paste SSH public key (or press Enter to skip): "
+read -r ssh_key
+if [ -n "$ssh_key" ]; then
+    mkdir -p "/home/${username}/.ssh"
+    echo "$ssh_key" > "/home/${username}/.ssh/authorized_keys"
+    chmod 700 "/home/${username}/.ssh"
+    chmod 600 "/home/${username}/.ssh/authorized_keys"
+    chown -R "${username}:${username}" "/home/${username}/.ssh"
+    echo "SSH key installed."
+
+    # Harden SSH — safe now that a key is in place
+    cat > /etc/ssh/sshd_config.d/99-edge-security.conf << 'SSHEOF'
+PermitRootLogin no
+PasswordAuthentication no
+PubkeyAuthentication yes
+ChallengeResponseAuthentication no
+UsePAM yes
+X11Forwarding no
+ClientAliveInterval 300
+ClientAliveCountMax 2
+MaxAuthTries 3
+SSHEOF
+    echo "SSH hardened (password auth disabled, key-only)."
+else
+    echo "No SSH key provided — password authentication remains enabled."
+fi
+
+# --- TPM2 enrollment (if LUKS + TPM2 was selected) ---
+ENC_CHOICE=$(cat /tmp/enc-choice 2>/dev/null || echo "1")
+
+if [ "$ENC_CHOICE" = "3" ]; then
+    echo ""
+    echo "Enrolling TPM2 for LUKS auto-unlock..."
+
+    # Find the LUKS device
+    LUKS_DEV=$(blkid -t TYPE=crypto_LUKS -o device 2>/dev/null | head -1)
+
+    if [ -z "$LUKS_DEV" ]; then
+        echo "WARNING: No LUKS device found. Skipping TPM2 enrollment."
+    elif [ ! -e /dev/tpmrm0 ] && [ ! -e /dev/tpm0 ]; then
+        echo "WARNING: No TPM2 device found. Skipping TPM2 enrollment."
+        echo "You can enroll manually after boot with:"
+        echo "  sudo systemd-cryptenroll --tpm2-device=auto --tpm2-pcrs=0+2+4+7 $LUKS_DEV"
+    else
+        # Enroll TPM2 with PCRs: firmware(0), option ROMs(2), bootloader(4), secure boot(7)
+        LUKS_PASS=$(cat /tmp/target-disk 2>/dev/null || true)
+        if systemd-cryptenroll \
+            --tpm2-device=auto \
+            --tpm2-pcrs=0+2+4+7 \
+            "$LUKS_DEV" 2>&1; then
+            echo "TPM2 enrollment successful."
+            echo "The disk will auto-unlock on boot if the boot chain is unchanged."
+            echo ""
+            echo "NOTE: Firmware updates or Secure Boot changes will require the"
+            echo "passphrase and re-enrollment with:"
+            echo "  sudo systemd-cryptenroll --wipe-slot=tpm2 --tpm2-device=auto --tpm2-pcrs=0+2+4+7 $LUKS_DEV"
+
+            # Regenerate initramfs to include TPM2 unlock support
+            dracut -fv --regenerate-all 2>&1 || echo "WARNING: dracut regeneration failed"
+        else
+            echo "WARNING: TPM2 enrollment failed."
+            echo "The disk will require the passphrase at every boot."
+            echo "You can retry after boot with:"
+            echo "  sudo systemd-cryptenroll --tpm2-device=auto --tpm2-pcrs=0+2+4+7 $LUKS_DEV"
+        fi
+    fi
+fi
+
+# --- System configuration ---
+# Journald limits for edge
+mkdir -p /etc/systemd/journald.conf.d
+cat > /etc/systemd/journald.conf.d/edge.conf << 'JEOF'
+[Journal]
+SystemMaxUse=100M
+RuntimeMaxUse=50M
+MaxRetentionSec=1week
+JEOF
+
+# Log rotation
+cat > /etc/logrotate.d/edge-logs << 'LEOF'
+/var/log/*.log {
+    daily
+    missingok
+    rotate 7
+    compress
+    delaycompress
+    notifempty
+}
+LEOF
+
+# Enable NTP
+timedatectl set-ntp true
+
+# Cleanup temporary files
+rm -f /tmp/enc-choice /tmp/target-disk /tmp/part-include
+
+echo ""
+echo "============================================"
+echo "  Installation complete!"
+echo "  The system will reboot now."
+echo "============================================"
+%end
+
+%onerror
+echo "Installation failed. Collecting logs..."
+journalctl -b -p err > /tmp/install-error.log 2>&1 || true
+%end

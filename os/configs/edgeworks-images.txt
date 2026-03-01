@@ -16,7 +16,6 @@ harbor.theedgeworks.ai/edgeworks/opcua-adapter:latest
 
 # Infrastructure dependencies
 ghcr.io/dexidp/dex:latest
-ghcr.io/blake/external-mdns:v0.5.1
 quay.io/jetstack/cert-manager-cainjector:v1.19.2
 quay.io/jetstack/cert-manager-controller:v1.19.2
 quay.io/jetstack/cert-manager-webhook:v1.19.2

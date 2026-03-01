@@ -1,0 +1,23 @@
+# bootc-image-builder config: Interactive ISO with kickstart
+# Usage:
+#   podman run --rm --privileged \
+#     -v ./iso-output:/output \
+#     -v ./os/config-examples/user-config.toml:/config.toml:ro \
+#     quay.io/centos-bootc/bootc-image-builder:latest \
+#     --type anaconda-iso \
+#     --config /config.toml \
+#     --local \
+#     harbor.theedgeworks.ai/edgeworks/base-os:<version>
+#
+# The kickstart handles: disk selection, encryption choice, user creation, TPM2.
+# The container image handles: packages, services, configs, hardening.
+#
+# NOTE: [customizations.installer.kickstart] disables all other TOML customization
+# blocks ([customizations.user], [customizations.filesystem], etc.)
+
+[customizations.installer.kickstart]
+contents = ""
+# Empty contents = Anaconda interactive mode with the container image auto-injected.
+# For the full kickstart, copy the contents of os/kickstart.ks into this field.
+# See os/kickstart.ks for the complete interactive kickstart with disk encryption
+# and TPM2 support.

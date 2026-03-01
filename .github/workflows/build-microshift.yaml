@@ -11,33 +11,23 @@ on:
     - cron: '0 1 * * Fri'
   workflow_dispatch:
     inputs:
-      iso_config:
-        description: 'ISO Configuration'
-        default: 'user'
-        type: choice
-        options: ['minimal', 'user', 'advanced', 'interactive', 'production']
       build_iso:
         description: 'Build ISO images'
         default: true
         type: boolean
-      force_rebuild:
-        description: 'Force rebuild (ignore cache)'
-        default: false
-        type: boolean
 
 # Centralized environment configuration
 env:
-  IMAGE_NAME: ramaedge/os-microshift
-  REGISTRY: harbor.local
+  IMAGE_NAME: edgeworks/base-os
+  REGISTRY: harbor.tjedgeworks.ai
   REPO_OWNER: ramaedge
   CONTAINERFILE: Containerfile.microshift
   SCAN_SEVERITY: CRITICAL,HIGH,MEDIUM
 
 jobs:
-  # Combined build, scan, and test job for efficiency
   build-scan-test:
-    name: Build & Test MicroShift OS
-    runs-on: ubuntu-22.04
+    name: Build, Test & Push MicroShift OS
+    runs-on: os-builder-runner-set
     outputs:
       image-ref: ${{ steps.build.outputs.image-ref }}
       version: ${{ steps.version.outputs.version }}
@@ -61,8 +51,8 @@ jobs:
         uses: ./.github/actions/harbor-auth
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ secrets.HARBOR_USERNAME }}
-          password: ${{ secrets.HARBOR_PASSWORD }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
 
       - name: Build container image
         id: build
@@ -92,27 +82,11 @@ jobs:
           image-ref: ${{ steps.build.outputs.image-ref }}
           test-type: 'microshift'
 
-  # Push to Harbor registry (main branch only)
-  push:
-    name: Push to Harbor Registry
-    runs-on: ubuntu-22.04
-    needs: build-scan-test
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Authenticate with Harbor
-        uses: ./.github/actions/harbor-auth
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ secrets.HARBOR_USERNAME }}
-          password: ${{ secrets.HARBOR_PASSWORD }}
-
-      - name: Tag and push to Harbor
+      - name: Push to Harbor registry
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         run: |
-          LOCAL_IMAGE="${{ needs.build-scan-test.outputs.image-ref }}"
-          HARBOR_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build-scan-test.outputs.version }}"
+          LOCAL_IMAGE="${{ steps.build.outputs.image-ref }}"
+          HARBOR_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}"
 
           echo "Tagging image for Harbor registry..."
           echo "Source: $LOCAL_IMAGE"
@@ -128,16 +102,27 @@ jobs:
   # Conditional ISO build
   build-iso:
     name: Build MicroShift ISO
-    runs-on: ubuntu-22.04
+    runs-on: os-builder-runner-set
     needs: build-scan-test
     if: github.event.inputs.build_iso == 'true' || (github.event_name == 'schedule')
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Authenticate with Harbor
+        uses: ./.github/actions/harbor-auth
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: Pull built image
+        run: |
+          echo "Pulling built image from registry..."
+          podman pull "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build-scan-test.outputs.version }}"
+
       - name: Build MicroShift ISO
         id: iso
         uses: ./.github/actions/build-iso
         with:
-          image-ref: ${{ needs.build-scan-test.outputs.image-ref }}
-          config: ${{ github.event.inputs.iso_config || 'user' }}
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build-scan-test.outputs.version }}

@@ -8,13 +8,13 @@ IMAGE_TAG ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "l
 CONTAINERFILE ?= os/Containerfile.microshift
 REGISTRY ?= harbor.local
 
-# Load version configuration from centralized file
-OTEL_VERSION ?= $(shell grep '^OTEL_VERSION=' versions.txt | cut -d'=' -f2)
-FEDORA_VERSION ?= $(shell grep '^FEDORA_VERSION=' versions.txt | cut -d'=' -f2)
+# Load version configuration from versions.json
+OTEL_VERSION ?= $(shell jq -r '.components.otel_collector' versions.json)
+FEDORA_VERSION ?= $(shell jq -r '.base.fedora' versions.json)
+MICROSHIFT_VERSION ?= $(shell jq -r '.components.microshift' versions.json)
 
 # Build metadata
 GIT_SHA := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
-BUILD_DATE := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 
 # Security scanning configuration
 TRIVY_SEVERITY ?= CRITICAL,HIGH
@@ -23,10 +23,9 @@ TRIVY_OUTPUT_FILE ?= trivy-scan-results.json
 
 # Platform detection
 UNAME_S := $(shell uname -s)
-UNAME_M := $(shell uname -m)
 
 # =============================================================================
-# Container Runtime Detection (Simplified)
+# Container Runtime Detection
 # =============================================================================
 CONTAINER_RUNTIME ?= $(shell command -v podman 2>/dev/null || command -v docker 2>/dev/null || echo "")
 ifeq ($(CONTAINER_RUNTIME),)
@@ -35,21 +34,19 @@ endif
 CONTAINER_RUNTIME := $(notdir $(CONTAINER_RUNTIME))
 
 # =============================================================================
-# Common Variables and Functions
+# Directories (all build artifacts under .build/)
 # =============================================================================
-SCAN_DIR := scan-results
-OUTPUT_DIR := output
-ISO_DIR := iso-output
-
-# Trivy environment (centralized)
-TRIVY_ENV := TRIVY_SKIP_CHECK_UPDATE=true TRIVY_CLOUD_DISABLE=true TRIVY_SCANNERS=vuln
+BUILD_DIR := .build
+SCAN_DIR := $(BUILD_DIR)/scan-results
+OUTPUT_DIR := $(BUILD_DIR)/output
+ISO_DIR := $(BUILD_DIR)/iso-output
 
 # Common targets
-.PHONY: help build test test-microshift test-bootc test-all clean push pull info scan sbom
-.PHONY: install-deps install-trivy install-syft disk-image build-iso
+.PHONY: help build test test-microshift test-bootc test-all clean push pull info
+.PHONY: scan sbom install-deps install-trivy install-syft disk-image build-iso
 
 # =============================================================================
-# Help Target (Simplified)
+# Help
 # =============================================================================
 help:
 	@echo "Fedora bootc Container Image Builder"
@@ -64,16 +61,16 @@ help:
 	@echo "Config:     IMAGE_NAME=$(IMAGE_NAME)"
 	@echo "            IMAGE_TAG=$(IMAGE_TAG)"
 	@echo "            CONTAINER_RUNTIME=$(CONTAINER_RUNTIME)"
-	@echo "            TEST_TYPE=$(TEST_TYPE)"
 	@echo ""
 	@echo "Versions:   OTEL_VERSION=$(OTEL_VERSION)"
 	@echo "            FEDORA_VERSION=$(FEDORA_VERSION)"
+	@echo "            MICROSHIFT_VERSION=$(MICROSHIFT_VERSION)"
 	@echo ""
 	@echo "Examples:   make build IMAGE_TAG=v1.0.0"
-	@echo "            make scan TRIVY_SEVERITY=CRITICAL,HIGH,MEDIUM"
+	@echo "            make build-iso"
 
 # =============================================================================
-# Internal Helper Functions
+# Internal Helpers
 # =============================================================================
 
 # Find existing image with fallback logic
@@ -91,19 +88,17 @@ endef
 # Check if tool is installed and install if needed
 define ensure_tool
 	@if ! command -v $(1) >/dev/null 2>&1; then \
-		echo "📦 Installing $(1)..."; \
+		echo "Installing $(1)..."; \
 		$(MAKE) install-$(1); \
 	fi
 endef
 
-
-
 # =============================================================================
-# Build Targets
+# Build
 # =============================================================================
 build:
-	@echo "🔨 Building $(IMAGE_NAME):$(IMAGE_TAG) with $(CONTAINER_RUNTIME)..."
-	@echo "📋 Using versions: OTEL=$(OTEL_VERSION), Fedora=$(FEDORA_VERSION)"
+	@echo "Building $(IMAGE_NAME):$(IMAGE_TAG) with $(CONTAINER_RUNTIME)..."
+	@echo "Versions: OTEL=$(OTEL_VERSION), Fedora=$(FEDORA_VERSION), MicroShift=$(MICROSHIFT_VERSION)"
 	@chmod +x os/build.sh
 	@cd os && \
 	CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" \
@@ -112,19 +107,18 @@ build:
 	CONTAINERFILE="Containerfile.microshift" \
 	OTEL_VERSION="$(OTEL_VERSION)" \
 	FEDORA_VERSION="$(FEDORA_VERSION)" \
+	MICROSHIFT_VERSION="$(MICROSHIFT_VERSION)" \
 	GIT_SHA="$(GIT_SHA)" \
 	./build.sh
 
 # =============================================================================
-# Test and Info Targets
+# Test
 # =============================================================================
-# Test type configuration
 TEST_TYPE ?= microshift
 
 test:
-	@echo "🧪 Testing container image with comprehensive test suite..."
 	@TARGET_IMAGE=$(call find_image); \
-	test -n "$$TARGET_IMAGE" || (echo "❌ No image found! Run 'make build' first." && exit 1); \
+	test -n "$$TARGET_IMAGE" || (echo "No image found. Run 'make build' first." && exit 1); \
 	echo "Testing: $$TARGET_IMAGE (Type: $(TEST_TYPE))"; \
 	chmod +x .github/actions/test-container/test-container.sh; \
 	.github/actions/test-container/test-container.sh "$$TARGET_IMAGE" "$(TEST_TYPE)"
@@ -136,116 +130,118 @@ test-bootc:
 	@$(MAKE) test TEST_TYPE=bootc
 
 test-all:
-	@echo "🧪 Running all test types..."
-	@$(MAKE) test-microshift || true
-	@$(MAKE) test-bootc || true
+	@$(MAKE) test-microshift
+	@$(MAKE) test-bootc
 
 info:
-	@echo "📊 Image information:"
 	@$(CONTAINER_RUNTIME) images $(IMAGE_NAME) --format "table {{.Repository}}\t{{.Tag}}\t{{.ID}}\t{{.Size}}" 2>/dev/null || echo "No images found"
 
 # =============================================================================
-# Security Targets - Container vulnerability scanning only
+# Security Scanning
 # =============================================================================
 scan:
 	$(call ensure_tool,trivy)
-	@echo "🔍 Scanning container image $(IMAGE_NAME):$(IMAGE_TAG)..."
 	@TARGET_IMAGE=$(call find_image); \
-	test -n "$$TARGET_IMAGE" || (echo "❌ No image found! Run 'make build' first." && exit 1); \
+	test -n "$$TARGET_IMAGE" || (echo "No image found. Run 'make build' first." && exit 1); \
 	mkdir -p $(SCAN_DIR); \
-	TAR_FILE="$(SCAN_DIR)/$$(echo "$$TARGET_IMAGE" | sed 's|[:/]|-|g')-$$(date +%s).tar"; \
-	echo "📦 Exporting $$TARGET_IMAGE to tar..."; \
-	$(CONTAINER_RUNTIME) save --output "$$TAR_FILE" "$$TARGET_IMAGE"; \
+	echo "Exporting $$TARGET_IMAGE to tar for scanning..."; \
+	$(CONTAINER_RUNTIME) save --output $(SCAN_DIR)/scan-image.tar "$$TARGET_IMAGE"; \
+	echo "Scanning $$TARGET_IMAGE..."; \
 	if [ "$(TRIVY_FORMAT)" = "table" ]; then \
-		$(TRIVY_ENV) trivy image --config .trivy.yaml --input "$$TAR_FILE" --severity $(TRIVY_SEVERITY) --format table; \
+		trivy image --config .trivy.yaml --severity $(TRIVY_SEVERITY) --input $(SCAN_DIR)/scan-image.tar; \
 	else \
-		$(TRIVY_ENV) trivy image --config .trivy.yaml --input "$$TAR_FILE" --severity $(TRIVY_SEVERITY) --format $(TRIVY_FORMAT) --output $(SCAN_DIR)/$(TRIVY_OUTPUT_FILE); \
-		echo "✅ Results: $(SCAN_DIR)/$(TRIVY_OUTPUT_FILE)"; \
+		trivy image --config .trivy.yaml --severity $(TRIVY_SEVERITY) \
+			--format $(TRIVY_FORMAT) --output $(SCAN_DIR)/$(TRIVY_OUTPUT_FILE) --input $(SCAN_DIR)/scan-image.tar; \
+		echo "Results: $(SCAN_DIR)/$(TRIVY_OUTPUT_FILE)"; \
 	fi; \
-	rm -f "$$TAR_FILE"
+	rm -f $(SCAN_DIR)/scan-image.tar
 
 sbom:
 	$(call ensure_tool,syft)
-	@echo "📋 Generating SBOM for $(IMAGE_NAME):$(IMAGE_TAG)..."
 	@TARGET_IMAGE=$(call find_image); \
-	test -n "$$TARGET_IMAGE" || (echo "❌ No image found! Run 'make build' first." && exit 1); \
+	test -n "$$TARGET_IMAGE" || (echo "No image found. Run 'make build' first." && exit 1); \
 	mkdir -p $(SCAN_DIR); \
-	TAR_FILE="$(SCAN_DIR)/$$(echo "$$TARGET_IMAGE" | sed 's|[:/]|-|g')-$$(date +%s).tar"; \
-	echo "📦 Exporting $$TARGET_IMAGE to tar..."; \
-	$(CONTAINER_RUNTIME) save --output "$$TAR_FILE" "$$TARGET_IMAGE"; \
+	echo "Exporting $$TARGET_IMAGE to tar for SBOM..."; \
+	$(CONTAINER_RUNTIME) save --output $(SCAN_DIR)/sbom-image.tar "$$TARGET_IMAGE"; \
+	echo "Generating SBOM for $$TARGET_IMAGE..."; \
 	SBOM_FILE="$(SCAN_DIR)/sbom-$$(echo "$$TARGET_IMAGE" | sed 's|[:/]|-|g').spdx.json"; \
-	syft "$$TAR_FILE" -o spdx-json="$$SBOM_FILE"; \
-	echo "✅ SBOM: $$SBOM_FILE"; \
-	rm -f "$$TAR_FILE"
+	syft $(SCAN_DIR)/sbom-image.tar -o spdx-json="$$SBOM_FILE"; \
+	rm -f $(SCAN_DIR)/sbom-image.tar; \
+	echo "SBOM: $$SBOM_FILE"
 
 # =============================================================================
 # Registry Operations
 # =============================================================================
 push:
-	@echo "⬆️  Pushing $(IMAGE_NAME):$(IMAGE_TAG)..."
+	@echo "Pushing $(IMAGE_NAME):$(IMAGE_TAG)..."
 	@$(CONTAINER_RUNTIME) push $(IMAGE_NAME):$(IMAGE_TAG)
 
 pull:
-	@echo "⬇️  Pulling base image..."
-	@$(CONTAINER_RUNTIME) pull quay.io/fedora/fedora-bootc:42
+	@echo "Pulling base image..."
+	@$(CONTAINER_RUNTIME) pull quay.io/fedora/fedora-bootc:$(FEDORA_VERSION)
 
 clean:
-	@echo "🧹 Cleaning up..."
+	@echo "Cleaning build artifacts..."
 	-@$(CONTAINER_RUNTIME) rmi $(IMAGE_NAME):$(IMAGE_TAG) 2>/dev/null || true
-	-@$(CONTAINER_RUNTIME) system prune -f
+	-@rm -rf $(BUILD_DIR)
 
 # =============================================================================
-# Image Conversion
+# Image Conversion (bootc-image-builder)
 # =============================================================================
+BIB_IMAGE := quay.io/centos-bootc/bootc-image-builder:latest
+
 disk-image:
-	@echo "💽 Converting to disk image..."
+	@echo "Converting to disk image..."
 	@mkdir -p $(OUTPUT_DIR)
-	@$(CONTAINER_RUNTIME) pull quay.io/centos-bootc/bootc-image-builder:latest
 	@$(CONTAINER_RUNTIME) run --rm --privileged \
 		-v $(PWD)/$(OUTPUT_DIR):/output \
-		quay.io/centos-bootc/bootc-image-builder:latest \
-		--type qcow2 $(IMAGE_NAME):$(IMAGE_TAG)
+		$(BIB_IMAGE) \
+		--type qcow2 \
+		--local \
+		$(IMAGE_NAME):$(IMAGE_TAG)
 
 build-iso:
-	@echo "📀 Building ISO..."
+	@echo "Building ISO..."
 	@mkdir -p $(ISO_DIR)
-	@$(CONTAINER_RUNTIME) pull quay.io/centos-bootc/bootc-image-builder:latest
 	@$(CONTAINER_RUNTIME) run --rm --privileged \
 		-v $(PWD)/$(ISO_DIR):/output \
-		quay.io/centos-bootc/bootc-image-builder:latest \
-		--type iso $(IMAGE_NAME):$(IMAGE_TAG)
+		-v $(PWD)/os/iso-config.toml:/config.toml:ro \
+		$(BIB_IMAGE) \
+		--type anaconda-iso \
+		--config /config.toml \
+		--local \
+		$(IMAGE_NAME):$(IMAGE_TAG)
 
 # =============================================================================
-# Installation Targets (Simplified)
+# Installation (macOS + Linux)
 # =============================================================================
 install-deps:
-	@echo "📦 Installing dependencies..."
+	@echo "Installing dependencies..."
 ifeq ($(UNAME_S),Darwin)
-	@command -v brew >/dev/null || (echo "❌ Install Homebrew first" && exit 1)
-	@brew install --cask docker || true
-	@brew install hadolint || true
+	@command -v brew >/dev/null || (echo "Install Homebrew first" && exit 1)
+	@brew install podman hadolint || true
 else
 	@if command -v dnf >/dev/null 2>&1; then sudo dnf install -y podman buildah skopeo; \
 	elif command -v apt >/dev/null 2>&1; then sudo apt update && sudo apt install -y podman buildah skopeo; \
-	else echo "❌ Unsupported package manager" && exit 1; fi
+	else echo "Unsupported package manager" && exit 1; fi
 endif
 
 install-trivy:
-	@echo "📦 Installing trivy..."
+	@echo "Installing trivy..."
 ifeq ($(UNAME_S),Darwin)
 	@brew install trivy || true
 else
 	@if command -v dnf >/dev/null 2>&1; then sudo dnf install -y trivy; \
 	elif command -v apt >/dev/null 2>&1; then sudo apt update && sudo apt install -y trivy; \
-	else echo "❌ Install manually: https://aquasecurity.github.io/trivy/" && exit 1; fi
+	else echo "Install manually: https://aquasecurity.github.io/trivy/" && exit 1; fi
 endif
 
 install-syft:
-	@echo "📦 Installing syft..."
+	@echo "Installing syft..."
 ifeq ($(UNAME_S),Darwin)
 	@brew install syft || true
 else
 	@if command -v dnf >/dev/null 2>&1; then sudo dnf install -y syft; \
 	elif command -v apt >/dev/null 2>&1; then sudo apt update && sudo apt install -y syft; \
-	else echo "❌ Install manually: https://github.com/anchore/syft" && exit 1; fi
-endif 
+	else echo "Install manually: https://github.com/anchore/syft" && exit 1; fi
+endif

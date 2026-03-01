@@ -1,10 +1,15 @@
-# Build artifacts
+# Build artifacts (all temp/output files go here)
+.build/
 output/
 iso-output/
-build/
+scan-results/
 dist/
+
+# Disk/container image formats
 *.qcow2
 *.vmdk
+*.vhd
+*.ami
 *.raw
 *.iso
 *.ova
@@ -13,100 +18,46 @@ dist/
 *.tar.zst
 *.tar.xz
 
-# Container runtime choice
-.runtime_choice
-
-# Container and bootc artifacts
-*.container
-*.manifest
-bootc-*.log
-image-*.log
-
-# Temporary build files
-*.tmp
-*.temp
-*~
-.build-*
-.tmp-*
-
-# Fedora/RPM build artifacts
+# RPM build artifacts
 *.rpm
 *.srpm
 rpmbuild/
 
-# Cloud-init and deployment files
-user-data
-meta-data
-cloud-init-*.yaml
-cloud-init-*.yml
-
-# macOS
-.DS_Store
-*.app
-
-# Editor files
-*.swp
-*.swo
-*~
-.vscode/
-.idea/
-*.sublime-*
-.vim/
-
-# Logs
-*.log
-logs/
-build-*.log
-test-*.log
-
-# Development and testing
-.pytest_cache/
-__pycache__/
-*.pyc
-*.pyo
-.coverage
-.tox/
-
-# Security and secrets
+# Secrets and credentials
 *.pem
 *.key
 *.crt
 *.p12
 secrets/
 .secrets
-
-# Local configuration overrides
 .env
 .env.local
+
+# Local configuration overrides
 local.yaml
 local.yml
 *-local.*
-
-# bootc-image-builder artifacts (anaconda-iso focus)
-bootc-config.toml
-*.qcow2
-*.vmdk
-*.vhd
-*.ami
-
-# Trivy scan results
-scan-results/
 
 # OS and editor files
 .DS_Store
 .vscode/
 .idea/
-*~
+*.sublime-*
+.vim/
 *.swp
 *.swo
+*~
 
-# Container runtime files
-.containers/
-.local/share/containers/
-
-# Log files
+# Logs
 *.log
 
 # Temporary files
 *.tmp
-*.temp 
+*.temp
+.tmp-*
+
+# Container runtime files
+.containers/
+.local/share/containers/
+.runtime_choice
+podman-build-secret-*

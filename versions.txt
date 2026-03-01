@@ -1,5 +1,0 @@
-# Version Configuration File
-OTEL_VERSION=0.127.0
-FEDORA_VERSION=42
-# MicroShift installed from COPR — version tracked by dnf, not pinned here
-# CNI bundled with microshift-kindnet RPM — no separate version needed
