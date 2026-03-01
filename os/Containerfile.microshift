@@ -3,6 +3,7 @@ FROM quay.io/fedora/fedora-bootc:${FEDORA_VERSION}
 ARG OTEL_VERSION
 ARG VCS_REF
 ARG VERSION
+ARG EMBED_CONTAINER_IMAGES=1
 
 LABEL org.opencontainers.image.title="Edge OS - Fedora bootc with MicroShift" \
       org.opencontainers.image.description="Fedora bootc with upstream MicroShift for edge computing" \
@@ -37,6 +38,29 @@ RUN dnf copr enable -y @microshift-io/microshift-nightly && \
         microshift-topolvm \
         microshift-topolvm-release-info && \
     dnf clean all
+
+# =============================================================================
+# Offline container image embedding (upstream-aligned two-phase approach)
+# =============================================================================
+# Phase 1: Build-time — pull images into /usr/lib/containers/storage as dir: blobs
+# Phase 2: Runtime — microshift-copy-images ExecStartPre copies to CRI-O storage
+#
+# Why two phases: /usr/lib is in the immutable bootc image layer and survives OS
+# updates. CRI-O's /var storage may be wiped on updates. The ExecStartPre ensures
+# images are always repopulated before MicroShift starts.
+# =============================================================================
+
+# UID/GID mapping required for skopeo during container build
+RUN echo "root:1:65536" >> /etc/subuid && \
+    echo "root:1:65536" >> /etc/subgid
+
+COPY scripts/embed-microshift-images.sh /tmp/embed-microshift-images.sh
+
+RUN chmod +x /tmp/embed-microshift-images.sh && \
+    if [ "${EMBED_CONTAINER_IMAGES}" = "1" ]; then \
+        /tmp/embed-microshift-images.sh; \
+    fi && \
+    rm -f /tmp/embed-microshift-images.sh
 
 # Download and install OpenTelemetry Collector
 RUN ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/') && \
