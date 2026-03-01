@@ -61,7 +61,7 @@ fn main() {
 
     let result = match &cli.command {
         Commands::Create { image, output, notes, target_device } => {
-            create::run(image, output, notes, target_device)
+            create::run(image, output, notes, target_device, cli.json)
         }
         Commands::Verify { path } => verify::run(path),
         Commands::Inspect { path } => inspect::run(path),
