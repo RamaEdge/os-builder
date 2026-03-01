@@ -24,7 +24,7 @@ Requirements for MicroShift migration. Each maps to roadmap phases.
 
 ### Manifest Deployment
 
-- [ ] **MNFT-01**: Edgeworks manifests placed in `/usr/lib/microshift/manifests.d/` with numbered subdirectories (05-observability through 40-opcua-adapter)
+- [ ] **MNFT-01**: Observability manifests placed in `/usr/lib/microshift/manifests.d/05-observability/` with kustomization.yaml (in-repo manifests only; edgeworks-deploy repo manifests 10-40 deferred)
 - [ ] **MNFT-02**: MicroShift `config.yaml` kustomizePaths includes `manifests.d/*`
 - [ ] **MNFT-03**: Custom deploy systemd services (`deploy-observability.sh`, `observability-deploy.service`) removed
 
