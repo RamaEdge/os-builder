@@ -34,8 +34,10 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. VOLUME /var is declared in the Containerfile for kubelet idmap support
 **Plans**: TBD
 
+**Plans:** 1 plan
+
 Plans:
-- [ ] 01-01: Write Containerfile.microshift with COPR packages, kindnet, TopoLVM, skopeo, VOLUME /var
+- [ ] 01-01-PLAN.md — Write os/Containerfile.microshift with COPR packages, kindnet, TopoLVM, skopeo, VOLUME /var
 
 ### Phase 2: Offline Operation
 **Goal**: Edge devices boot fully functional with all MicroShift system pods and edgeworks application pods running without network connectivity
