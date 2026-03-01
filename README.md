@@ -98,7 +98,7 @@ This project includes **optimized GitHub Actions** for automated builds and test
 - **🚀 Intelligent Building**: Build actions detect existing images to avoid unnecessary rebuilds (~90% time savings)
 - **⚡ High-Performance Testing**: Container testing optimized for single-instance execution (~85% resource reduction)
 - **🔒 Security Scanning**: Integrated Trivy vulnerability scanning with smart configuration
-- **📦 Multi-Platform**: Supports K3s, MicroShift, and bootc container builds
+- **📦 Multi-Platform**: Supports MicroShift and bootc container builds
 - **🎯 Registry Integration**: Seamless integration with Harbor registry for image management
 
 **Actions Available:**

@@ -1,6 +1,6 @@
 # 📚 Examples Directory
 
-This directory contains example configurations and scripts for working with your Fedora Edge OS deployment. These examples work with both **K3s** and **MicroShift** distributions.
+This directory contains example configurations and scripts for working with your Fedora Edge OS deployment. These examples work with **MicroShift**.
 
 ## 📁 Files Overview
 
@@ -8,7 +8,7 @@ This directory contains example configurations and scripts for working with your
 A comprehensive cloud-init configuration that automatically sets up your system after deployment.
 
 **Features:**
-- **Distribution-agnostic**: Works with both K3s and MicroShift
+- **MicroShift integration**: Configures kubectl access for MicroShift
 - **Dynamic kubeconfig setup**: Automatically detects and configures kubectl access
 - **User management**: Configurable username and SSH key setup
 - **Helpful aliases**: Pre-configured shell shortcuts for common tasks
@@ -18,7 +18,7 @@ A comprehensive cloud-init configuration that automatically sets up your system 
 A comprehensive test script that validates your OpenTelemetry observability stack.
 
 **Features:**
-- **Auto-detection**: Automatically identifies K3s or MicroShift
+- **Auto-detection**: Automatically identifies MicroShift
 - **Comprehensive testing**: Tests services, endpoints, and Kubernetes resources
 - **Colored output**: Easy-to-read status indicators
 - **Troubleshooting guidance**: Provides next steps for issues
@@ -62,7 +62,7 @@ After boot, SSH into your system:
 ssh your-username@<machine-ip>
 
 # Test the setup
-distro                    # Shows K3s or MicroShift  
+distro                    # Shows MicroShift
 kstatus                   # Shows cluster status
 observability             # Shows observability pods
 ```
@@ -84,12 +84,12 @@ chmod +x os/examples/test-observability.sh
 ```
 🔍 Testing OpenTelemetry Observability Stack
 =============================================
-📦 Detected distribution: K3s
+📦 Detected distribution: MicroShift
 
 🖥️  Host-level Services
 ----------------------
 Checking OpenTelemetry Collector... ✓ Active
-Checking k3s... ✓ Active
+Checking microshift... ✓ Active
 
 🌐 Network Endpoints
 --------------------
@@ -100,7 +100,7 @@ Checking OTel internal metrics... ✓ Accessible
 
 ☸️  Kubernetes Resources
 -----------------------
-k3s cluster: ✓ Active
+microshift cluster: ✓ Active
 Checking OTel Collector deployment... ✓ Ready
 Checking Jaeger deployment... ✓ Ready
 
@@ -118,7 +118,7 @@ Cluster metrics: ✓ Available
 
 🎯 Summary
 ----------
-Test completed for k3s distribution!
+Test completed for microshift distribution!
 ```
 
 ## 🛠️ Customization Guide
@@ -193,7 +193,7 @@ bash -x test-observability.sh
 
 # Check individual services
 systemctl status otelcol
-systemctl status k3s         # or microshift
+systemctl status microshift
 kubectl get pods --all-namespaces
 ```
 
@@ -231,7 +231,7 @@ These examples integrate seamlessly with your deployment process:
 
 1. **Build ISO**: `make build-iso` (creates unified interactive ISO)
 2. **Customize cloud-init**: Edit `cloud-init.yaml` for your environment
-3. **Deploy**: Boot ISO, choose distribution, provide cloud-init URL
+3. **Deploy**: Boot ISO, provide cloud-init URL
 4. **Validate**: Run `test-observability.sh` to verify deployment
 5. **Monitor**: Use built-in aliases and scripts for ongoing management
 

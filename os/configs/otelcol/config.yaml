@@ -1,4 +1,4 @@
-# This collector runs on the host OS and forwards telemetry to the K3s cluster
+# This collector runs on the host OS and forwards telemetry to the MicroShift cluster
 receivers:
   hostmetrics:
     collection_interval: 10s
@@ -33,12 +33,12 @@ receivers:
           scrape_interval: 15s
           static_configs:
             - targets: ['localhost:9100']
-        - job_name: 'k3s'
+        - job_name: 'microshift'
           scrape_interval: 30s
           static_configs:
             - targets: ['localhost:10250']
           metrics_path: '/metrics'
-        - job_name: 'k3s-cadvisor'
+        - job_name: 'microshift-cadvisor'
           scrape_interval: 30s
           static_configs:
             - targets: ['localhost:10250']
@@ -74,8 +74,8 @@ exporters:
   logging:
     loglevel: info
 
-  # Export to OpenTelemetry Collector in K3s cluster
-  otlp/k3s:
+  # Export to OpenTelemetry Collector in MicroShift cluster
+  otlp/microshift:
     endpoint: "http://localhost:4317"
     tls:
       insecure: true
@@ -99,14 +99,14 @@ service:
     metrics:
       receivers: [hostmetrics, prometheus]
       processors: [memory_limiter, resourcedetection, resource, batch]
-      exporters: [logging, otlp/k3s]
+      exporters: [logging, otlp/microshift]
 
     traces:
       receivers: [otlp]
       processors: [memory_limiter, resourcedetection, resource, batch]
-      exporters: [logging, otlp/k3s]
+      exporters: [logging, otlp/microshift]
 
     logs:
       receivers: [otlp]
       processors: [memory_limiter, resourcedetection, resource, batch]
-      exporters: [logging, otlp/k3s] 
+      exporters: [logging, otlp/microshift] 

@@ -36,12 +36,6 @@ main() {
     # Container runtime
     check_health "podman" "podman version" "Podman runtime available" || ((failures++))
     
-    # K3s specific checks (if K3s is installed)
-    if command -v k3s >/dev/null 2>&1; then
-        check_health "k3s-binary" "k3s --version" "K3s binary available" || ((failures++))
-        check_health "k3s-images" "test -f /var/lib/rancher/k3s/agent/images/k3s-airgap-images.tar.gz" "K3s airgap images present" || ((failures++))
-    fi
-    
     # MicroShift specific checks (if MicroShift is installed)
     if command -v microshift >/dev/null 2>&1; then
         check_health "microshift-binary" "microshift version" "MicroShift binary available" || ((failures++))

@@ -18,24 +18,12 @@ inputs:
   sha:
     description: 'Git commit SHA'
     required: true
-  microshift-version:
-    description: 'MicroShift version (for MicroShift builds)'
-    required: false
-    default: ''
-  k3s-version:
-    description: 'K3s version'
-    required: false
-    default: ''
   otel-version:
     description: 'OpenTelemetry version'
     required: false
     default: ''
   fedora-version:
     description: 'Fedora version'
-    required: false
-    default: ''
-  cni-version:
-    description: 'CNI plugins version'
     required: false
     default: ''
   registry:
@@ -135,15 +123,8 @@ runs:
           BUILD_ARGS="--build-arg VCS_REF=${{ inputs.sha }} --build-arg VERSION=${{ inputs.version }}"
           
           # Add conditional version arguments (required for versions.txt sourcing)
-          [ -n "${{ inputs.k3s-version }}" ] && BUILD_ARGS="$BUILD_ARGS --build-arg K3S_VERSION=${{ inputs.k3s-version }}"
           [ -n "${{ inputs.otel-version }}" ] && BUILD_ARGS="$BUILD_ARGS --build-arg OTEL_VERSION=${{ inputs.otel-version }}"
           [ -n "${{ inputs.fedora-version }}" ] && BUILD_ARGS="$BUILD_ARGS --build-arg FEDORA_VERSION=${{ inputs.fedora-version }}"
-          [ -n "${{ inputs.cni-version }}" ] && BUILD_ARGS="$BUILD_ARGS --build-arg CNI_VERSION=${{ inputs.cni-version }}"
-          
-          if [ -n "${{ inputs.microshift-version }}" ]; then
-            BUILD_ARGS="$BUILD_ARGS --build-arg MICROSHIFT_VERSION=${{ inputs.microshift-version }}"
-            BUILD_ARGS="$BUILD_ARGS --build-arg MICROSHIFT_IMAGE_BASE=${{ inputs.registry }}/ramaedge/microshift-builder"
-          fi
           
           # Standard labels
           LABELS="--label org.opencontainers.image.version=${{ inputs.version }}"

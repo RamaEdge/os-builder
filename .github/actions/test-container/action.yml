@@ -1,12 +1,12 @@
 name: 'Test Container'
-description: 'Test bootc container image with comprehensive validation for K3s, MicroShift, or bootc functionality'
+description: 'Test bootc container image with comprehensive validation for MicroShift or bootc functionality'
 
 inputs:
   image-ref:
     description: 'Container image reference to test'
     required: true
   test-type:
-    description: 'Type of tests to run (k3s, microshift, bootc)'
+    description: 'Type of tests to run (microshift, bootc)'
     required: true
 
 outputs:

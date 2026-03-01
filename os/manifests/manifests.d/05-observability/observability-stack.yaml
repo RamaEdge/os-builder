@@ -1,4 +1,4 @@
-# Simplified observability stack for K3s edge deployments
+# Simplified observability stack for MicroShift edge deployments
 # Only includes OpenTelemetry Collector for metrics, traces, and logs collection
 
 ---
@@ -142,7 +142,7 @@ spec:
             fieldRef:
               fieldPath: spec.nodeName
         - name: CLUSTER_NAME
-          value: "k3s-edge"
+          value: "microshift-edge"
         resources:
           limits:
             memory: 128Mi
