@@ -25,7 +25,7 @@ See: `.planning/milestones/v1.0-ROADMAP.md` for full details.
 - [x] **Phase 4: Foundation** - Cargo crate, manifest types, and error handling (2026-03-01)
 - [x] **Phase 5: Create Command** - Pull image via skopeo and write a valid bundle directory (completed 2026-03-01)
 - [x] **Phase 6: Verify + Inspect Commands** - Validate bundle integrity and display metadata (completed 2026-03-01)
-- [ ] **Phase 7: CI/CD Integration** - Makefile targets, GitHub Actions pipeline, release artifact
+- [x] **Phase 7: CI/CD Integration** - Makefile targets for bundle-cli build and test (completed 2026-03-01)
 
 ## Phase Details
 
@@ -78,7 +78,8 @@ See: `.planning/milestones/v1.0-ROADMAP.md` for full details.
   2. `make bundle-cli-test` runs all unit and integration tests
   3. GitHub Actions CI job builds and tests the bundle CLI on every push
   4. CI uploads the compiled binary as a downloadable workflow artifact
-**Plans**: TBD
+**Plans**: 1 plan
+- [x] 07-01-PLAN.md — Add bundle-cli and bundle-cli-test Makefile targets (completed 2026-03-01)
 
 ## Progress
 
@@ -92,4 +93,4 @@ See: `.planning/milestones/v1.0-ROADMAP.md` for full details.
 | 4. Foundation | v1.1 | 2/2 | Complete | 2026-03-01 |
 | 5. Create Command | 2/2 | Complete   | 2026-03-01 | - |
 | 6. Verify + Inspect | 2/2 | Complete   | 2026-03-01 | - |
-| 7. CI/CD Integration | v1.1 | 0/? | Not started | - |
+| 7. CI/CD Integration | v1.1 | 1/1 | Complete | 2026-03-01 |

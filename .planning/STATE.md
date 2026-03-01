@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Bundle CLI
 status: unknown
-last_updated: "2026-03-01T18:29:25.286Z"
+last_updated: "2026-03-01T18:32:00.000Z"
 progress:
   total_phases: 4
   completed_phases: 3
   total_plans: 8
-  completed_plans: 6
+  completed_plans: 7
 ---
 
 # Project State
@@ -22,12 +22,12 @@ See: .planning/PROJECT.md (updated 2026-03-01)
 
 ## Current Position
 
-Phase: 6 of 7 (Verify + Inspect) — COMPLETE
-Plan: 2 of 2 (06-02 complete — inspect subcommand with human/JSON output, 8 tests)
+Phase: 7 of 7 (CI/CD Integration) — In progress
+Plan: 1 of 1 (07-01 complete — bundle-cli and bundle-cli-test Makefile targets)
 Status: In progress
-Last activity: 2026-03-01 — Completed 06-02: inspect subcommand, run_inspect(), human/JSON formatters, 8 tests
+Last activity: 2026-03-01 — Completed 07-01: bundle-cli, bundle-cli-test Makefile targets with cargo --manifest-path
 
-Progress: [███████░░░] 75% (v1.1)
+Progress: [████████░░] 87% (v1.1)
 
 ## Performance Metrics
 
@@ -43,9 +43,11 @@ Progress: [███████░░░] 75% (v1.1)
 | 04-foundation | 2 | ~7 min | ~3.5 min |
 | 05-create-command | 2 | ~5 min | ~2.5 min |
 | 06-verify-inspect | 2 | ~4 min | ~2 min |
+| 07-cicd-integration | 1 | ~2 min | ~2 min |
 
 *Updated after each plan completion*
 | Phase 06-verify-inspect P02 | 90 | 2 tasks | 2 files |
+| Phase 07-cicd-integration P01 | 1 | 1 task | 1 file |
 
 ## Accumulated Context
 
@@ -83,6 +85,11 @@ v1.1 design authority: `docs/bundle-cli-design.md` — bundle format, CLI comman
 - [Phase 06-verify-inspect]: format_size helper duplicated in inspect.rs (not extracted to shared module) - kept self-contained, deferred to future refactor
 - [Phase 06-verify-inspect]: Empty notes field displays as '—' for consistency rather than omitting the line
 
+**07-01 decisions:**
+- Bundle CLI Makefile section placed after Installation section (end of file) — logical grouping after toolchain install targets
+- Single .PHONY line covers both targets, appended to phony block at top of Makefile
+- help target updated with "Bundle CLI: bundle-cli, bundle-cli-test" line between Install and Info lines
+
 ### Pending Todos
 
 None.
@@ -94,5 +101,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-01
-Stopped at: Completed 06-02-PLAN.md — inspect subcommand, run_inspect(), human/JSON formatters, 8 tests
+Stopped at: Completed 07-01-PLAN.md — bundle-cli and bundle-cli-test Makefile targets
 Resume file: None
