@@ -66,33 +66,33 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| BUILD-01 | — | Pending |
-| BUILD-02 | — | Pending |
-| BUILD-03 | — | Pending |
-| BUILD-04 | — | Pending |
-| OFFL-01 | — | Pending |
-| OFFL-02 | — | Pending |
-| OFFL-03 | — | Pending |
-| OFFL-04 | — | Pending |
-| OFFL-05 | — | Pending |
-| MNFT-01 | — | Pending |
-| MNFT-02 | — | Pending |
-| MNFT-03 | — | Pending |
-| CLEAN-01 | — | Pending |
-| CLEAN-02 | — | Pending |
-| SIMP-01 | — | Pending |
-| SIMP-02 | — | Pending |
-| SIMP-03 | — | Pending |
-| SIMP-04 | — | Pending |
-| CI-01 | — | Pending |
-| CI-02 | — | Pending |
-| CI-03 | — | Pending |
+| BUILD-01 | Phase 1 | Pending |
+| BUILD-02 | Phase 1 | Pending |
+| BUILD-03 | Phase 1 | Pending |
+| BUILD-04 | Phase 1 | Pending |
+| OFFL-01 | Phase 2 | Pending |
+| OFFL-02 | Phase 2 | Pending |
+| OFFL-03 | Phase 2 | Pending |
+| OFFL-04 | Phase 2 | Pending |
+| OFFL-05 | Phase 2 | Pending |
+| MNFT-01 | Phase 2 | Pending |
+| MNFT-02 | Phase 2 | Pending |
+| MNFT-03 | Phase 2 | Pending |
+| CLEAN-01 | Phase 3 | Pending |
+| CLEAN-02 | Phase 3 | Pending |
+| SIMP-01 | Phase 3 | Pending |
+| SIMP-02 | Phase 3 | Pending |
+| SIMP-03 | Phase 3 | Pending |
+| SIMP-04 | Phase 3 | Pending |
+| CI-01 | Phase 4 | Pending |
+| CI-02 | Phase 4 | Pending |
+| CI-03 | Phase 4 | Pending |
 
 **Coverage:**
 - v1 requirements: 21 total
-- Mapped to phases: 0
-- Unmapped: 21 ⚠️
+- Mapped to phases: 21
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-01*
-*Last updated: 2026-03-01 after initial definition*
+*Last updated: 2026-03-01 after roadmap creation*

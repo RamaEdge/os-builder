@@ -40,6 +40,10 @@ Edge devices boot fully functional with all MicroShift system pods and edgeworks
 
 ## Context
 
+**Migration Guide:** `MICROSHIFT_MIGRATION.md` in repo root — detailed implementation patterns, file-by-file changes, and verification steps for the entire migration.
+
+**Linear Issues:** THE-869 through THE-876 in the os-builder project.
+
 The os-builder currently supports two Kubernetes variants (K3s and MicroShift). The MicroShift variant uses a custom-built binary from a multi-stage Docker build (`ghcr.io/ramaedge/microshift-builder`). This migration moves to upstream MicroShift COPR packages (`@microshift-io/microshift-nightly`), which are the official distribution channel.
 
 The current airgap approach uses `podman pull` at build time. The new approach follows upstream's two-phase pattern: build-time embedding via `skopeo copy` into `/usr/lib/containers/storage/`, then runtime copy into CRI-O's `/var` storage via a systemd `ExecStartPre` script.
