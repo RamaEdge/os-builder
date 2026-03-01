@@ -1,0 +1,18 @@
+[package]
+name = "edgeworks-bundle"
+version = "0.1.0"
+edition = "2021"
+description = "Create, verify, and inspect offline update bundles for air-gapped edge devices"
+
+[[bin]]
+name = "edgeworks-bundle"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", features = ["serde"] }
+sha2 = "0.10"
+indicatif = "0.17"
+thiserror = "2"
