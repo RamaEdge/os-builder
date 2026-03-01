@@ -44,6 +44,7 @@ ISO_DIR := $(BUILD_DIR)/iso-output
 # Common targets
 .PHONY: help build test test-microshift test-bootc test-all clean push pull info
 .PHONY: scan sbom install-deps install-trivy install-syft disk-image build-iso
+.PHONY: bundle-cli bundle-cli-test
 
 # =============================================================================
 # Help
@@ -56,6 +57,7 @@ help:
 	@echo "Security:   scan, sbom"
 	@echo "Deploy:     push, pull, disk-image, build-iso"
 	@echo "Install:    install-deps, install-trivy, install-syft"
+	@echo "Bundle CLI: bundle-cli, bundle-cli-test"
 	@echo "Info:       info, help, clean"
 	@echo ""
 	@echo "Config:     IMAGE_NAME=$(IMAGE_NAME)"
@@ -245,3 +247,16 @@ else
 	elif command -v apt >/dev/null 2>&1; then sudo apt update && sudo apt install -y syft; \
 	else echo "Install manually: https://github.com/anchore/syft" && exit 1; fi
 endif
+
+# =============================================================================
+# Bundle CLI (edgeworks-bundle)
+# =============================================================================
+
+bundle-cli:
+	@echo "Building edgeworks-bundle (release)..."
+	cargo build --release --manifest-path crates/bundle-cli/Cargo.toml
+	@echo "Binary: crates/bundle-cli/target/release/edgeworks-bundle"
+
+bundle-cli-test:
+	@echo "Testing edgeworks-bundle..."
+	cargo test --manifest-path crates/bundle-cli/Cargo.toml
