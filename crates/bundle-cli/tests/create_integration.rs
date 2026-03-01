@@ -21,7 +21,13 @@ fn test_create_missing_skopeo() {
 
     cargo_bin_cmd!("edgeworks-bundle")
         .env("PATH", "") // skopeo not available
-        .args(["create", "--image", "registry/repo:1.0", "--output", tmp.path().join("bundle").to_str().unwrap()])
+        .args([
+            "create",
+            "--image",
+            "registry/repo:1.0",
+            "--output",
+            tmp.path().join("bundle").to_str().unwrap(),
+        ])
         .assert()
         .failure()
         .stderr(predicates::str::contains("skopeo").normalize());
@@ -36,12 +42,17 @@ fn test_create_existing_output_dir() {
     fs::write(output_dir.join("manifest.json"), "{}").unwrap();
 
     cargo_bin_cmd!("edgeworks-bundle")
-        .args(["create", "--image", "test:1.0", "--output", output_dir.to_str().unwrap()])
+        .args([
+            "create",
+            "--image",
+            "test:1.0",
+            "--output",
+            output_dir.to_str().unwrap(),
+        ])
         .assert()
         .failure()
         .stderr(
-            predicates::str::contains("already contains")
-                .or(predicates::str::contains("exists")),
+            predicates::str::contains("already contains").or(predicates::str::contains("exists")),
         );
 }
 
@@ -52,7 +63,13 @@ fn test_create_invalid_image_ref() {
     let output_dir = tmp.path().join("bundle");
 
     cargo_bin_cmd!("edgeworks-bundle")
-        .args(["create", "--image", "registry/repo", "--output", output_dir.to_str().unwrap()])
+        .args([
+            "create",
+            "--image",
+            "registry/repo",
+            "--output",
+            output_dir.to_str().unwrap(),
+        ])
         .assert()
         .failure()
         .stderr(predicates::str::contains("tag").normalize());
@@ -71,8 +88,10 @@ fn test_create_json_error_output() {
         .args([
             "--json",
             "create",
-            "--image", "test:1.0",
-            "--output", output_dir.to_str().unwrap(),
+            "--image",
+            "test:1.0",
+            "--output",
+            output_dir.to_str().unwrap(),
         ])
         .output()
         .unwrap();
@@ -82,8 +101,8 @@ fn test_create_json_error_output() {
 
     // stdout must be valid JSON
     let stdout = String::from_utf8_lossy(&output.stdout);
-    let parsed: serde_json::Value = serde_json::from_str(&stdout)
-        .expect("stdout must be valid JSON in --json error mode");
+    let parsed: serde_json::Value =
+        serde_json::from_str(&stdout).expect("stdout must be valid JSON in --json error mode");
 
     assert_eq!(
         parsed["status"].as_str().unwrap(),
@@ -124,8 +143,10 @@ fn test_create_e2e_with_skopeo() {
     cargo_bin_cmd!("edgeworks-bundle")
         .args([
             "create",
-            "--image", image,
-            "--output", output_dir.to_str().unwrap(),
+            "--image",
+            image,
+            "--output",
+            output_dir.to_str().unwrap(),
         ])
         .assert()
         .success();
@@ -152,7 +173,10 @@ fn test_create_e2e_with_skopeo() {
     assert_eq!(manifest["schema_version"].as_str().unwrap(), "1.0");
     assert_eq!(manifest["image"]["version"].as_str().unwrap(), "3.19");
     assert!(
-        manifest["image"]["reference"].as_str().unwrap().contains(image),
+        manifest["image"]["reference"]
+            .as_str()
+            .unwrap()
+            .contains(image),
         "image reference should contain the input image"
     );
 
@@ -174,14 +198,16 @@ fn test_create_e2e_with_skopeo() {
         .args([
             "--json",
             "create",
-            "--image", image,
-            "--output", tmp.path().join("alpine-bundle-2").to_str().unwrap(),
+            "--image",
+            image,
+            "--output",
+            tmp.path().join("alpine-bundle-2").to_str().unwrap(),
         ])
         .output()
         .unwrap();
 
     let json_stdout = String::from_utf8_lossy(&json_output.stdout);
-    let json_result: serde_json::Value = serde_json::from_str(&json_stdout)
-        .expect("--json output must be valid JSON");
+    let json_result: serde_json::Value =
+        serde_json::from_str(&json_stdout).expect("--json output must be valid JSON");
     assert_eq!(json_result["status"].as_str().unwrap(), "ok");
 }

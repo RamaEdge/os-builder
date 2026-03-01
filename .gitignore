@@ -38,6 +38,10 @@ local.yaml
 local.yml
 *-local.*
 
+# Rust / Cargo
+target/
+**/*.rs.bk
+
 # OS and editor files
 .DS_Store
 .vscode/

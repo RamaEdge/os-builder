@@ -97,7 +97,6 @@ pub fn format_inspect_json(manifest: &BundleManifest) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::Utc;
     use std::fs;
     use tempfile::TempDir;
 
@@ -134,7 +133,10 @@ mod tests {
         let result = run_inspect(dir.path()).unwrap();
         assert_eq!(result.schema_version, "1.0");
         assert_eq!(result.created_by, "edgeworks-bundle v0.1.0");
-        assert_eq!(result.image.reference, "harbor.theedgeworks.ai/edgeworks/edge-os:1.2.0");
+        assert_eq!(
+            result.image.reference,
+            "harbor.theedgeworks.ai/edgeworks/edge-os:1.2.0"
+        );
         assert_eq!(result.image.version, "1.2.0");
         assert_eq!(result.image.size_bytes, 2147483648);
         assert_eq!(result.image.digest, "sha256:abc123def456");
@@ -150,7 +152,10 @@ mod tests {
         // Must be valid JSON.
         let parsed: serde_json::Value = serde_json::from_str(&json_str).unwrap();
         assert_eq!(parsed["schema_version"], "1.0");
-        assert_eq!(parsed["image"]["reference"], "harbor.theedgeworks.ai/edgeworks/edge-os:1.2.0");
+        assert_eq!(
+            parsed["image"]["reference"],
+            "harbor.theedgeworks.ai/edgeworks/edge-os:1.2.0"
+        );
 
         // Must round-trip back to BundleManifest.
         let round_tripped: BundleManifest = serde_json::from_str(&json_str).unwrap();
@@ -167,15 +172,27 @@ mod tests {
         let output = format_inspect_human(&manifest, dir.path());
 
         assert!(output.contains("Bundle:"), "Missing Bundle header");
-        assert!(output.contains("Schema version: 1.0"), "Missing schema_version");
+        assert!(
+            output.contains("Schema version: 1.0"),
+            "Missing schema_version"
+        );
         assert!(output.contains("2026-03-01"), "Missing created_at date");
-        assert!(output.contains("edgeworks-bundle v0.1.0"), "Missing created_by");
-        assert!(output.contains("harbor.theedgeworks.ai/edgeworks/edge-os:1.2.0"), "Missing image reference");
+        assert!(
+            output.contains("edgeworks-bundle v0.1.0"),
+            "Missing created_by"
+        );
+        assert!(
+            output.contains("harbor.theedgeworks.ai/edgeworks/edge-os:1.2.0"),
+            "Missing image reference"
+        );
         assert!(output.contains("1.2.0"), "Missing version");
         assert!(output.contains("2.0 GiB"), "Missing human-readable size");
         assert!(output.contains("sha256:abc123def456"), "Missing digest");
         assert!(output.contains("any"), "Missing target_device");
-        assert!(output.contains("Hotfix for OPC-UA adapter timeout"), "Missing notes");
+        assert!(
+            output.contains("Hotfix for OPC-UA adapter timeout"),
+            "Missing notes"
+        );
     }
 
     #[test]
@@ -229,6 +246,9 @@ mod tests {
         manifest.notes = "".to_string();
         let dir = TempDir::new().unwrap();
         let output = format_inspect_human(&manifest, dir.path());
-        assert!(output.contains("Notes:          —"), "Empty notes should display as '—'");
+        assert!(
+            output.contains("Notes:          —"),
+            "Empty notes should display as '—'"
+        );
     }
 }

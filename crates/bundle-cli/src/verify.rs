@@ -62,45 +62,46 @@ pub fn run_verify(bundle_dir: &Path) -> Result<VerifyResult, BundleError> {
     }
 
     let mut checks: Vec<CheckResult> = Vec::new();
-    let mut manifest_opt: Option<BundleManifest> = None;
-
     // ── Check 1: manifest.json exists and parses ────────────────────────────
     let manifest_path = bundle_dir.join("manifest.json");
-    let manifest_result: Result<BundleManifest, BundleError> = if !manifest_path.exists() {
-        Err(BundleError::ManifestNotFound(bundle_dir.display().to_string()))
+    let manifest = if !manifest_path.exists() {
+        checks.push(CheckResult {
+            name: "manifest.json schema valid".to_string(),
+            passed: false,
+            detail: BundleError::ManifestNotFound(bundle_dir.display().to_string()).to_string(),
+        });
+        return Ok(VerifyResult {
+            valid: false,
+            checks,
+            manifest: None,
+        });
     } else {
         let content = fs::read_to_string(&manifest_path)
             .map_err(|e| BundleError::ManifestInvalid(e.to_string()))?;
-        serde_json::from_str::<BundleManifest>(&content)
-            .map_err(|e| BundleError::ManifestInvalid(e.to_string()))
+        match serde_json::from_str::<BundleManifest>(&content) {
+            Ok(m) => {
+                checks.push(CheckResult {
+                    name: "manifest.json schema valid".to_string(),
+                    passed: true,
+                    detail: format!("schema_version {}", m.schema_version),
+                });
+                m
+            }
+            Err(e) => {
+                checks.push(CheckResult {
+                    name: "manifest.json schema valid".to_string(),
+                    passed: false,
+                    detail: e.to_string(),
+                });
+                return Ok(VerifyResult {
+                    valid: false,
+                    checks,
+                    manifest: None,
+                });
+            }
+        }
     };
-
-    match manifest_result {
-        Ok(m) => {
-            checks.push(CheckResult {
-                name: "manifest.json schema valid".to_string(),
-                passed: true,
-                detail: format!("schema_version {}", m.schema_version),
-            });
-            manifest_opt = Some(m);
-        }
-        Err(ref e) => {
-            checks.push(CheckResult {
-                name: "manifest.json schema valid".to_string(),
-                passed: false,
-                detail: e.to_string(),
-            });
-            // Cannot proceed with further checks without a manifest.
-            return Ok(VerifyResult {
-                valid: false,
-                checks,
-                manifest: None,
-            });
-        }
-    }
-
-    // Unwrap is safe; we just matched Ok above.
-    let manifest = manifest_opt.as_ref().unwrap();
+    let manifest_opt = Some(manifest.clone());
 
     // ── Check 2: schema_version == "1.0" ───────────────────────────────────
     if manifest.schema_version == "1.0" {
@@ -136,13 +137,15 @@ pub fn run_verify(bundle_dir: &Path) -> Result<VerifyResult, BundleError> {
             manifest: manifest_opt,
         });
     } else {
-        let raw = fs::read_to_string(&checksums_path)
-            .map_err(|e| BundleError::Io(e))?;
+        let raw = fs::read_to_string(&checksums_path).map_err(BundleError::Io)?;
         // Expect at least one line: "<64-hex>  <filename>"
         let line = raw.lines().next().unwrap_or("").to_string();
         // Validate: 64-char hex, two spaces, filename
         let parts: Vec<&str> = line.splitn(2, "  ").collect();
-        if parts.len() != 2 || parts[0].len() != 64 || !parts[0].chars().all(|c| c.is_ascii_hexdigit()) {
+        if parts.len() != 2
+            || parts[0].len() != 64
+            || !parts[0].chars().all(|c| c.is_ascii_hexdigit())
+        {
             checks.push(CheckResult {
                 name: "checksums.sha256 well-formed".to_string(),
                 passed: false,
@@ -157,7 +160,10 @@ pub fn run_verify(bundle_dir: &Path) -> Result<VerifyResult, BundleError> {
         checks.push(CheckResult {
             name: "checksums.sha256 well-formed".to_string(),
             passed: true,
-            detail: format!("{} file(s) listed", raw.lines().filter(|l| !l.is_empty()).count()),
+            detail: format!(
+                "{} file(s) listed",
+                raw.lines().filter(|l| !l.is_empty()).count()
+            ),
         });
         (parts[0].to_string(), parts[1].to_string()) // (expected_hash, filename)
     };
@@ -183,7 +189,7 @@ pub fn run_verify(bundle_dir: &Path) -> Result<VerifyResult, BundleError> {
     checks.push(CheckResult {
         name: format!("{} exists", manifest.image.file),
         passed: true,
-        detail: format!("{}", format_bytes(tarball_size)),
+        detail: format_bytes(tarball_size).to_string(),
     });
 
     // ── Check 5: SHA256 matches checksums.sha256 AND manifest.image.digest ─
@@ -204,7 +210,9 @@ pub fn run_verify(bundle_dir: &Path) -> Result<VerifyResult, BundleError> {
     };
 
     // Strip "sha256:" prefix from manifest digest if present.
-    let manifest_digest_hex = manifest.image.digest
+    let manifest_digest_hex = manifest
+        .image
+        .digest
         .strip_prefix("sha256:")
         .unwrap_or(&manifest.image.digest);
 
@@ -399,7 +407,11 @@ mod tests {
     fn test_verify_valid_bundle() {
         let (dir, _tarball, _hex, _size) = make_valid_bundle();
         let result = run_verify(dir.path()).unwrap();
-        assert!(result.valid, "Expected valid bundle, checks: {:?}", result.checks);
+        assert!(
+            result.valid,
+            "Expected valid bundle, checks: {:?}",
+            result.checks
+        );
         assert_eq!(result.checks.len(), 6);
         assert!(result.checks.iter().all(|c| c.passed));
     }
@@ -423,11 +435,15 @@ mod tests {
         fs::write(dir.path().join("checksums.sha256"), bad_checksum).unwrap();
 
         let result = run_verify(dir.path()).unwrap();
-        assert!(!result.valid, "Expected invalid bundle due to checksum mismatch");
+        assert!(
+            !result.valid,
+            "Expected invalid bundle due to checksum mismatch"
+        );
         let failed: Vec<_> = result.checks.iter().filter(|c| !c.passed).collect();
         assert!(
             failed.iter().any(|c| c.name.contains("SHA256")),
-            "Expected SHA256 check to fail, got: {:?}", failed
+            "Expected SHA256 check to fail, got: {:?}",
+            failed
         );
     }
 
@@ -438,11 +454,15 @@ mod tests {
         fs::remove_file(dir.path().join(&tarball_name)).unwrap();
 
         let result = run_verify(dir.path()).unwrap();
-        assert!(!result.valid, "Expected invalid bundle due to missing tarball");
+        assert!(
+            !result.valid,
+            "Expected invalid bundle due to missing tarball"
+        );
         let failed: Vec<_> = result.checks.iter().filter(|c| !c.passed).collect();
         assert!(
             failed.iter().any(|c| c.name.contains("exists")),
-            "Expected tarball-exists check to fail, got: {:?}", failed
+            "Expected tarball-exists check to fail, got: {:?}",
+            failed
         );
     }
 
@@ -467,14 +487,19 @@ mod tests {
         fs::write(
             dir.path().join("manifest.json"),
             serde_json::to_string_pretty(&bad_manifest).unwrap(),
-        ).unwrap();
+        )
+        .unwrap();
 
         let result = run_verify(dir.path()).unwrap();
-        assert!(!result.valid, "Expected invalid bundle due to bad schema version");
+        assert!(
+            !result.valid,
+            "Expected invalid bundle due to bad schema version"
+        );
         let failed: Vec<_> = result.checks.iter().filter(|c| !c.passed).collect();
         assert!(
             failed.iter().any(|c| c.name.contains("schema_version")),
-            "Expected schema_version check to fail, got: {:?}", failed
+            "Expected schema_version check to fail, got: {:?}",
+            failed
         );
     }
 
@@ -499,14 +524,21 @@ mod tests {
         fs::write(
             dir.path().join("manifest.json"),
             serde_json::to_string_pretty(&manifest).unwrap(),
-        ).unwrap();
+        )
+        .unwrap();
 
         let result = run_verify(dir.path()).unwrap();
-        assert!(!result.valid, "Expected invalid bundle due to size mismatch");
+        assert!(
+            !result.valid,
+            "Expected invalid bundle due to size mismatch"
+        );
         let failed: Vec<_> = result.checks.iter().filter(|c| !c.passed).collect();
         assert!(
-            failed.iter().any(|c| c.name.contains("size") || c.name.contains("Size")),
-            "Expected size check to fail, got: {:?}", failed
+            failed
+                .iter()
+                .any(|c| c.name.contains("size") || c.name.contains("Size")),
+            "Expected size check to fail, got: {:?}",
+            failed
         );
     }
 
@@ -516,25 +548,37 @@ mod tests {
         fs::remove_file(dir.path().join("checksums.sha256")).unwrap();
 
         let result = run_verify(dir.path()).unwrap();
-        assert!(!result.valid, "Expected invalid bundle due to missing checksums.sha256");
+        assert!(
+            !result.valid,
+            "Expected invalid bundle due to missing checksums.sha256"
+        );
         let failed: Vec<_> = result.checks.iter().filter(|c| !c.passed).collect();
         assert!(
             failed.iter().any(|c| c.name.contains("checksums")),
-            "Expected checksums check to fail, got: {:?}", failed
+            "Expected checksums check to fail, got: {:?}",
+            failed
         );
     }
 
     #[test]
     fn test_verify_malformed_manifest() {
         let (dir, _tarball, _hex, _size) = make_valid_bundle();
-        fs::write(dir.path().join("manifest.json"), b"{ not valid json !!!" as &[u8]).unwrap();
+        fs::write(
+            dir.path().join("manifest.json"),
+            b"{ not valid json !!!" as &[u8],
+        )
+        .unwrap();
 
         let result = run_verify(dir.path()).unwrap();
-        assert!(!result.valid, "Expected invalid bundle due to malformed manifest");
+        assert!(
+            !result.valid,
+            "Expected invalid bundle due to malformed manifest"
+        );
         let failed: Vec<_> = result.checks.iter().filter(|c| !c.passed).collect();
         assert!(
             failed.iter().any(|c| c.name.contains("manifest")),
-            "Expected manifest check to fail, got: {:?}", failed
+            "Expected manifest check to fail, got: {:?}",
+            failed
         );
     }
 

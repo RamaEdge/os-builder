@@ -44,7 +44,7 @@ ISO_DIR := $(BUILD_DIR)/iso-output
 # Common targets
 .PHONY: help build test test-microshift test-bootc test-all clean push pull info
 .PHONY: scan sbom install-deps install-trivy install-syft disk-image build-iso
-.PHONY: bundle-cli bundle-cli-test
+.PHONY: bundle-cli bundle-cli-test bundle-cli-fmt bundle-cli-lint bundle-cli-check
 
 # =============================================================================
 # Help
@@ -57,7 +57,7 @@ help:
 	@echo "Security:   scan, sbom"
 	@echo "Deploy:     push, pull, disk-image, build-iso"
 	@echo "Install:    install-deps, install-trivy, install-syft"
-	@echo "Bundle CLI: bundle-cli, bundle-cli-test"
+	@echo "Bundle CLI: bundle-cli, bundle-cli-test, bundle-cli-fmt, bundle-cli-lint, bundle-cli-check"
 	@echo "Info:       info, help, clean"
 	@echo ""
 	@echo "Config:     IMAGE_NAME=$(IMAGE_NAME)"
@@ -260,3 +260,14 @@ bundle-cli:
 bundle-cli-test:
 	@echo "Testing edgeworks-bundle..."
 	cargo test --manifest-path crates/bundle-cli/Cargo.toml
+
+bundle-cli-fmt:
+	@echo "Checking edgeworks-bundle formatting..."
+	cargo fmt --manifest-path crates/bundle-cli/Cargo.toml --check
+
+bundle-cli-lint:
+	@echo "Linting edgeworks-bundle..."
+	cargo clippy --manifest-path crates/bundle-cli/Cargo.toml -- -D warnings
+
+bundle-cli-check: bundle-cli-fmt bundle-cli-lint bundle-cli-test
+	@echo "All bundle-cli checks passed."

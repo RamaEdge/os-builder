@@ -60,9 +60,12 @@ fn main() {
     let cli = Cli::parse();
 
     let result = match &cli.command {
-        Commands::Create { image, output, notes, target_device } => {
-            create::run(image, output, notes, target_device, cli.json)
-        }
+        Commands::Create {
+            image,
+            output,
+            notes,
+            target_device,
+        } => create::run(image, output, notes, target_device, cli.json),
         Commands::Verify { path } => {
             match verify::run_verify(path) {
                 Ok(result) => {

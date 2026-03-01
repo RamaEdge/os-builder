@@ -17,7 +17,7 @@ on:
 jobs:
   build-and-test:
     name: Build & Test
-    runs-on: ubuntu-latest
+    runs-on: arc-runner-set
 
     steps:
       - name: Checkout
@@ -25,6 +25,8 @@ jobs:
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
 
       - name: Cache cargo registry and build
         uses: actions/cache@v4
@@ -36,6 +38,12 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('crates/bundle-cli/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
+
+      - name: Check formatting
+        run: make bundle-cli-fmt
+
+      - name: Lint
+        run: make bundle-cli-lint
 
       - name: Run tests
         run: make bundle-cli-test

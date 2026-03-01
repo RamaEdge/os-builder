@@ -1,6 +1,7 @@
 use thiserror::Error;
 
 #[derive(Error, Debug)]
+#[allow(dead_code)]
 pub enum BundleError {
     #[error("image pull failed: {0}")]
     PullFailed(String),
@@ -40,19 +41,54 @@ mod tests {
     #[test]
     fn all_error_variants_have_descriptive_messages() {
         let errors: Vec<(BundleError, &str)> = vec![
-            (BundleError::PullFailed("timeout".into()), "image pull failed: timeout"),
+            (
+                BundleError::PullFailed("timeout".into()),
+                "image pull failed: timeout",
+            ),
             (BundleError::SkopeoNotAvailable, "skopeo not found"),
-            (BundleError::OutputExists, "output directory already contains"),
-            (BundleError::ManifestNotFound("/tmp".into()), "manifest.json not found in /tmp"),
-            (BundleError::ManifestInvalid("bad json".into()), "invalid manifest: bad json"),
-            (BundleError::UnsupportedSchema("2.0".into()), "unsupported schema version: 2.0"),
-            (BundleError::ChecksumMismatch { expected: "aaa".into(), actual: "bbb".into() }, "checksum mismatch"),
-            (BundleError::SizeMismatch { expected: 100, actual: 200 }, "size mismatch"),
-            (BundleError::FileNotFound("missing.tar".into()), "referenced file not found: missing.tar"),
+            (
+                BundleError::OutputExists,
+                "output directory already contains",
+            ),
+            (
+                BundleError::ManifestNotFound("/tmp".into()),
+                "manifest.json not found in /tmp",
+            ),
+            (
+                BundleError::ManifestInvalid("bad json".into()),
+                "invalid manifest: bad json",
+            ),
+            (
+                BundleError::UnsupportedSchema("2.0".into()),
+                "unsupported schema version: 2.0",
+            ),
+            (
+                BundleError::ChecksumMismatch {
+                    expected: "aaa".into(),
+                    actual: "bbb".into(),
+                },
+                "checksum mismatch",
+            ),
+            (
+                BundleError::SizeMismatch {
+                    expected: 100,
+                    actual: 200,
+                },
+                "size mismatch",
+            ),
+            (
+                BundleError::FileNotFound("missing.tar".into()),
+                "referenced file not found: missing.tar",
+            ),
         ];
         for (err, expected_substring) in errors {
             let msg = err.to_string();
-            assert!(msg.contains(expected_substring), "Error message '{}' should contain '{}'", msg, expected_substring);
+            assert!(
+                msg.contains(expected_substring),
+                "Error message '{}' should contain '{}'",
+                msg,
+                expected_substring
+            );
         }
     }
 

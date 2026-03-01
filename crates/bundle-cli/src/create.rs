@@ -50,7 +50,13 @@ struct BundleResult {
 
 /// Core bundle creation pipeline — shared by human and JSON output modes.
 /// When `json` is true, progress bars are suppressed so stdout is clean for JSON output.
-fn create_bundle(image: &str, output: &Path, notes: &str, target_device: &str, json: bool) -> Result<BundleResult, BundleError> {
+fn create_bundle(
+    image: &str,
+    output: &Path,
+    notes: &str,
+    target_device: &str,
+    json: bool,
+) -> Result<BundleResult, BundleError> {
     // 1. Validate inputs
 
     // Check skopeo is in PATH
@@ -187,13 +193,18 @@ fn create_bundle(image: &str, output: &Path, notes: &str, target_device: &str, j
     })
 }
 
-pub fn run(image: &str, output: &Path, notes: &str, target_device: &str, json: bool) -> Result<(), BundleError> {
+pub fn run(
+    image: &str,
+    output: &Path,
+    notes: &str,
+    target_device: &str,
+    json: bool,
+) -> Result<(), BundleError> {
     match create_bundle(image, output, notes, target_device, json) {
         Ok(result) => {
             if json {
                 // Canonicalize the output directory path to an absolute path
-                let abs_dir = fs::canonicalize(output)
-                    .unwrap_or_else(|_| output.to_path_buf());
+                let abs_dir = fs::canonicalize(output).unwrap_or_else(|_| output.to_path_buf());
 
                 let out = CreateOutput {
                     status: "ok".to_string(),
