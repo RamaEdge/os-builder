@@ -65,7 +65,9 @@ See: `.planning/milestones/v1.0-ROADMAP.md` for full details.
   3. `edgeworks-bundle inspect <bundle-dir>` displays all manifest fields in human-readable format instantly (no checksum computation)
   4. Both commands support `--json` for machine-readable output
   5. Verify tests cover: valid bundle passes, corrupted checksum fails, missing tarball fails, bad schema version fails
-**Plans**: TBD
+**Plans**: 2 plans
+  - [ ] 06-01-PLAN.md — Implement verify command with 6 integrity checks, exit codes, human/JSON output, and tests
+  - [ ] 06-02-PLAN.md — Implement inspect command with fast metadata display, human/JSON output, and tests
 
 ### Phase 7: CI/CD Integration
 **Goal**: The bundle CLI builds and tests automatically in CI and produces a downloadable release binary
@@ -89,5 +91,5 @@ See: `.planning/milestones/v1.0-ROADMAP.md` for full details.
 | 3. CI | v1.0 | 1/1 | Complete | 2026-03-01 |
 | 4. Foundation | v1.1 | 0/? | Not started | - |
 | 5. Create Command | v1.1 | 0/? | Not started | - |
-| 6. Verify + Inspect | v1.1 | 0/? | Not started | - |
+| 6. Verify + Inspect | v1.1 | 0/2 | Planned | - |
 | 7. CI/CD Integration | v1.1 | 0/? | Not started | - |
