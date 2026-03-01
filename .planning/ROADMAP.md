@@ -10,9 +10,9 @@ Migrate os-builder from K3s to MicroShift using upstream COPR packages. Phase 1 
 
 ## Phases
 
-- [ ] **Phase 1: Containerfile + Offline Operation** - New Containerfile.microshift with COPR packages and two-phase image embedding
-- [ ] **Phase 2: Cleanup** - K3s removal and build toolchain simplification
-- [ ] **Phase 3: CI** - Update CI workflows and tests for MicroShift-only build
+- [x] **Phase 1: Containerfile + Offline Operation** - New Containerfile.microshift with COPR packages and two-phase image embedding
+- [x] **Phase 2: Cleanup** - K3s removal and build toolchain simplification
+- [x] **Phase 3: CI** - Update CI workflows and tests for MicroShift-only build
 
 ## Phase Details
 
@@ -34,10 +34,10 @@ Migrate os-builder from K3s to MicroShift using upstream COPR packages. Phase 1 
 **Plans:** 4 plans in 3 waves
 
 Plans:
-- [ ] 01-01-PLAN.md — Write os/Containerfile.microshift with COPR packages, kindnet, TopoLVM, skopeo, VOLUME /var (wave 1)
-- [ ] 01-02-PLAN.md — Implement build-time image embedding script (wave 1)
-- [ ] 01-03-PLAN.md — Implement runtime microshift-copy-images script, systemd drop-in, and edgeworks image embedding (wave 2)
-- [ ] 01-04-PLAN.md — Configure kustomizePaths in microshift config.yaml and place manifests in manifests.d/ (wave 3)
+- [x] 01-01-PLAN.md — Write os/Containerfile.microshift with COPR packages, kindnet, TopoLVM, skopeo, VOLUME /var (wave 1)
+- [x] 01-02-PLAN.md — Implement build-time image embedding script (wave 1)
+- [x] 01-03-PLAN.md — Implement runtime microshift-copy-images script, systemd drop-in, and edgeworks image embedding (wave 2)
+- [x] 01-04-PLAN.md — Configure kustomizePaths in microshift config.yaml and place manifests in manifests.d/ (wave 3)
 
 ### Phase 2: Cleanup
 **Goal**: All K3s code is deleted and the build toolchain operates as a single MicroShift-only variant
@@ -53,8 +53,8 @@ Plans:
 **Plans:** 2 plans in 1 wave
 
 Plans:
-- [ ] 02-01-PLAN.md — Delete all K3s files and remove K3s references from edge-setup.sh, versions.txt, build.sh (wave 1)
-- [ ] 02-02-PLAN.md — Simplify Makefile to single build target and clean up build.sh (wave 1)
+- [x] 02-01-PLAN.md — Delete all K3s files and remove K3s references from edge-setup.sh, versions.txt, build.sh (wave 1)
+- [x] 02-02-PLAN.md — Simplify Makefile to single build target and clean up build.sh (wave 1)
 
 ### Phase 3: CI
 **Goal**: CI builds and tests the MicroShift variant as the one and only workflow
@@ -68,7 +68,7 @@ Plans:
 **Plans:** 1 plan in 1 wave
 
 Plans:
-- [ ] 03-01-PLAN.md — Remove K3s CI workflow, update MicroShift workflow as default, update test-container.sh (wave 1)
+- [x] 03-01-PLAN.md — Remove K3s CI workflow, update MicroShift workflow as default, update test-container.sh (wave 1)
 
 ## Progress
 
@@ -77,6 +77,6 @@ All phases execute in parallel (no file overlap between phases).
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Containerfile + Offline | 0/4 | Not started | - |
-| 2. Cleanup | 0/2 | Not started | - |
-| 3. CI | 0/1 | Not started | - |
+| 1. Containerfile + Offline | 4/4 | Complete | 2026-03-01 |
+| 2. Cleanup | 2/2 | Complete | 2026-03-01 |
+| 3. CI | 1/1 | Complete | 2026-03-01 |
