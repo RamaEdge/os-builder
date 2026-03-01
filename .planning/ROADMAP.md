@@ -23,7 +23,7 @@ See: `.planning/milestones/v1.0-ROADMAP.md` for full details.
 **Milestone Goal:** Build the `edgeworks-bundle` Rust CLI tool — create, verify, and inspect offline update bundles for air-gapped edge devices.
 
 - [x] **Phase 4: Foundation** - Cargo crate, manifest types, and error handling (2026-03-01)
-- [ ] **Phase 5: Create Command** - Pull image via skopeo and write a valid bundle directory
+- [x] **Phase 5: Create Command** - Pull image via skopeo and write a valid bundle directory (completed 2026-03-01)
 - [ ] **Phase 6: Verify + Inspect Commands** - Validate bundle integrity and display metadata
 - [ ] **Phase 7: CI/CD Integration** - Makefile targets, GitHub Actions pipeline, release artifact
 
@@ -90,6 +90,6 @@ See: `.planning/milestones/v1.0-ROADMAP.md` for full details.
 | 2. Cleanup | v1.0 | 2/2 | Complete | 2026-03-01 |
 | 3. CI | v1.0 | 1/1 | Complete | 2026-03-01 |
 | 4. Foundation | v1.1 | 2/2 | Complete | 2026-03-01 |
-| 5. Create Command | 1/2 | In Progress|  | - |
+| 5. Create Command | 2/2 | Complete   | 2026-03-01 | - |
 | 6. Verify + Inspect | v1.1 | 0/2 | Planned | - |
 | 7. CI/CD Integration | v1.1 | 0/? | Not started | - |

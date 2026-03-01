@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Bundle CLI
 status: unknown
-last_updated: "2026-03-01T18:11:17.963Z"
+last_updated: "2026-03-01T18:15:12.000Z"
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 8
-  completed_plans: 3
+  completed_plans: 4
 ---
 
 # Project State
@@ -23,25 +23,25 @@ See: .planning/PROJECT.md (updated 2026-03-01)
 ## Current Position
 
 Phase: 5 of 7 (Create command)
-Plan: 1 of 3 (05-01 complete — create command core)
+Plan: 2 of 3 (05-02 complete — JSON output mode and integration tests)
 Status: In progress
-Last activity: 2026-03-01 — Completed 05-01: create::run() with skopeo, SHA256, checksums, manifest
+Last activity: 2026-03-01 — Completed 05-02: JSON output mode, CreateOutput struct, 5 integration tests
 
-Progress: [███░░░░░░░] 30% (v1.1)
+Progress: [████░░░░░░] 40% (v1.1)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 3 (v1.1)
-- Average duration: ~2.7 min
-- Total execution time: ~9 min
+- Total plans completed: 4 (v1.1)
+- Average duration: ~2.75 min
+- Total execution time: ~12 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 04-foundation | 2 | ~7 min | ~3.5 min |
-| 05-create-command | 1 | ~2 min | ~2 min |
+| 05-create-command | 2 | ~5 min | ~2.5 min |
 
 *Updated after each plan completion*
 
@@ -66,6 +66,12 @@ v1.1 design authority: `docs/bundle-cli-design.md` — bundle format, CLI comman
 - [Phase 05-01]: json flag threaded from main.rs Cli struct into create::run() as parameter — avoids global state
 - [Phase 05-01]: ProgressBar::new_spinner() for skopeo pull (unbounded) vs ProgressBar::new(file_size) for SHA256 (bounded)
 
+**05-02 decisions:**
+- ProgressBar::hidden() chosen to suppress progress bars in JSON mode — cleaner than conditional rendering per-update
+- JSON errors go to stdout via process::exit(1) — bypasses main.rs stderr handler so stdout is sole output channel
+- assert_cmd::cargo::cargo_bin_cmd! macro used (non-deprecated) instead of Command::cargo_bin()
+- std::fs::canonicalize() with fallback for absolute output path in JSON success output
+
 ### Pending Todos
 
 None.
@@ -77,5 +83,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-01
-Stopped at: Completed 05-01-PLAN.md — create command: skopeo pull, SHA256, bundle output
+Stopped at: Completed 05-02-PLAN.md — JSON output mode, CreateOutput struct, integration tests
 Resume file: None
