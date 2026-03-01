@@ -84,7 +84,27 @@ fn main() {
                 }
             }
         }
-        Commands::Inspect { path } => inspect::run(path),
+        Commands::Inspect { path } => {
+            match inspect::run_inspect(path) {
+                Ok(manifest) => {
+                    if cli.json {
+                        print!("{}", inspect::format_inspect_json(&manifest));
+                    } else {
+                        print!("{}", inspect::format_inspect_human(&manifest, path));
+                    }
+                    std::process::exit(0);
+                }
+                Err(e) => {
+                    eprintln!("Error: {e}");
+                    // ManifestNotFound means path doesn't exist -> exit 2
+                    // ManifestInvalid means bad manifest -> exit 1
+                    match e {
+                        crate::error::BundleError::ManifestNotFound(_) => std::process::exit(2),
+                        _ => std::process::exit(1),
+                    }
+                }
+            }
+        }
     };
 
     if let Err(e) = result {
