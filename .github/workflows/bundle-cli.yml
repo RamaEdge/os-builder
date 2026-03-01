@@ -1,0 +1,51 @@
+name: Bundle CLI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'crates/bundle-cli/**'
+      - 'Makefile'
+      - '.github/workflows/bundle-cli.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'crates/bundle-cli/**'
+      - 'Makefile'
+      - '.github/workflows/bundle-cli.yml'
+
+jobs:
+  build-and-test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            crates/bundle-cli/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('crates/bundle-cli/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Run tests
+        run: make bundle-cli-test
+
+      - name: Build release binary
+        run: make bundle-cli
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: edgeworks-bundle-linux-amd64
+          path: crates/bundle-cli/target/release/edgeworks-bundle
+          if-no-files-found: error
