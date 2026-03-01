@@ -20,7 +20,7 @@ jobs:
       - name: Extract base image
         id: base-image
         run: |
-          BASE_IMAGE=$(grep "^FROM" os/Containerfile.fedora | head -1 | awk '{print $2}')
+          BASE_IMAGE=$(grep "^FROM" os/Containerfile.microshift | head -1 | awk '{print $2}')
           echo "base-image=${BASE_IMAGE}" >> $GITHUB_OUTPUT
           echo "Base image: ${BASE_IMAGE}"
 
@@ -64,11 +64,11 @@ jobs:
       - name: Extract installed packages
         run: |
           echo "Extracting packages from Containerfile..."
-          grep -E "dnf install|yum install|apt install" os/Containerfile.fedora || true
+          grep -E "dnf install|yum install|apt install" os/Containerfile.microshift || true
           
           # Create a package list for analysis
           echo "# Fedora bootc packages" > package-list.txt
-          grep -E "dnf install" os/Containerfile.fedora | \
+          grep -E "dnf install" os/Containerfile.microshift | \
             sed 's/.*dnf install -y//' | \
             tr ' ' '\n' | \
             grep -v '^$' | \
