@@ -1,13 +1,13 @@
-name: 'Update Version in versions.txt'
-description: 'Update a specific version in the centralized versions.txt file'
+name: 'Update Version in versions.json'
+description: 'Update a specific version in the centralized versions.json file'
 author: 'os-builder'
 branding:
   icon: 'edit'
   color: 'orange'
 
 inputs:
-  version-key:
-    description: 'The version key to update (e.g., OTEL_VERSION)'
+  json-path:
+    description: 'The jq path to update (e.g., .components.otel_collector)'
     required: true
   new-version:
     description: 'The new version value'
@@ -27,39 +27,40 @@ outputs:
 runs:
   using: 'composite'
   steps:
-    - name: Update version in versions.txt
+    - name: Update version in versions.json
       id: update
       shell: bash
       run: |
-        echo "🔄 Updating ${{ inputs.component-name }} version..."
-        
-        if [ ! -f "versions.txt" ]; then
-          echo "❌ versions.txt not found!"
+        echo "Updating ${{ inputs.component-name }} version..."
+
+        if [ ! -f "versions.json" ]; then
+          echo "versions.json not found!"
           exit 1
         fi
-        
+
         # Get current version
-        OLD_VERSION=$(grep "^${{ inputs.version-key }}=" versions.txt | cut -d'=' -f2)
+        OLD_VERSION=$(jq -r '${{ inputs.json-path }}' versions.json)
         NEW_VERSION="${{ inputs.new-version }}"
-        
+
         echo "old-version=${OLD_VERSION}" >> $GITHUB_OUTPUT
-        
+
         if [ "$OLD_VERSION" = "$NEW_VERSION" ]; then
           echo "updated=false" >> $GITHUB_OUTPUT
-          echo "✅ ${{ inputs.component-name }} already at version: ${NEW_VERSION}"
+          echo "${{ inputs.component-name }} already at version: ${NEW_VERSION}"
           exit 0
         fi
-        
+
         # Update the version
-        sed -i "s/^${{ inputs.version-key }}=.*/${{ inputs.version-key }}=${NEW_VERSION}/" versions.txt
-        
+        jq '${{ inputs.json-path }} = "${{ inputs.new-version }}"' versions.json > versions.json.tmp
+        mv versions.json.tmp versions.json
+
         # Verify the update
-        UPDATED_VERSION=$(grep "^${{ inputs.version-key }}=" versions.txt | cut -d'=' -f2)
-        
+        UPDATED_VERSION=$(jq -r '${{ inputs.json-path }}' versions.json)
+
         if [ "$UPDATED_VERSION" = "$NEW_VERSION" ]; then
           echo "updated=true" >> $GITHUB_OUTPUT
-          echo "✅ Updated ${{ inputs.component-name }}: ${OLD_VERSION} → ${NEW_VERSION}"
+          echo "Updated ${{ inputs.component-name }}: ${OLD_VERSION} -> ${NEW_VERSION}"
         else
-          echo "❌ Failed to update ${{ inputs.component-name }}"
+          echo "Failed to update ${{ inputs.component-name }}"
           exit 1
-        fi 
+        fi

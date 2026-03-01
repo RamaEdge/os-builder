@@ -126,7 +126,7 @@ if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
     echo "  CONTAINERFILE      - Containerfile path (default: Containerfile.microshift)"
     echo "  CONTAINER_RUNTIME  - Runtime (default: podman)"
     echo ""
-    echo "Version variables (from versions.txt):"
+    echo "Version variables (from versions.json via Makefile):"
     echo "  OTEL_VERSION       - OpenTelemetry version"
     echo "  FEDORA_VERSION     - Fedora version"
     exit 0

@@ -122,7 +122,7 @@ runs:
           # Build arguments
           BUILD_ARGS="--build-arg VCS_REF=${{ inputs.sha }} --build-arg VERSION=${{ inputs.version }}"
           
-          # Add conditional version arguments (required for versions.txt sourcing)
+          # Add conditional version arguments
           [ -n "${{ inputs.otel-version }}" ] && BUILD_ARGS="$BUILD_ARGS --build-arg OTEL_VERSION=${{ inputs.otel-version }}"
           [ -n "${{ inputs.fedora-version }}" ] && BUILD_ARGS="$BUILD_ARGS --build-arg FEDORA_VERSION=${{ inputs.fedora-version }}"
           

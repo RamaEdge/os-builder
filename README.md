@@ -1,184 +1,115 @@
 # os-builder
 
-This repository contains code for building operating systems that can be deployed on edge devices using bootc (bootable containers) technology.
+Container-based OS builds for edge computing deployments using bootc (bootable containers) technology.
 
 ## Overview
 
-This project provides container-based OS builds for edge computing deployments using bootc technology, which enables:
+This project builds immutable, container-native operating system images for edge devices:
 
-- Immutable OS updates via container images
-- Transactional updates with rollback capability
-- Container-native OS management
-- Edge-optimized configurations
+- Immutable OS updates via container images with rollback capability
+- MicroShift (lightweight Kubernetes) for edge workloads
+- Offline container image embedding for air-gapped deployments
+- OpenTelemetry Collector for observability
+- Automated ISO building for bare-metal installation
 
-## Available OS Builds
+## Architecture
 
-### Fedora bootc Edge OS (`os/`)
+```
+versions.json          # Single source of truth for all versions
+Makefile               # Build automation (reads versions.json)
+os/
+├── Containerfile.microshift  # Fedora 43 bootc + MicroShift
+├── build.sh                  # Build script with registry auth
+├── configs/                  # Container, MicroShift, OTel configs
+├── scripts/                  # Image embedding, health checks
+├── manifests/                # Kubernetes manifests (auto-deployed)
+├── systemd/                  # Systemd service units
+├── kickstart.ks              # Anaconda kickstart for ISO install
+└── iso-config.toml           # bootc-image-builder config
+.github/
+├── workflows/
+│   └── build-microshift.yaml # CI/CD pipeline
+└── actions/                  # Reusable composite actions
+    ├── build-container/      # Build with cache + registry auth
+    ├── build-iso/            # ISO generation
+    ├── trivy-scan/           # Vulnerability scanning (tar export)
+    ├── test-container/       # Container validation tests
+    ├── load-versions/        # Read versions.json
+    ├── update-version/       # Update versions.json
+    ├── calculate-version/    # Git-based semantic versioning
+    └── harbor-auth/          # Harbor registry authentication
+```
 
-A complete Fedora-based bootc container image optimized for edge deployments.
-
-**Features:**
-
-- Based on Fedora 42 bootc base image
-- Container runtime (Podman) pre-installed
-- **MicroShift Kubernetes built from source** for latest features and customization
-- **Offline Container Support**: Pre-loaded MicroShift container images for offline deployment
-- **Observability Stack**: OpenTelemetry Collector for metrics, logs, and traces
-- SSH access with security hardening
-- Automatic updates capability
-- Edge-specific optimizations
-- **Supply Chain Security**: SHA digest-based immutable container references
-- **ISO Building**: Create bootable ISOs with user configuration
-  - Interactive installation wizard with user prompts
-  - User account setup with SSH keys
-  - Custom hostname and DNS configuration (DHCP or static IP)
-  - Filesystem customizations with multiple layout options
-  - Automated via GitHub Actions
-
-**Quick Start:**
+## Quick Start
 
 ```bash
-cd os/
-make build                              # Build with MicroShift main branch
-make build MICROSHIFT_VERSION=release-4.17  # Build with specific MicroShift version
+# Show available targets and current versions
+make help
+
+# Build the container image
+make build
+
+# Run tests
 make test
+
+# Security scan
+make scan
+
+# Build bootable ISO
+make build-iso
+
+# Clean all build artifacts
+make clean
 ```
 
-**Documentation:** See [os/README.md](os/README.md) for detailed instructions.
+## Version Management
 
-**MicroShift Source Build:** MicroShift is built from source for latest features.
-See [docs/MICROSHIFT_SOURCE_BUILD.md](docs/MICROSHIFT_SOURCE_BUILD.md) for details.
+All versions are centralized in `versions.json`:
 
-**Versioning:** Container images are automatically versioned using GitVersion.
-See [docs/GITVERSION.md](docs/GITVERSION.md) for details.
-
-**Interactive Installation:** Guide for the interactive ISO installation process.
-See [docs/INTERACTIVE_INSTALLATION.md](docs/INTERACTIVE_INSTALLATION.md) for details.
-
-**ISO Building:** Complete guide for building bootable ISOs.
-See [docs/ISO_BUILDING.md](docs/ISO_BUILDING.md) for details.
-
-### RHEL bootc (Legacy - `os/Dockerfile`)
-
-The original RHEL-based bootc configuration with MicroShift.
-
-## Project Structure
-
-```
-os-builder/
-├── os/                          # Fedora bootc edge OS build
-│   ├── Containerfile.fedora     # Main multi-stage Containerfile
-│   ├── build.sh                 # Build script
-│   ├── Makefile                 # Build automation with ISO support
-│   ├── configs/                 # Configuration files
-│   ├── scripts/                 # Setup and utility scripts
-│   ├── systemd/                 # Systemd services
-│   ├── manifests/               # Kubernetes manifests
-│   ├── config-examples/         # ISO configuration examples
-│   ├── kickstart*.ks           # Interactive installation Kickstart files
-│   └── README.md                # Detailed documentation
-├── .github/                     # GitHub workflows
-│   ├── workflows/               # CI/CD workflows
-│   └── README.md                # Workflow documentation
-├── docs/                        # Documentation
-│   ├── GITVERSION.md            # GitVersion integration guide
-│   ├── MACOS_LIMITATIONS.md     # macOS limitations and solutions
-│   ├── MICROSHIFT_SOURCE_BUILD.md # MicroShift source build guide
-│   ├── ISO_BUILDING.md          # ISO building guide
-│   └── INTERACTIVE_INSTALLATION.md # Interactive installation guide
-├── GitVersion.yml               # Version configuration
-├── LICENSE                      # License file
-└── README.md                    # This file
+```json
+{
+  "base": { "fedora": "43" },
+  "components": {
+    "microshift": "4.21.0_...",
+    "otel_collector": "0.127.0"
+  },
+  "images": {
+    "edgeworks": { ... },
+    "infra": { ... }
+  }
+}
 ```
 
-## GitHub Actions & CI/CD
+Override at build time: `make build FEDORA_VERSION=44`
 
-This project includes **optimized GitHub Actions** for automated builds and testing:
+## CI/CD
 
-- **🚀 Intelligent Building**: Build actions detect existing images to avoid unnecessary rebuilds (~90% time savings)
-- **⚡ High-Performance Testing**: Container testing optimized for single-instance execution (~85% resource reduction)
-- **🔒 Security Scanning**: Integrated Trivy vulnerability scanning with smart configuration
-- **📦 Multi-Platform**: Supports MicroShift and bootc container builds
-- **🎯 Registry Integration**: Seamless integration with Harbor registry for image management
+The `build-microshift.yaml` workflow:
 
-**Actions Available:**
+1. Builds the container image with Podman
+2. Runs Trivy vulnerability scanning (via tar export)
+3. Runs container validation tests
+4. Pushes to Harbor registry (on main branch)
+5. Builds bootable ISO (on schedule or manual trigger)
 
-- `build-container` - Intelligent container building with cache optimization
-- `test-container` - High-performance container testing
-- `trivy-scan` - Vulnerability scanning with optimized configuration
-- `build-iso` - Automated ISO generation from container images
+Runs on: push to main, pull requests, weekly schedule, manual dispatch.
 
-See [.github/actions/README.md](.github/actions/README.md) for detailed documentation.
+## Build Artifacts
 
-## Getting Started
+All build artifacts are written to `.build/` (gitignored):
 
-1. **Clone the repository:**
-
-   ```bash
-   git clone <repository-url>
-   cd os-builder
-   ```
-
-2. **Build the Fedora bootc image:**
-
-   ```bash
-   cd os/
-   make help  # Show available commands
-   make build # Build the container image
-   ```
-
-3. **Convert to disk image (for deployment):**
-
-   ```bash
-   make disk-image
-   ```
-
-4. **Build ISO with user configuration:**
-
-   ```bash
-   make build-iso-user         # Pre-configured users (automated)
-   make build-iso-minimal      # Pre-configured minimal (automated)
-   make build-iso-advanced     # Interactive with basic prompts
-   make build-iso-interactive  # Interactive with comprehensive setup wizard
-   ```
-
-5. **Deploy to your edge infrastructure**
+- `.build/scan-results/` - Trivy scan results, SBOM
+- `.build/output/` - Disk images (qcow2)
+- `.build/iso-output/` - Bootable ISO files
+- `.build/registry-auth.json` - Temporary auth for builds
 
 ## Requirements
 
-- Linux system (Fedora, RHEL, or compatible recommended)
-- Podman or Docker
-- At least 4GB free disk space
+- Podman 4.0+ (or Docker)
+- jq
+- 8GB+ free disk space
 - Network access to pull base images
-
-## Use Cases
-
-This OS builder is designed for:
-
-- **Edge Computing**: Deployments at network edge locations
-- **IoT Infrastructure**: Internet of Things device management
-- **Container Workloads**: Running containerized applications
-- **Kubernetes Edge**: Lightweight Kubernetes workloads with MicroShift
-- **Immutable Infrastructure**: Infrastructure as code deployments
-- **Development/Testing**: Local development environments
-- **Offline Deployments**: Pre-loaded container images for air-gapped environments
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
 
 ## License
 
 This project is licensed under the terms specified in the [LICENSE](LICENSE) file.
-
-## Support
-
-For support and documentation:
-
-- **Fedora bootc**: [Fedora bootc Documentation](https://docs.fedoraproject.org/en-US/bootc/)
-- **bootc project**: [bootc-dev/bootc](https://github.com/bootc-dev/bootc)
-- **Issues**: Open an issue in this repository
