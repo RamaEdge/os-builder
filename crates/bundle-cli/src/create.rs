@@ -5,10 +5,23 @@ use std::process::Command;
 
 use chrono::Utc;
 use indicatif::{ProgressBar, ProgressStyle};
+use serde::Serialize;
 use sha2::{Digest, Sha256};
 
 use crate::error::BundleError;
 use crate::manifest::{BundleImage, BundleManifest};
+
+/// Machine-readable JSON output for a successful bundle creation (design doc §3.1).
+#[derive(Serialize)]
+pub struct CreateOutput {
+    pub status: String,
+    pub directory: String,
+    pub image: String,
+    pub version: String,
+    pub digest: String,
+    pub size_bytes: u64,
+    pub files: Vec<String>,
+}
 
 /// Format a byte count as a human-readable string (e.g., "2.0 GiB").
 fn format_bytes(bytes: u64) -> String {
@@ -36,7 +49,8 @@ struct BundleResult {
 }
 
 /// Core bundle creation pipeline — shared by human and JSON output modes.
-fn create_bundle(image: &str, output: &Path, notes: &str, target_device: &str) -> Result<BundleResult, BundleError> {
+/// When `json` is true, progress bars are suppressed so stdout is clean for JSON output.
+fn create_bundle(image: &str, output: &Path, notes: &str, target_device: &str, json: bool) -> Result<BundleResult, BundleError> {
     // 1. Validate inputs
 
     // Check skopeo is in PATH
@@ -78,9 +92,15 @@ fn create_bundle(image: &str, output: &Path, notes: &str, target_device: &str) -
     let tarball_filename = format!("edge-os-{}.oci.tar", version);
     let tarball_path = output.join(&tarball_filename);
 
-    let spinner = ProgressBar::new_spinner();
-    spinner.set_message("Pulling image...");
-    spinner.enable_steady_tick(std::time::Duration::from_millis(100));
+    // In JSON mode, suppress progress output so stdout is clean for JSON
+    let spinner = if json {
+        ProgressBar::hidden()
+    } else {
+        let pb = ProgressBar::new_spinner();
+        pb.set_message("Pulling image...");
+        pb.enable_steady_tick(std::time::Duration::from_millis(100));
+        pb
+    };
 
     let skopeo_output = Command::new("skopeo")
         .arg("copy")
@@ -99,14 +119,19 @@ fn create_bundle(image: &str, output: &Path, notes: &str, target_device: &str) -
     // 3. Compute SHA256 checksum with progress bar
     let file_size = fs::metadata(&tarball_path)?.len();
 
-    let progress = ProgressBar::new(file_size);
-    progress.set_message("Computing checksum...");
-    progress.set_style(
-        ProgressStyle::default_bar()
-            .template("[{bar:40}] {bytes}/{total_bytes} ({eta})")
-            .unwrap_or_else(|_| ProgressStyle::default_bar())
-            .progress_chars("#>-"),
-    );
+    let progress = if json {
+        ProgressBar::hidden()
+    } else {
+        let pb = ProgressBar::new(file_size);
+        pb.set_message("Computing checksum...");
+        pb.set_style(
+            ProgressStyle::default_bar()
+                .template("[{bar:40}] {bytes}/{total_bytes} ({eta})")
+                .unwrap_or_else(|_| ProgressStyle::default_bar())
+                .progress_chars("#>-"),
+        );
+        pb
+    };
 
     let file = fs::File::open(&tarball_path)?;
     let mut reader = BufReader::new(file);
@@ -163,32 +188,53 @@ fn create_bundle(image: &str, output: &Path, notes: &str, target_device: &str) -
 }
 
 pub fn run(image: &str, output: &Path, notes: &str, target_device: &str, json: bool) -> Result<(), BundleError> {
-    let result = create_bundle(image, output, notes, target_device)?;
+    match create_bundle(image, output, notes, target_device, json) {
+        Ok(result) => {
+            if json {
+                // Canonicalize the output directory path to an absolute path
+                let abs_dir = fs::canonicalize(output)
+                    .unwrap_or_else(|_| output.to_path_buf());
 
-    if json {
-        // JSON output (design doc §3.1)
-        let json_output = serde_json::json!({
-            "status": "ok",
-            "directory": output.display().to_string(),
-            "image": image,
-            "version": result.manifest.image.version,
-            "digest": result.digest,
-            "size_bytes": result.size_bytes,
-            "files": ["manifest.json", "checksums.sha256", result.tarball_filename]
-        });
-        println!("{}", serde_json::to_string_pretty(&json_output).unwrap());
-    } else {
-        // Human-readable summary (design doc §3.1)
-        println!("Bundle created successfully.");
-        println!("  Directory: {}", output.display());
-        println!("  Image:     {}", image);
-        println!("  Size:      {}", format_bytes(result.size_bytes));
-        println!("  Digest:    {}", result.digest);
-        println!(
-            "  Files:     3 (manifest.json, checksums.sha256, {})",
-            result.tarball_filename
-        );
+                let out = CreateOutput {
+                    status: "ok".to_string(),
+                    directory: abs_dir.display().to_string(),
+                    image: image.to_string(),
+                    version: result.manifest.image.version.clone(),
+                    digest: result.digest.clone(),
+                    size_bytes: result.size_bytes,
+                    files: vec![
+                        "manifest.json".to_string(),
+                        "checksums.sha256".to_string(),
+                        result.tarball_filename.clone(),
+                    ],
+                };
+                println!("{}", serde_json::to_string_pretty(&out).unwrap());
+            } else {
+                // Human-readable summary (design doc §3.1)
+                println!("Bundle created successfully.");
+                println!("  Directory: {}", output.display());
+                println!("  Image:     {}", image);
+                println!("  Size:      {}", format_bytes(result.size_bytes));
+                println!("  Digest:    {}", result.digest);
+                println!(
+                    "  Files:     3 (manifest.json, checksums.sha256, {})",
+                    result.tarball_filename
+                );
+            }
+            Ok(())
+        }
+        Err(e) => {
+            if json {
+                // In JSON mode, error output goes to stdout as JSON (not stderr)
+                let err_out = serde_json::json!({
+                    "status": "error",
+                    "message": e.to_string()
+                });
+                println!("{}", serde_json::to_string_pretty(&err_out).unwrap());
+                std::process::exit(1);
+            } else {
+                Err(e)
+            }
+        }
     }
-
-    Ok(())
 }
