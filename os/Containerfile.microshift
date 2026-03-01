@@ -1,0 +1,94 @@
+ARG FEDORA_VERSION=42
+FROM quay.io/fedora/fedora-bootc:${FEDORA_VERSION}
+ARG OTEL_VERSION
+ARG VCS_REF
+ARG VERSION
+
+LABEL org.opencontainers.image.title="Edge OS - Fedora bootc with MicroShift" \
+      org.opencontainers.image.description="Fedora bootc with upstream MicroShift for edge computing" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.revision="${VCS_REF}" \
+      org.opencontainers.image.vendor="RamaEdge" \
+      containers.bootc=1 \
+      ostree.bootable=1
+
+# System packages — includes skopeo for build-time image embedding (OFFL-01)
+RUN dnf install -y dnf-plugins-core && \
+    dnf install -y \
+        openssh-server sudo podman cri-o kubernetes-client skopeo \
+        NetworkManager firewalld policycoreutils-python-utils \
+        systemd-resolved chrony curl jq && \
+    find /usr -type f \( \( -perm -4000 -o -perm -2000 \) \
+        -a \( -name chfn -o -name chsh -o -name newgrp \) \) \
+        -exec chmod u-s {} \; && \
+    dnf clean packages && rm -rf /tmp/* /var/tmp/*
+
+# MicroShift from upstream COPR — no custom builder image needed
+# The RPM provides: microshift binary, microshift.service, CRI-O dep,
+# firewall zones, kubeconfig symlinks (/root/.kube/config -> /var/lib/microshift/...)
+# microshift-kindnet: Kindnet CNI (required on Fedora; OVN-K not supported)
+# microshift-topolvm: TopoLVM CSI for LVM-backed PVCs (edgeworks uses PVCs)
+RUN dnf copr enable -y @microshift-io/microshift-nightly && \
+    dnf install -y \
+        microshift \
+        microshift-release-info \
+        microshift-kindnet \
+        microshift-kindnet-release-info \
+        microshift-topolvm \
+        microshift-topolvm-release-info && \
+    dnf clean all
+
+# Download and install OpenTelemetry Collector
+RUN ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/') && \
+    curl -fsSL --retry 3 --retry-delay 5 \
+        "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v${OTEL_VERSION}/otelcol_${OTEL_VERSION}_linux_${ARCH}.tar.gz" \
+        -o /tmp/otelcol.tar.gz && \
+    tar -xzf /tmp/otelcol.tar.gz -C /tmp && \
+    mv /tmp/otelcol /usr/local/bin/otelcol && \
+    chmod +x /usr/local/bin/otelcol && \
+    rm -f /tmp/otelcol.tar.gz && \
+    useradd -r -s /sbin/nologin -d /var/lib/otelcol -c "OpenTelemetry Collector" otelcol && \
+    mkdir -p /var/log/otelcol /var/lib/otelcol /etc/otelcol && \
+    chown -R otelcol:otelcol /var/log/otelcol /var/lib/otelcol /etc/otelcol
+
+# Directory structure
+RUN mkdir -p /etc/microshift/manifests /var/lib/microshift \
+             /var/log/microshift /var/hpvolumes /var/empty
+
+# Configuration files — ENUMERATE EXPLICITLY (no wildcards that would pick up microshift.service)
+# CRITICAL: Do NOT COPY systemd/microshift.service — the microshift RPM provides the correct service file.
+COPY configs/containers/ /etc/containers/
+COPY configs/otelcol/ /etc/otelcol/
+COPY configs/microshift/ /etc/microshift/
+COPY manifests/ /etc/microshift/manifests/
+COPY systemd/edge-setup.service /usr/lib/systemd/system/
+COPY systemd/otelcol.service /usr/lib/systemd/system/
+COPY systemd/observability-deploy.service /usr/lib/systemd/system/
+COPY systemd/microshift-kubeconfig-setup.service /usr/lib/systemd/system/
+COPY systemd/bootc-fetch-apply-updates.timer.d/ /usr/lib/systemd/system/bootc-fetch-apply-updates.timer.d/
+COPY scripts/edge-setup.sh /usr/local/bin/
+COPY scripts/health-check.sh /usr/local/bin/
+
+# Enable services and configure firewall
+# NOTE: Do NOT enable microshift.service — RPM postinstall already does it.
+# NOTE: Do NOT enable microshift-make-rshared.service — RPM postinstall does that too.
+RUN chmod +x /usr/local/bin/*.sh 2>/dev/null || true && \
+    systemctl enable sshd chronyd systemd-resolved podman.socket crio \
+                    otelcol edge-setup.service observability-deploy.service \
+                    microshift-kubeconfig-setup.service \
+                    bootc-fetch-apply-updates.timer 2>/dev/null || true && \
+    firewall-offline-cmd --add-service=ssh \
+        --add-port=6443/tcp --add-port=8080/tcp --add-port=10250/tcp \
+        --add-port=4317/tcp --add-port=4318/tcp --add-port=9090/tcp \
+        --add-port=8888/tcp --add-port=80/tcp --add-port=443/tcp && \
+    restorecon -R /etc /usr/local/bin 2>/dev/null || true && \
+    useradd -r -s /sbin/nologin -d /var/empty -c "Container user" containeruser && \
+    chown containeruser:containeruser /var/empty
+
+# Declare /var as volume for kubelet idmap support (upstream-mandated)
+VOLUME /var
+
+STOPSIGNAL SIGRTMIN+3
+CMD ["/sbin/init"]
+RUN bootc container lint
+USER containeruser
