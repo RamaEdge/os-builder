@@ -2,7 +2,7 @@
 
 ## What This Is
 
-Migrate the os-builder edge computing platform from K3s to MicroShift using upstream COPR packages. This replaces the custom-built MicroShift binary approach with official RPM packages, implements a two-phase offline image embedding pattern for airgap operation, and cleans up all K3s-related code to leave a single, simplified MicroShift-only build.
+The os-builder edge computing platform uses MicroShift via upstream COPR packages to produce immutable bootc images that boot fully functional — with all Kubernetes system pods and edgeworks application pods running offline.
 
 ## Core Value
 
@@ -19,38 +19,32 @@ Edge devices boot fully functional with all MicroShift system pods and edgeworks
 - ✓ Edge setup script for first-boot OS configuration — existing
 - ✓ Container auto-update support — existing
 - ✓ GitHub Actions CI/CD workflows — existing
+- ✓ New Containerfile.microshift using upstream COPR packages (THE-869) — v1.0
+- ✓ Two-phase offline image embedding for MicroShift system images (THE-870) — v1.0
+- ✓ Auto-deploy edgeworks manifests via MicroShift kustomizePaths (THE-871) — v1.0
+- ✓ Embed edgeworks application container images for offline operation (THE-872) — v1.0
+- ✓ Remove all K3s files and references (THE-873) — v1.0
+- ✓ Simplify edge-setup.sh to OS-only concerns (THE-874) — v1.0
+- ✓ Simplify Makefile and build.sh to single MicroShift variant (THE-875) — v1.0
+- ✓ Update CI workflows and tests for MicroShift-only build (THE-876) — v1.0
 
 ### Active
 
-- [ ] New Containerfile.microshift using upstream COPR packages (THE-869)
-- [ ] Two-phase offline image embedding for MicroShift system images (THE-870)
-- [ ] Auto-deploy edgeworks manifests via MicroShift kustomizePaths (THE-871)
-- [ ] Embed edgeworks application container images for offline operation (THE-872)
-- [ ] Remove all K3s files and references (THE-873)
-- [ ] Simplify edge-setup.sh to OS-only concerns (THE-874)
-- [ ] Simplify Makefile and build.sh to single MicroShift variant (THE-875)
-- [ ] Update CI workflows and tests for MicroShift-only build (THE-876)
+(None — v1.0 migration complete)
 
 ### Out of Scope
 
 - Multi-node MicroShift clusters — single-node edge deployment only
 - OVN-Kubernetes networking — Fedora requires kindnet, OVN-K not supported
-- Custom MicroShift binary builds — migrating to upstream COPR packages
-- K3s variant maintenance — being fully removed
+- Edgeworks-deploy repo manifests 10-40 — deferred beyond v1.0 (only 05-observability shipped)
 
 ## Context
 
-**Migration Guide:** `MICROSHIFT_MIGRATION.md` in repo root — detailed implementation patterns, file-by-file changes, and verification steps for the entire migration.
+**Current State:** v1.0 shipped. Single MicroShift-only build with COPR packages, two-phase offline image embedding, and kustomizePaths manifest deployment. All K3s code removed.
 
-**Linear Issues:** THE-869 through THE-876 in the os-builder project.
+**Migration Guide:** `MICROSHIFT_MIGRATION.md` in repo root — historical reference for the K3s → MicroShift migration.
 
-The os-builder currently supports two Kubernetes variants (K3s and MicroShift). The MicroShift variant uses a custom-built binary from a multi-stage Docker build (`ghcr.io/ramaedge/microshift-builder`). This migration moves to upstream MicroShift COPR packages (`@microshift-io/microshift-nightly`), which are the official distribution channel.
-
-The current airgap approach uses `podman pull` at build time. The new approach follows upstream's two-phase pattern: build-time embedding via `skopeo copy` into `/usr/lib/containers/storage/`, then runtime copy into CRI-O's `/var` storage via a systemd `ExecStartPre` script.
-
-Edgeworks application manifests are currently deployed via custom systemd services. MicroShift's built-in `kustomizePaths` feature eliminates the need for custom deploy services — manifests placed in `/usr/lib/microshift/manifests.d/` are auto-deployed on every boot.
-
-All Linear issues reference `MICROSHIFT_MIGRATION.md` for detailed implementation guidance; the issues themselves contain sufficient detail for execution.
+**Linear Issues:** THE-869 through THE-876 (all Done).
 
 ## Constraints
 
@@ -58,17 +52,18 @@ All Linear issues reference `MICROSHIFT_MIGRATION.md` for detailed implementatio
 - **Networking**: kindnet CNI required (OVN-K not supported on Fedora)
 - **Storage**: TopoLVM for LVM-backed PVCs (edgeworks workloads need persistent storage)
 - **Airgap**: Must function fully offline after initial image deployment
-- **Images**: 15 application images + MicroShift system images must be embedded
+- **Images**: 15 application images + MicroShift system images embedded
 
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Use upstream COPR packages instead of custom builds | Official distribution, automatic updates, correct systemd units | — Pending |
-| Two-phase image embedding (build → runtime copy) | Matches upstream pattern, works with immutable /usr | — Pending |
-| kustomizePaths for manifest deployment | Built-in MicroShift feature, eliminates custom systemd services | — Pending |
-| Remove K3s entirely | Simplify to single variant, reduce maintenance burden | — Pending |
-| kindnet over OVN-K | Only supported CNI on Fedora MicroShift | — Pending |
+| Use upstream COPR packages instead of custom builds | Official distribution, automatic updates, correct systemd units | ✓ Good — eliminates multi-stage builder dependency |
+| Two-phase image embedding (build → runtime copy) | Matches upstream pattern, works with immutable /usr | ✓ Good — skopeo + ExecStartPre pattern works cleanly |
+| kustomizePaths for manifest deployment | Built-in MicroShift feature, eliminates custom systemd services | ✓ Good — removed observability-deploy.service |
+| Remove K3s entirely | Simplify to single variant, reduce maintenance burden | ✓ Good — 9 files deleted, scripts halved |
+| kindnet over OVN-K | Only supported CNI on Fedora MicroShift | ✓ Good — installed via microshift-kindnet RPM |
+| Remove BOOTC_VERSION from versions.txt | No ARG in Containerfile consumed it; FEDORA_VERSION controls base image | ✓ Good — eliminated dead variable |
 
 ---
-*Last updated: 2026-03-01 after initialization*
+*Last updated: 2026-03-01 after v1.0 milestone*
