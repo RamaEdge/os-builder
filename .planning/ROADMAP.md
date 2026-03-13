@@ -119,7 +119,7 @@ Plans:
   4. `ChecksumLine.filename` is cross-referenced against `manifest.image.file` during verification — mismatch produces a failed check result
 **Plans**: 2 plans
 Plans:
-- [ ] 09-01-PLAN.md — Switch create.rs and inspect.rs to shared format_bytes
+- [x] 09-01-PLAN.md — Switch create.rs and inspect.rs to shared format_bytes (2026-03-13)
 - [ ] 09-02-PLAN.md — Decompose run_verify() into check functions with CKSM-03 cross-reference
 
 ### Phase 10: Error Hardening
@@ -148,6 +148,6 @@ Plans:
 | 5. Create Command | v1.1 | 2/2 | Complete | 2026-03-01 |
 | 6. Verify + Inspect | v1.1 | 2/2 | Complete | 2026-03-01 |
 | 7. CI/CD Integration | v1.1 | 2/2 | Complete | 2026-03-01 |
-| 8. Shared Utilities | v1.2 | Complete    | 2026-03-13 | - |
-| 9. Caller Switchover + Verify Decomposition | v1.2 | 0/2 | Not started | - |
+| 8. Shared Utilities | v1.2 | 1/1 | Complete | 2026-03-13 |
+| 9. Caller Switchover + Verify Decomposition | v1.2 | 1/2 | In progress | - |
 | 10. Error Hardening | v1.2 | 0/1 | Not started | - |
