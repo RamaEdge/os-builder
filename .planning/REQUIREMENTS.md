@@ -1,11 +1,12 @@
-# Requirements: Bundle CLI
+# Requirements: MicroShift Migration
 
 **Defined:** 2026-03-01
 **Core Value:** Edge devices boot fully functional with all MicroShift system pods and edgeworks application pods running — without any network connectivity.
 
-## v1.1 Requirements
+## v1.1 Requirements (Complete)
 
-Requirements for the `edgeworks-bundle` CLI tool. Each maps to roadmap phases.
+<details>
+<summary>All 22 requirements complete — shipped 2026-03-01</summary>
 
 ### Scaffolding
 
@@ -49,7 +50,57 @@ Requirements for the `edgeworks-bundle` CLI tool. Each maps to roadmap phases.
 - [x] **CI-03**: CI pipeline builds and tests the bundle CLI (THE-884)
 - [x] **CI-04**: Release binary available as CI artifact (THE-884)
 
+</details>
+
+## v1.2 Requirements
+
+Requirements for tech debt elimination in bundle CLI. Each maps to roadmap phases.
+
+### Code Deduplication
+
+- [ ] **DEDUP-01**: Shared `format.rs` module provides single `format_bytes()` function with TiB support used by all commands
+- [ ] **DEDUP-02**: Duplicate `format_bytes` in create.rs and verify.rs replaced with import from `crate::format`
+- [ ] **DEDUP-03**: `format_size` in inspect.rs replaced with import from `crate::format`
+
+### Error Handling
+
+- [ ] **ERR-01**: JSON serialization failures propagate as `BundleError::JsonSerialize` instead of returning empty `{}`
+- [ ] **ERR-02**: All `unwrap_or_else(|_| "{}".to_string())` patterns removed from create.rs, verify.rs, and inspect.rs
+
+### Input Validation
+
+- [ ] **VALID-01**: Image reference validated against allowlist before passing to skopeo (rejects shell metacharacters)
+- [ ] **VALID-02**: `ImageRef` struct or `parse_image_tag()` function extracts version tag with proper validation
+- [ ] **VALID-03**: Port-containing registry hosts (`registry:5000/repo:tag`) pass validation
+
+### Verify Refactor
+
+- [ ] **VRFY-01**: `run_verify()` decomposed into individual check functions each returning `CheckResult`
+- [ ] **VRFY-02**: Coordinator function composes checks in a loop (~30 lines, down from 230)
+- [ ] **VRFY-03**: All 9 existing verify tests pass without modification
+
+### Checksum Parsing
+
+- [ ] **CKSM-01**: `ChecksumLine` struct encapsulates parsing of `checksums.sha256` lines
+- [ ] **CKSM-02**: Two-space delimiter contract preserved (not `split_whitespace`)
+- [ ] **CKSM-03**: Checksum filename cross-referenced against `manifest.image.file`
+
 ## Future Requirements
+
+### Performance
+
+- **PERF-01**: SHA256 read buffer increased from 8 KiB to 1 MiB for large file hashing
+- **PERF-02**: Progress bar updates batched (every 10 MB instead of per-chunk)
+
+### Dependencies
+
+- **DEP-01**: `cargo audit` integrated into CI pipeline
+- **DEP-02**: Minimum skopeo version check added
+
+### Known Issues
+
+- **ISSUE-01**: Skopeo error messages interpreted and mapped to user-friendly diagnostics
+- **ISSUE-02**: `--force` flag for overwriting incomplete bundles
 
 ### Bundle Security (Phase 2)
 
@@ -62,6 +113,10 @@ Requirements for the `edgeworks-bundle` CLI tool. Each maps to roadmap phases.
 
 | Feature | Reason |
 |---------|--------|
+| `oci-spec-rs` crate for image ref parsing | Covers image manifests, not reference strings; adds ~300 KB transitive deps for a 10-line function |
+| `anyhow` replacement for `thiserror` | Erases typed error variants needed for exit code dispatch (1 vs 2) |
+| Trait-based verification pipeline | Over-engineering for 6 checks; free functions compose identically |
+| `rayon` parallelization of verify checks | I/O-bound on same file; no throughput gain from parallelism |
 | GPG signing | Deferred to future — design doc §9 |
 | Version enforcement / downgrade prevention | Deferred to future — design doc §9 |
 | Multi-arch bundles | Deferred to future — design doc §9 |
@@ -70,6 +125,10 @@ Requirements for the `edgeworks-bundle` CLI tool. Each maps to roadmap phases.
 | Multi-image bundles | Single bootc image model per design doc §1 |
 
 ## Traceability
+
+Which phases cover which requirements. Updated during roadmap creation.
+
+### v1.1 (Complete)
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
@@ -98,11 +157,31 @@ Requirements for the `edgeworks-bundle` CLI tool. Each maps to roadmap phases.
 | CI-03 | Phase 7 | Complete |
 | CI-04 | Phase 7 | Complete |
 
+### v1.2 (Pending)
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| DEDUP-01 | TBD | Pending |
+| DEDUP-02 | TBD | Pending |
+| DEDUP-03 | TBD | Pending |
+| ERR-01 | TBD | Pending |
+| ERR-02 | TBD | Pending |
+| VALID-01 | TBD | Pending |
+| VALID-02 | TBD | Pending |
+| VALID-03 | TBD | Pending |
+| VRFY-01 | TBD | Pending |
+| VRFY-02 | TBD | Pending |
+| VRFY-03 | TBD | Pending |
+| CKSM-01 | TBD | Pending |
+| CKSM-02 | TBD | Pending |
+| CKSM-03 | TBD | Pending |
+
 **Coverage:**
-- v1.1 requirements: 22 total
-- Mapped to phases: 22
-- Unmapped: 0
+- v1.1 requirements: 22 total (all complete)
+- v1.2 requirements: 14 total
+- Mapped to phases: 0 (awaiting roadmap)
+- Unmapped: 14
 
 ---
 *Requirements defined: 2026-03-01*
-*Last updated: 2026-03-01 after roadmap creation*
+*Last updated: 2026-03-13 after v1.2 milestone requirements*
