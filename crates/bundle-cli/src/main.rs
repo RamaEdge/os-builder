@@ -1,6 +1,7 @@
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
+mod checksum;
 mod create;
 mod error;
 mod format;
