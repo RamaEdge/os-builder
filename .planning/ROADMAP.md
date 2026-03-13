@@ -114,7 +114,10 @@ See: `.planning/milestones/v1.0-ROADMAP.md` for full details.
   2. `run_verify()` is a coordinator of ~20 lines calling individual `check_*` private functions, each returning a `CheckResult`
   3. All 9 existing verify tests pass without modification
   4. `ChecksumLine.filename` is cross-referenced against `manifest.image.file` during verification — mismatch produces a failed check result
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 09-01-PLAN.md — Switch create.rs and inspect.rs to shared format_bytes
+- [ ] 09-02-PLAN.md — Decompose run_verify() into check functions with CKSM-03 cross-reference
 
 ### Phase 10: Error Hardening
 **Goal**: JSON serialization failures surface as diagnostics instead of silently producing empty output
@@ -143,5 +146,5 @@ Plans:
 | 6. Verify + Inspect | v1.1 | 2/2 | Complete | 2026-03-01 |
 | 7. CI/CD Integration | v1.1 | 2/2 | Complete | 2026-03-01 |
 | 8. Shared Utilities | v1.2 | 0/TBD | Not started | - |
-| 9. Caller Switchover + Verify Decomposition | v1.2 | 0/TBD | Not started | - |
+| 9. Caller Switchover + Verify Decomposition | v1.2 | 0/2 | Not started | - |
 | 10. Error Hardening | v1.2 | 0/1 | Not started | - |
