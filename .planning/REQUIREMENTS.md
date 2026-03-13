@@ -58,9 +58,9 @@ Requirements for tech debt elimination in bundle CLI. Each maps to roadmap phase
 
 ### Code Deduplication
 
-- [ ] **DEDUP-01**: Shared `format.rs` module provides single `format_bytes()` function with TiB support used by all commands
-- [ ] **DEDUP-02**: Duplicate `format_bytes` in create.rs and verify.rs replaced with import from `crate::format`
-- [ ] **DEDUP-03**: `format_size` in inspect.rs replaced with import from `crate::format`
+- [x] **DEDUP-01**: Shared `format.rs` module provides single `format_bytes()` function with TiB support used by all commands
+- [x] **DEDUP-02**: Duplicate `format_bytes` in create.rs and verify.rs replaced with import from `crate::format`
+- [x] **DEDUP-03**: `format_size` in inspect.rs replaced with import from `crate::format`
 
 ### Error Handling
 
@@ -69,9 +69,9 @@ Requirements for tech debt elimination in bundle CLI. Each maps to roadmap phase
 
 ### Input Validation
 
-- [ ] **VALID-01**: Image reference validated against allowlist before passing to skopeo (rejects shell metacharacters)
-- [ ] **VALID-02**: `ImageRef` struct or `parse_image_tag()` function extracts version tag with proper validation
-- [ ] **VALID-03**: Port-containing registry hosts (`registry:5000/repo:tag`) pass validation
+- [x] **VALID-01**: Image reference validated against allowlist before passing to skopeo (rejects shell metacharacters)
+- [x] **VALID-02**: `ImageRef` struct or `parse_image_tag()` function extracts version tag with proper validation
+- [x] **VALID-03**: Port-containing registry hosts (`registry:5000/repo:tag`) pass validation
 
 ### Verify Refactor
 
@@ -81,8 +81,8 @@ Requirements for tech debt elimination in bundle CLI. Each maps to roadmap phase
 
 ### Checksum Parsing
 
-- [ ] **CKSM-01**: `ChecksumLine` struct encapsulates parsing of `checksums.sha256` lines
-- [ ] **CKSM-02**: Two-space delimiter contract preserved (not `split_whitespace`)
+- [x] **CKSM-01**: `ChecksumLine` struct encapsulates parsing of `checksums.sha256` lines
+- [x] **CKSM-02**: Two-space delimiter contract preserved (not `split_whitespace`)
 - [ ] **CKSM-03**: Checksum filename cross-referenced against `manifest.image.file`
 
 ## Future Requirements
@@ -161,14 +161,14 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DEDUP-01 | Phase 8 | Pending |
-| DEDUP-02 | Phase 8 | Pending |
-| DEDUP-03 | Phase 8 | Pending |
-| VALID-01 | Phase 8 | Pending |
-| VALID-02 | Phase 8 | Pending |
-| VALID-03 | Phase 8 | Pending |
-| CKSM-01 | Phase 8 | Pending |
-| CKSM-02 | Phase 8 | Pending |
+| DEDUP-01 | Phase 8 | Complete |
+| DEDUP-02 | Phase 8 | Complete |
+| DEDUP-03 | Phase 8 | Complete |
+| VALID-01 | Phase 8 | Complete |
+| VALID-02 | Phase 8 | Complete |
+| VALID-03 | Phase 8 | Complete |
+| CKSM-01 | Phase 8 | Complete |
+| CKSM-02 | Phase 8 | Complete |
 | VRFY-01 | Phase 9 | Pending |
 | VRFY-02 | Phase 9 | Pending |
 | VRFY-03 | Phase 9 | Pending |

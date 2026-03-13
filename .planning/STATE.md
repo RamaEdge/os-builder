@@ -2,13 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Tech Debt
-status: ready_to_plan
-last_updated: "2026-03-13T00:00:00.000Z"
+status: completed
+stopped_at: Completed 08-01-PLAN.md
+last_updated: "2026-03-13T08:36:09.108Z"
+last_activity: 2026-03-13 — Completed 08-01 shared utility modules
 progress:
-  total_phases: 3
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_phases: 7
+  completed_phases: 5
+  total_plans: 12
+  completed_plans: 9
+  percent: 75
 ---
 
 # Project State
@@ -23,18 +26,22 @@ See: .planning/PROJECT.md (updated 2026-03-13)
 ## Current Position
 
 Phase: 8 of 10 (Shared Utilities)
-Plan: — (not yet planned)
-Status: Ready to plan
-Last activity: 2026-03-13 — v1.2 roadmap created (phases 8-10)
+Plan: 1 of 1 complete
+Status: Phase 8 Plan 1 complete
+Last activity: 2026-03-13 — Completed 08-01 shared utility modules
 
-Progress: [░░░░░░░░░░] 0% (v1.2 milestone)
+Progress: [████████░░] 75% (v1.2 milestone)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 0 (v1.2)
-- Average duration: —
-- Total execution time: —
+- Total plans completed: 1 (v1.2)
+- Average duration: 14min
+- Total execution time: 14min
+
+| Phase | Plan | Duration | Tasks | Files |
+|-------|------|----------|-------|-------|
+| 08    | 01   | 14min    | 3     | 8     |
 
 *Updated after each plan completion*
 
@@ -51,6 +58,9 @@ v1.1 design authority: `docs/bundle-cli-design.md`.
 - Image ref validation: reject shell metacharacters, accept port-containing registries (`registry:5000/repo:tag`)
 - Exit code contract (0/1/2) must be preserved when propagating JSON serialization errors through main.rs
 - `run_verify()` decomposition must preserve exactly one `CheckResult` per extracted `check_*` function
+- [Phase 08]: Used inspect.rs TiB-capable implementation as canonical format_bytes source
+- [Phase 08]: Character allowlist for ImageRef rejects non-alphanumeric except / : . _ -
+- [Phase 08]: ChecksumLine reuses ManifestInvalid error variant for parse failures
 
 ### Pending Todos
 
@@ -62,6 +72,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-13
-Stopped at: Roadmap created — ready to plan Phase 8
+Last session: 2026-03-13T08:36:09.105Z
+Stopped at: Completed 08-01-PLAN.md
 Resume file: None
