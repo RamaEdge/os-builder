@@ -73,7 +73,13 @@ fn main() {
             match verify::run_verify(path) {
                 Ok(result) => {
                     if cli.json {
-                        print!("{}", verify::format_verify_json(&result, path));
+                        match verify::format_verify_json(&result, path) {
+                            Ok(json) => print!("{}", json),
+                            Err(e) => {
+                                eprintln!("Error: {e}");
+                                std::process::exit(1);
+                            }
+                        }
                     } else {
                         print!("{}", verify::format_verify_human(&result, path));
                     }
@@ -94,7 +100,13 @@ fn main() {
             match inspect::run_inspect(path) {
                 Ok(manifest) => {
                     if cli.json {
-                        print!("{}", inspect::format_inspect_json(&manifest));
+                        match inspect::format_inspect_json(&manifest) {
+                            Ok(json) => print!("{}", json),
+                            Err(e) => {
+                                eprintln!("Error: {e}");
+                                std::process::exit(1);
+                            }
+                        }
                     } else {
                         print!("{}", inspect::format_inspect_human(&manifest, path));
                     }

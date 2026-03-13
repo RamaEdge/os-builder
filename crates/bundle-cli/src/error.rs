@@ -35,6 +35,9 @@ pub enum BundleError {
 
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
+
+    #[error("JSON serialization failed: {0}")]
+    JsonSerialize(#[from] serde_json::Error),
 }
 
 #[cfg(test)]
@@ -86,6 +89,12 @@ mod tests {
             (
                 BundleError::FileNotFound("missing.tar".into()),
                 "referenced file not found: missing.tar",
+            ),
+            (
+                BundleError::JsonSerialize(
+                    serde_json::from_str::<serde_json::Value>("invalid").unwrap_err(),
+                ),
+                "JSON serialization failed",
             ),
         ];
         for (err, expected_substring) in errors {

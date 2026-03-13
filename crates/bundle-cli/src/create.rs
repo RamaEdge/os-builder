@@ -190,7 +190,7 @@ pub fn run(
                         result.tarball_filename.clone(),
                     ],
                 };
-                println!("{}", serde_json::to_string_pretty(&out).unwrap());
+                println!("{}", serde_json::to_string_pretty(&out)?);
             } else {
                 // Human-readable summary (design doc §3.1)
                 println!("Bundle created successfully.");
@@ -212,7 +212,11 @@ pub fn run(
                     "status": "error",
                     "message": e.to_string()
                 });
-                println!("{}", serde_json::to_string_pretty(&err_out).unwrap());
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&err_out)
+                        .expect("infallible: serde_json::Value serialization cannot fail")
+                );
                 std::process::exit(1);
             } else {
                 Err(e)

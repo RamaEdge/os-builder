@@ -352,7 +352,7 @@ pub fn format_verify_human(result: &VerifyResult, bundle_dir: &Path) -> String {
 /// ```json
 /// {"status":"ok"|"failed", "directory":"...", "checks":[...], "errors":[...]}
 /// ```
-pub fn format_verify_json(result: &VerifyResult, bundle_dir: &Path) -> String {
+pub fn format_verify_json(result: &VerifyResult, bundle_dir: &Path) -> Result<String, BundleError> {
     let status = if result.valid { "ok" } else { "failed" };
 
     let checks_json: Vec<serde_json::Value> = result
@@ -381,7 +381,7 @@ pub fn format_verify_json(result: &VerifyResult, bundle_dir: &Path) -> String {
         "errors": errors_json,
     });
 
-    serde_json::to_string_pretty(&value).unwrap_or_else(|_| "{}".to_string())
+    Ok(serde_json::to_string_pretty(&value)?)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -629,7 +629,7 @@ mod tests {
     fn test_format_verify_json_valid() {
         let (dir, _tarball, _hex, _size) = make_valid_bundle();
         let result = run_verify(dir.path()).unwrap();
-        let json_str = format_verify_json(&result, dir.path());
+        let json_str = format_verify_json(&result, dir.path()).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&json_str).unwrap();
         assert_eq!(parsed["status"], "ok");
         assert!(parsed["checks"].as_array().unwrap().len() > 0);
@@ -692,7 +692,7 @@ mod tests {
         let (dir, _tarball, _hex, _size) = make_valid_bundle();
         fs::remove_file(dir.path().join("checksums.sha256")).unwrap();
         let result = run_verify(dir.path()).unwrap();
-        let json_str = format_verify_json(&result, dir.path());
+        let json_str = format_verify_json(&result, dir.path()).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&json_str).unwrap();
         assert_eq!(parsed["status"], "failed");
         assert!(parsed["errors"].as_array().unwrap().len() > 0);

@@ -70,8 +70,8 @@ pub fn format_inspect_human(manifest: &BundleManifest, bundle_dir: &Path) -> Str
 }
 
 /// Serialize a manifest to pretty-printed JSON.
-pub fn format_inspect_json(manifest: &BundleManifest) -> String {
-    serde_json::to_string_pretty(manifest).unwrap_or_else(|_| "{}".to_string())
+pub fn format_inspect_json(manifest: &BundleManifest) -> Result<String, BundleError> {
+    Ok(serde_json::to_string_pretty(manifest)?)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -128,7 +128,7 @@ mod tests {
     #[test]
     fn test_inspect_json_output() {
         let manifest = make_manifest();
-        let json_str = format_inspect_json(&manifest);
+        let json_str = format_inspect_json(&manifest).unwrap();
 
         // Must be valid JSON.
         let parsed: serde_json::Value = serde_json::from_str(&json_str).unwrap();
