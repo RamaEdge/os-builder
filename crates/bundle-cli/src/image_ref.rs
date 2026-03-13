@@ -7,7 +7,6 @@ use crate::error::BundleError;
 ///
 /// Rejects shell metacharacters to prevent command injection.
 pub(crate) struct ImageRef {
-    pub full: String,
     pub tag: String,
 }
 
@@ -31,9 +30,7 @@ impl ImageRef {
 
         // Character allowlist: reject anything not in the safe set
         for c in raw.chars() {
-            if !(c.is_ascii_alphanumeric()
-                || matches!(c, '/' | ':' | '.' | '_' | '-'))
-            {
+            if !(c.is_ascii_alphanumeric() || matches!(c, '/' | ':' | '.' | '_' | '-')) {
                 return Err(BundleError::InvalidImageRef(format!(
                     "disallowed character {:?} in image reference",
                     c
@@ -56,7 +53,6 @@ impl ImageRef {
         }
 
         Ok(Self {
-            full: raw.to_string(),
             tag: tag.to_string(),
         })
     }
@@ -69,7 +65,6 @@ mod tests {
     #[test]
     fn test_parse_standard_ref() {
         let r = ImageRef::parse("registry.example.com/repo:1.2.0").unwrap();
-        assert_eq!(r.full, "registry.example.com/repo:1.2.0");
         assert_eq!(r.tag, "1.2.0");
     }
 

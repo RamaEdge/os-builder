@@ -2,7 +2,7 @@
 
 ## What This Is
 
-The os-builder edge computing platform uses MicroShift via upstream COPR packages to produce immutable bootc images that boot fully functional — with all Kubernetes system pods and edgeworks application pods running offline.
+The os-builder edge computing platform uses MicroShift via upstream COPR packages to produce immutable bootc images that boot fully functional — with all Kubernetes system pods and edgeworks application pods running offline. Includes the `edgeworks-bundle` CLI tool for creating, verifying, and inspecting offline deployment bundles.
 
 ## Core Value
 
@@ -27,15 +27,16 @@ Edge devices boot fully functional with all MicroShift system pods and edgeworks
 - ✓ Simplify edge-setup.sh to OS-only concerns (THE-874) — v1.0
 - ✓ Simplify Makefile and build.sh to single MicroShift variant (THE-875) — v1.0
 - ✓ Update CI workflows and tests for MicroShift-only build (THE-876) — v1.0
+- ✓ Extract shared format utility module — v1.2
+- ✓ Replace silent JSON serialization fallbacks with error propagation — v1.2
+- ✓ Validate image reference format before shell execution — v1.2
+- ✓ Decompose run_verify() into composable check functions — v1.2
+- ✓ Replace fragile checksum parsing with dedicated struct — v1.2
+- ✓ Replace raw string image version extraction with proper parsing — v1.2
 
 ### Active
 
-- [ ] Extract shared format utility module (eliminate duplicate format_bytes/format_size)
-- [ ] Replace silent JSON serialization fallbacks with error propagation
-- [ ] Validate image reference format before shell execution
-- [ ] Decompose run_verify() into composable check functions
-- [ ] Replace fragile checksum parsing with dedicated struct
-- [ ] Replace raw string image version extraction with proper parsing
+(None — all current requirements shipped)
 
 ### Out of Scope
 
@@ -49,25 +50,15 @@ Edge devices boot fully functional with all MicroShift system pods and edgeworks
 
 ## Context
 
-**Current State:** v1.0 shipped. Single MicroShift-only build with COPR packages, two-phase offline image embedding, and kustomizePaths manifest deployment. All K3s code removed.
+**Current State:** v1.2 shipped. Bundle CLI (`edgeworks-bundle`) is a clean, well-tested Rust codebase with 1,822 LOC across 10 source files and 54 tests. All code duplication eliminated, error handling hardened, monolithic functions decomposed.
+
+**Tech Stack:** Fedora 42 bootc, MicroShift, Rust (clap, serde_json, sha2, thiserror, indicatif, chrono), skopeo.
 
 **Migration Guide:** `MICROSHIFT_MIGRATION.md` in repo root — historical reference for the K3s → MicroShift migration.
 
+**Design Authority:** `docs/bundle-cli-design.md` — canonical reference for bundle CLI features and architecture.
+
 **Linear Issues (v1.0):** THE-869 through THE-876 (all Done).
-
-## Current Milestone: v1.2 Tech Debt
-
-**Goal:** Eliminate code duplication, harden input validation, and decompose fragile monolithic functions in the bundle CLI to improve maintainability and extensibility.
-
-**Source:** `.planning/codebase/CONCERNS.md` (2026-03-11 audit) — Tech Debt and Fragile Areas sections.
-
-**Target improvements:**
-- Extract shared `format.rs` utility module (eliminate 3 duplicate format functions)
-- Replace silent JSON serialization fallbacks with proper error propagation
-- Validate image reference format before passing to skopeo
-- Decompose `run_verify()` (230 lines) into composable check functions
-- Replace fragile checksum parsing with dedicated `ChecksumLine` struct
-- Replace raw string ops for image version extraction with proper parsing
 
 ## Constraints
 
@@ -87,6 +78,12 @@ Edge devices boot fully functional with all MicroShift system pods and edgeworks
 | Remove K3s entirely | Simplify to single variant, reduce maintenance burden | ✓ Good — 9 files deleted, scripts halved |
 | kindnet over OVN-K | Only supported CNI on Fedora MicroShift | ✓ Good — installed via microshift-kindnet RPM |
 | Remove BOOTC_VERSION from versions.txt | No ARG in Containerfile consumed it; FEDORA_VERSION controls base image | ✓ Good — eliminated dead variable |
+| inspect.rs TiB implementation as canonical format_bytes | Most complete implementation (B/KiB/MiB/GiB/TiB); create/verify only had GiB | ✓ Good — single source of truth |
+| Character allowlist for ImageRef validation | Reject unexpected chars (not blocklist) — safer against novel injection | ✓ Good — prevents shell metacharacter injection |
+| ChecksumLine reuses ManifestInvalid error variant | Avoids unnecessary error variant proliferation for parse failures | ✓ Good — keeps error enum focused |
+| run_verify() orchestrator pattern with check_* functions | Each check is independently testable; adding a 7th check is one function + one line | ✓ Good — 230 lines → 6 functions + ~30-line coordinator |
+| JSON format errors use exit(1) not exit(2) | exit(2) reserved for path-not-found; format errors are logic errors | ✓ Good — preserves exit code contract |
+| create.rs Err arm uses .expect() for json! literal | serde_json::Value serialization is infallible; .expect() documents this | ✓ Good — clearer than unnecessary ? |
 
 ---
-*Last updated: 2026-03-13 after v1.2 milestone start*
+*Last updated: 2026-03-13 after v1.2 milestone completion*

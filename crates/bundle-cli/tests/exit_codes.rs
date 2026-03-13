@@ -8,7 +8,10 @@ use assert_cmd::cargo::cargo_bin_cmd;
 #[test]
 fn verify_nonexistent_path_exits_2() {
     cargo_bin_cmd!("edgeworks-bundle")
-        .args(["verify", "/tmp/definitely-does-not-exist-xyzzy-bundle-99999"])
+        .args([
+            "verify",
+            "/tmp/definitely-does-not-exist-xyzzy-bundle-99999",
+        ])
         .assert()
         .code(2);
 }
@@ -16,7 +19,10 @@ fn verify_nonexistent_path_exits_2() {
 #[test]
 fn inspect_nonexistent_path_exits_2() {
     cargo_bin_cmd!("edgeworks-bundle")
-        .args(["inspect", "/tmp/definitely-does-not-exist-xyzzy-bundle-99999"])
+        .args([
+            "inspect",
+            "/tmp/definitely-does-not-exist-xyzzy-bundle-99999",
+        ])
         .assert()
         .code(2);
 }

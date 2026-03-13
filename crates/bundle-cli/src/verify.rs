@@ -247,7 +247,13 @@ pub fn run_verify(bundle_dir: &Path) -> Result<VerifyResult, BundleError> {
     checks.push(c1);
     let manifest = match manifest_opt {
         Some(m) if passed => m,
-        _ => return Ok(VerifyResult { valid: false, checks, manifest: None }),
+        _ => {
+            return Ok(VerifyResult {
+                valid: false,
+                checks,
+                manifest: None,
+            })
+        }
     };
 
     // Check 2: schema_version
@@ -255,7 +261,11 @@ pub fn run_verify(bundle_dir: &Path) -> Result<VerifyResult, BundleError> {
     let passed = c2.passed;
     checks.push(c2);
     if !passed {
-        return Ok(VerifyResult { valid: false, checks, manifest: Some(manifest) });
+        return Ok(VerifyResult {
+            valid: false,
+            checks,
+            manifest: Some(manifest),
+        });
     }
 
     // Check 3: checksums.sha256
@@ -264,7 +274,13 @@ pub fn run_verify(bundle_dir: &Path) -> Result<VerifyResult, BundleError> {
     checks.push(c3);
     let cs_line = match cs_opt {
         Some(cs) if passed => cs,
-        _ => return Ok(VerifyResult { valid: false, checks, manifest: Some(manifest) }),
+        _ => {
+            return Ok(VerifyResult {
+                valid: false,
+                checks,
+                manifest: Some(manifest),
+            })
+        }
     };
 
     // CKSM-03: cross-reference filename in checksums.sha256 against manifest
@@ -277,7 +293,11 @@ pub fn run_verify(bundle_dir: &Path) -> Result<VerifyResult, BundleError> {
                 cs_line.file, manifest.image.file
             ),
         });
-        return Ok(VerifyResult { valid: false, checks, manifest: Some(manifest) });
+        return Ok(VerifyResult {
+            valid: false,
+            checks,
+            manifest: Some(manifest),
+        });
     }
 
     // Check 4: tarball exists
@@ -286,7 +306,13 @@ pub fn run_verify(bundle_dir: &Path) -> Result<VerifyResult, BundleError> {
     checks.push(c4);
     let tarball_size = match size_opt {
         Some(s) if passed => s,
-        _ => return Ok(VerifyResult { valid: false, checks, manifest: Some(manifest) }),
+        _ => {
+            return Ok(VerifyResult {
+                valid: false,
+                checks,
+                manifest: Some(manifest),
+            })
+        }
     };
 
     // Check 5: SHA256
@@ -303,7 +329,11 @@ pub fn run_verify(bundle_dir: &Path) -> Result<VerifyResult, BundleError> {
     let passed = c5.passed;
     checks.push(c5);
     if !passed {
-        return Ok(VerifyResult { valid: false, checks, manifest: Some(manifest) });
+        return Ok(VerifyResult {
+            valid: false,
+            checks,
+            manifest: Some(manifest),
+        });
     }
 
     // Check 6: file size
@@ -311,10 +341,18 @@ pub fn run_verify(bundle_dir: &Path) -> Result<VerifyResult, BundleError> {
     let passed = c6.passed;
     checks.push(c6);
     if !passed {
-        return Ok(VerifyResult { valid: false, checks, manifest: Some(manifest) });
+        return Ok(VerifyResult {
+            valid: false,
+            checks,
+            manifest: Some(manifest),
+        });
     }
 
-    Ok(VerifyResult { valid: true, checks, manifest: Some(manifest) })
+    Ok(VerifyResult {
+        valid: true,
+        checks,
+        manifest: Some(manifest),
+    })
 }
 
 /// Format verify result as human-readable text matching the design doc §3.2.
@@ -642,15 +680,21 @@ mod tests {
         let result = run_verify(dir.path()).unwrap();
         let check_names: Vec<&str> = result.checks.iter().map(|c| c.name.as_str()).collect();
         assert!(
-            check_names.iter().any(|n| n.contains("manifest.json schema valid")),
+            check_names
+                .iter()
+                .any(|n| n.contains("manifest.json schema valid")),
             "missing manifest check"
         );
         assert!(
-            check_names.iter().any(|n| n.contains("schema_version is supported")),
+            check_names
+                .iter()
+                .any(|n| n.contains("schema_version is supported")),
             "missing schema_version check"
         );
         assert!(
-            check_names.iter().any(|n| n.contains("checksums.sha256 well-formed")),
+            check_names
+                .iter()
+                .any(|n| n.contains("checksums.sha256 well-formed")),
             "missing checksums check"
         );
         assert!(
@@ -658,11 +702,15 @@ mod tests {
             "missing tarball-exists check"
         );
         assert!(
-            check_names.iter().any(|n| n.contains("SHA256 checksum matches")),
+            check_names
+                .iter()
+                .any(|n| n.contains("SHA256 checksum matches")),
             "missing sha256 check"
         );
         assert!(
-            check_names.iter().any(|n| n.contains("File size matches manifest")),
+            check_names
+                .iter()
+                .any(|n| n.contains("File size matches manifest")),
             "missing size check"
         );
     }

@@ -3,26 +3,26 @@
 > **Repo:** `os-builder`
 > **Tool name:** `edgeworks-bundle`
 > **Linear Issue:** [THE-738](https://linear.app/theedgeworks/issue/THE-738) — Bundle Creation CLI Tool (os-builder)
-> **Consumer:** `update-agent` — USB Bundle Detection & Import ([THE-736](https://linear.app/theedgeworks/issue/THE-736))
-> **Companion doc:** [update-agent design.md §8](../../../edgeworks-update-agent/docs/design.md) — USB bundle format contract
+> **Consumer:** `update-agent` — receives OCI tarball via Management UI push
+> **Companion doc:** [update-agent design.md](../../../edgeworks-update-agent/docs/design.md)
 
 ---
 
 ## 1. Overview
 
-`edgeworks-bundle` is a Rust CLI tool for creating, verifying, and inspecting offline update bundles. These bundles are copied onto USB media and physically carried to air-gapped edge devices, where the Update Agent detects and imports them.
+`edgeworks-bundle` is a Rust CLI tool for creating, verifying, and inspecting update bundles. These bundles package a bootc OCI archive with manifest metadata and checksums. The Management UI uploads the OCI tarball from the bundle to edge devices via the Update Agent's REST API.
 
 **Single image model:** Each bundle contains exactly one bootc OCI archive. The bootc image is the single unit of delivery — it contains the host OS, all application container images (baked in), the update agent binary (installed via RPM), and k8s manifests. There is no multi-image concept.
 
 **Relationship to os-builder:** This tool lives here because it pulls and packages bootc OS images — the same images this repo builds. It is a build-time / operator-workstation tool, not a runtime component.
 
-**Relationship to update-agent:** The bundle format produced by this tool is the contract consumed by the update-agent's `usb.rs` module. The `manifest.json` schema and `checksums.sha256` format defined here are shared contracts between the two repos.
+**Relationship to update-agent:** The bundle format produced by this tool packages the OCI tarball that the Management UI pushes to the update-agent's upload endpoint. The `manifest.json` provides metadata (version, digest, size) that the Management UI uses when initiating the upload.
 
 ---
 
 ## 2. Bundle Format Specification
 
-This is the authoritative definition of the bundle format. The update-agent's `usb.rs` module must accept any bundle conforming to this spec.
+This is the authoritative definition of the bundle format.
 
 ### 2.1 Directory Structure
 
@@ -98,7 +98,7 @@ Creates a new bundle directory from a registry image.
 ```bash
 edgeworks-bundle create \
   --image harbor.theedgeworks.ai/edgeworks/edge-os:1.2.0 \
-  --output /media/usb/edgeworks-bundle-1.2.0/ \
+  --output ./edgeworks-bundle-1.2.0/ \
   [--notes "Hotfix for OPC-UA adapter timeout"] \
   [--target-device any] \
   [--json]
@@ -134,7 +134,7 @@ edgeworks-bundle create \
 
 ```
 Bundle created successfully.
-  Directory: /media/usb/edgeworks-bundle-1.2.0/
+  Directory: ./edgeworks-bundle-1.2.0/
   Image:     harbor.theedgeworks.ai/edgeworks/edge-os:1.2.0
   Size:      2.0 GiB
   Digest:    sha256:abc123...
@@ -146,7 +146,7 @@ Bundle created successfully.
 ```json
 {
   "status": "ok",
-  "directory": "/media/usb/edgeworks-bundle-1.2.0/",
+  "directory": "./edgeworks-bundle-1.2.0/",
   "image": "harbor.theedgeworks.ai/edgeworks/edge-os:1.2.0",
   "version": "1.2.0",
   "digest": "sha256:abc123...",
@@ -162,7 +162,7 @@ Bundle created successfully.
 Verifies an existing bundle's integrity.
 
 ```bash
-edgeworks-bundle verify /media/usb/edgeworks-bundle-1.2.0/ [--json]
+edgeworks-bundle verify ./edgeworks-bundle-1.2.0/ [--json]
 ```
 
 **Checks:**
@@ -185,7 +185,7 @@ edgeworks-bundle verify /media/usb/edgeworks-bundle-1.2.0/ [--json]
 **Output (human):**
 
 ```
-Verifying bundle: /media/usb/edgeworks-bundle-1.2.0/
+Verifying bundle: ./edgeworks-bundle-1.2.0/
 
   [OK] manifest.json schema valid
   [OK] checksums.sha256 well-formed
@@ -204,13 +204,13 @@ Bundle is valid.
 Displays bundle metadata without verifying checksums (fast).
 
 ```bash
-edgeworks-bundle inspect /media/usb/edgeworks-bundle-1.2.0/ [--json]
+edgeworks-bundle inspect ./edgeworks-bundle-1.2.0/ [--json]
 ```
 
 **Output (human):**
 
 ```
-Bundle: /media/usb/edgeworks-bundle-1.2.0/
+Bundle: ./edgeworks-bundle-1.2.0/
 
   Schema version: 1.0
   Created:        2026-03-01T12:00:00Z by edgeworks-bundle v0.1.0
@@ -367,27 +367,26 @@ The bundle CLI binary can be:
 
 ## 8. Usage Scenarios
 
-### 8.1 Operator Creates Bundle for Field Update
+### 8.1 Operator Creates Bundle for Deployment
 
 ```bash
 # On a workstation with Harbor access
 edgeworks-bundle create \
   --image harbor.theedgeworks.ai/edgeworks/edge-os:1.2.0 \
-  --output /media/usb-stick/edgeworks-bundle-1.2.0/ \
+  --output ./edgeworks-bundle-1.2.0/ \
   --notes "Scheduled maintenance update for plant floor A"
 
 # Verify before shipping
-edgeworks-bundle verify /media/usb-stick/edgeworks-bundle-1.2.0/
+edgeworks-bundle verify ./edgeworks-bundle-1.2.0/
 
-# Physically carry USB to air-gapped device
-# Update agent detects and imports automatically
+# Management UI uploads the OCI tarball to edge devices
 ```
 
 ### 8.2 CI Creates Bundle Alongside Image Build
 
 ```yaml
 # In os-builder CI pipeline, after pushing to Harbor:
-- name: Create offline bundle
+- name: Create bundle
   run: |
     edgeworks-bundle create \
       --image ${{ env.IMAGE_REF }} \
@@ -414,7 +413,7 @@ edgeworks-bundle verify /path/to/bundle/ --json | jq '.status'
 
 | Feature | Description |
 |---------|-------------|
-| GPG signing | Sign `manifest.json` with a GPG key. Update-agent verifies signature before import. Prevents USB bundle tampering. |
+| GPG signing | Sign `manifest.json` with a GPG key. Prevents bundle tampering. |
 | Version enforcement | Include `min_version` field in manifest. Update-agent rejects bundles targeting a version older than currently booted (prevents downgrade attacks). |
 | Multi-arch bundles | Support `--arch` flag for cross-architecture bundles (e.g., ARM64 bundles built on x86). |
 | Delta bundles | Only ship changed layers instead of full OCI archive. Requires OCI layer diffing. |
@@ -432,4 +431,4 @@ edgeworks-bundle verify /path/to/bundle/ --json | jq '.status'
 - [ ] Progress bar during image pull and checksum computation
 - [ ] Proper exit codes (0 = success, 1 = verification failure, 2 = input error)
 - [ ] Unit tests (≥ 80% coverage)
-- [ ] Bundle produced by this tool is successfully imported by update-agent's `usb.rs`
+- [ ] OCI tarball from bundle is successfully uploaded to update-agent via Management UI
