@@ -10,6 +10,7 @@ use sha2::{Digest, Sha256};
 
 use crate::error::BundleError;
 use crate::format::format_bytes;
+use crate::image_ref::ImageRef;
 use crate::manifest::{BundleImage, BundleManifest};
 
 /// Machine-readable JSON output for a successful bundle creation (design doc §3.1).
@@ -51,23 +52,9 @@ fn create_bundle(
         Ok(_) => {}
     }
 
-    // Parse image reference to extract version from tag
-    let version = match image.rfind(':') {
-        Some(pos) => {
-            let tag = &image[pos + 1..];
-            if tag.is_empty() {
-                return Err(BundleError::PullFailed(
-                    "image reference must include a tag (e.g., registry/repo:1.2.0)".into(),
-                ));
-            }
-            tag.to_string()
-        }
-        None => {
-            return Err(BundleError::PullFailed(
-                "image reference must include a tag (e.g., registry/repo:1.2.0)".into(),
-            ));
-        }
-    };
+    // Parse and validate image reference — rejects shell metacharacters, extracts version tag
+    let image_ref = ImageRef::parse(image)?;
+    let version = image_ref.tag.clone();
 
     // Check if output directory already exists and contains a bundle
     if output.exists() {
