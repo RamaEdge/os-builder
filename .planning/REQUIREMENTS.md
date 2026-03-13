@@ -161,27 +161,27 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DEDUP-01 | TBD | Pending |
-| DEDUP-02 | TBD | Pending |
-| DEDUP-03 | TBD | Pending |
-| ERR-01 | TBD | Pending |
-| ERR-02 | TBD | Pending |
-| VALID-01 | TBD | Pending |
-| VALID-02 | TBD | Pending |
-| VALID-03 | TBD | Pending |
-| VRFY-01 | TBD | Pending |
-| VRFY-02 | TBD | Pending |
-| VRFY-03 | TBD | Pending |
-| CKSM-01 | TBD | Pending |
-| CKSM-02 | TBD | Pending |
-| CKSM-03 | TBD | Pending |
+| DEDUP-01 | Phase 8 | Pending |
+| DEDUP-02 | Phase 8 | Pending |
+| DEDUP-03 | Phase 8 | Pending |
+| VALID-01 | Phase 8 | Pending |
+| VALID-02 | Phase 8 | Pending |
+| VALID-03 | Phase 8 | Pending |
+| CKSM-01 | Phase 8 | Pending |
+| CKSM-02 | Phase 8 | Pending |
+| VRFY-01 | Phase 9 | Pending |
+| VRFY-02 | Phase 9 | Pending |
+| VRFY-03 | Phase 9 | Pending |
+| CKSM-03 | Phase 9 | Pending |
+| ERR-01 | Phase 10 | Pending |
+| ERR-02 | Phase 10 | Pending |
 
 **Coverage:**
 - v1.1 requirements: 22 total (all complete)
 - v1.2 requirements: 14 total
-- Mapped to phases: 0 (awaiting roadmap)
-- Unmapped: 14
+- Mapped to phases: 14/14 (100%)
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-01*
-*Last updated: 2026-03-13 after v1.2 milestone requirements*
+*Last updated: 2026-03-13 after v1.2 roadmap creation*
