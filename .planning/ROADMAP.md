@@ -84,7 +84,7 @@ See: `.planning/milestones/v1.0-ROADMAP.md` for full details.
 
 </details>
 
-### 🚧 v1.2 Tech Debt (In Progress)
+### v1.2 Tech Debt (In Progress)
 
 **Milestone Goal:** Eliminate code duplication, harden input validation, and decompose fragile monolithic functions in the bundle CLI to improve maintainability and extensibility.
 
@@ -125,7 +125,9 @@ See: `.planning/milestones/v1.0-ROADMAP.md` for full details.
   2. No `unwrap_or_else(|_| "{}".to_string())` patterns remain in create.rs, verify.rs, or inspect.rs
   3. All new `BundleError` variants are traced through `main.rs` exit code dispatch — exit code contract (0/1/2) is unchanged
   4. All existing tests pass; at least one integration test asserts numeric exit codes on known-bad input
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 10-01-PLAN.md — Add JsonSerialize error variant, replace all unwrap fallbacks, add exit code tests
 
 ## Progress
 
@@ -142,4 +144,4 @@ See: `.planning/milestones/v1.0-ROADMAP.md` for full details.
 | 7. CI/CD Integration | v1.1 | 2/2 | Complete | 2026-03-01 |
 | 8. Shared Utilities | v1.2 | 0/TBD | Not started | - |
 | 9. Caller Switchover + Verify Decomposition | v1.2 | 0/TBD | Not started | - |
-| 10. Error Hardening | v1.2 | 0/TBD | Not started | - |
+| 10. Error Hardening | v1.2 | 0/1 | Not started | - |
