@@ -30,12 +30,12 @@ Edge devices boot fully functional with all MicroShift system pods and edgeworks
 
 ### Active
 
-- [ ] Cargo crate scaffolding with clap CLI entry point (THE-879)
-- [ ] Manifest types (BundleManifest, BundleImage) and error handling (THE-880)
-- [ ] `create` command — pull image via skopeo, compute checksum, write bundle (THE-881)
-- [ ] `verify` command — validate bundle integrity (THE-882)
-- [ ] `inspect` command — display bundle metadata (THE-883)
-- [ ] CI/CD and Makefile integration (THE-884)
+- [ ] Extract shared format utility module (eliminate duplicate format_bytes/format_size)
+- [ ] Replace silent JSON serialization fallbacks with error propagation
+- [ ] Validate image reference format before shell execution
+- [ ] Decompose run_verify() into composable check functions
+- [ ] Replace fragile checksum parsing with dedicated struct
+- [ ] Replace raw string image version extraction with proper parsing
 
 ### Out of Scope
 
@@ -55,23 +55,19 @@ Edge devices boot fully functional with all MicroShift system pods and edgeworks
 
 **Linear Issues (v1.0):** THE-869 through THE-876 (all Done).
 
-## Current Milestone: v1.1 Bundle CLI
+## Current Milestone: v1.2 Tech Debt
 
-**Goal:** Build the `edgeworks-bundle` Rust CLI tool for creating, verifying, and inspecting offline update bundles that are carried to air-gapped edge devices via USB.
+**Goal:** Eliminate code duplication, harden input validation, and decompose fragile monolithic functions in the bundle CLI to improve maintainability and extensibility.
 
-**Design doc:** `docs/bundle-cli-design.md` — authoritative specification for bundle format, CLI commands, data types, and CI integration.
+**Source:** `.planning/codebase/CONCERNS.md` (2026-03-11 audit) — Tech Debt and Fragile Areas sections.
 
-**Consumer:** `update-agent` `usb.rs` module (THE-736) — the bundle format produced here is the contract consumed by the update-agent.
-
-**Linear Issues (v1.1):** THE-879 through THE-884.
-
-**Target features:**
-- Cargo crate with clap-based CLI (`edgeworks-bundle` binary)
-- Shared manifest types and error handling
-- `create` command — pulls OCI image via skopeo, writes bundle directory with manifest + checksums
-- `verify` command — validates bundle integrity (checksums, schema, file existence)
-- `inspect` command — fast metadata display without checksum recomputation
-- CI/CD integration with Makefile targets and GitHub Actions
+**Target improvements:**
+- Extract shared `format.rs` utility module (eliminate 3 duplicate format functions)
+- Replace silent JSON serialization fallbacks with proper error propagation
+- Validate image reference format before passing to skopeo
+- Decompose `run_verify()` (230 lines) into composable check functions
+- Replace fragile checksum parsing with dedicated `ChecksumLine` struct
+- Replace raw string ops for image version extraction with proper parsing
 
 ## Constraints
 
@@ -93,4 +89,4 @@ Edge devices boot fully functional with all MicroShift system pods and edgeworks
 | Remove BOOTC_VERSION from versions.txt | No ARG in Containerfile consumed it; FEDORA_VERSION controls base image | ✓ Good — eliminated dead variable |
 
 ---
-*Last updated: 2026-03-01 after v1.1 milestone start*
+*Last updated: 2026-03-13 after v1.2 milestone start*
