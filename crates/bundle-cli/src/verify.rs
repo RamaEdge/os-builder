@@ -3,6 +3,7 @@ use std::path::Path;
 
 use sha2::{Digest, Sha256};
 
+use crate::checksum::ChecksumLine;
 use crate::error::BundleError;
 use crate::format::format_bytes;
 use crate::manifest::BundleManifest;
@@ -31,14 +32,207 @@ fn compute_sha256(path: &Path) -> Result<String, BundleError> {
     Ok(format!("{:x}", hasher.finalize()))
 }
 
-/// Run all 6 bundle integrity checks against the given directory.
+// ── Check functions ─────────────────────────────────────────────────────────
+
+/// Check 1: manifest.json exists and parses into a valid BundleManifest.
+fn check_manifest(bundle_dir: &Path) -> Result<(CheckResult, Option<BundleManifest>), BundleError> {
+    let manifest_path = bundle_dir.join("manifest.json");
+    if !manifest_path.exists() {
+        return Ok((
+            CheckResult {
+                name: "manifest.json schema valid".to_string(),
+                passed: false,
+                detail: BundleError::ManifestNotFound(bundle_dir.display().to_string()).to_string(),
+            },
+            None,
+        ));
+    }
+
+    let content = fs::read_to_string(&manifest_path)
+        .map_err(|e| BundleError::ManifestInvalid(e.to_string()))?;
+
+    match serde_json::from_str::<BundleManifest>(&content) {
+        Ok(m) => Ok((
+            CheckResult {
+                name: "manifest.json schema valid".to_string(),
+                passed: true,
+                detail: format!("schema_version {}", m.schema_version),
+            },
+            Some(m),
+        )),
+        Err(e) => Ok((
+            CheckResult {
+                name: "manifest.json schema valid".to_string(),
+                passed: false,
+                detail: e.to_string(),
+            },
+            None,
+        )),
+    }
+}
+
+/// Check 2: schema_version is a supported value ("1.0").
+fn check_schema_version(manifest: &BundleManifest) -> CheckResult {
+    if manifest.schema_version == "1.0" {
+        CheckResult {
+            name: "schema_version is supported".to_string(),
+            passed: true,
+            detail: "1.0".to_string(),
+        }
+    } else {
+        CheckResult {
+            name: "schema_version is supported".to_string(),
+            passed: false,
+            detail: format!("unsupported version: {}", manifest.schema_version),
+        }
+    }
+}
+
+/// Check 3: checksums.sha256 exists and contains a well-formed checksum line.
+fn check_checksums_file(
+    bundle_dir: &Path,
+) -> Result<(CheckResult, Option<ChecksumLine>), BundleError> {
+    let checksums_path = bundle_dir.join("checksums.sha256");
+    if !checksums_path.exists() {
+        return Ok((
+            CheckResult {
+                name: "checksums.sha256 well-formed".to_string(),
+                passed: false,
+                detail: "checksums.sha256 not found".to_string(),
+            },
+            None,
+        ));
+    }
+
+    let raw = fs::read_to_string(&checksums_path).map_err(BundleError::Io)?;
+    let line = raw.lines().next().unwrap_or("").to_string();
+
+    match ChecksumLine::parse(&line) {
+        Ok(cs_line) => Ok((
+            CheckResult {
+                name: "checksums.sha256 well-formed".to_string(),
+                passed: true,
+                detail: format!(
+                    "{} file(s) listed",
+                    raw.lines().filter(|l| !l.is_empty()).count()
+                ),
+            },
+            Some(cs_line),
+        )),
+        Err(_) => Ok((
+            CheckResult {
+                name: "checksums.sha256 well-formed".to_string(),
+                passed: false,
+                detail: format!("malformed checksums.sha256: {:?}", line),
+            },
+            None,
+        )),
+    }
+}
+
+/// Check 4: the OCI tarball referenced in the manifest exists on disk.
+fn check_tarball_exists(
+    bundle_dir: &Path,
+    manifest: &BundleManifest,
+) -> Result<(CheckResult, Option<u64>), BundleError> {
+    let tarball_path = bundle_dir.join(&manifest.image.file);
+    if !tarball_path.exists() {
+        return Ok((
+            CheckResult {
+                name: format!("{} exists", manifest.image.file),
+                passed: false,
+                detail: format!("file not found: {}", manifest.image.file),
+            },
+            None,
+        ));
+    }
+
+    let tarball_size = fs::metadata(&tarball_path)?.len();
+    Ok((
+        CheckResult {
+            name: format!("{} exists", manifest.image.file),
+            passed: true,
+            detail: format_bytes(tarball_size),
+        },
+        Some(tarball_size),
+    ))
+}
+
+/// Check 5: SHA256 checksum matches both checksums.sha256 and manifest digest.
+fn check_sha256(
+    tarball_path: &Path,
+    expected_hash: &str,
+    manifest_digest_hex: &str,
+) -> CheckResult {
+    let computed_hash = match compute_sha256(tarball_path) {
+        Ok(h) => h,
+        Err(e) => {
+            return CheckResult {
+                name: "SHA256 checksum matches".to_string(),
+                passed: false,
+                detail: format!("failed to compute hash: {}", e),
+            };
+        }
+    };
+
+    if computed_hash != expected_hash {
+        return CheckResult {
+            name: "SHA256 checksum matches".to_string(),
+            passed: false,
+            detail: format!(
+                "checksum mismatch: checksums.sha256 has {}, computed {}",
+                expected_hash, computed_hash
+            ),
+        };
+    }
+
+    if computed_hash != manifest_digest_hex {
+        return CheckResult {
+            name: "SHA256 checksum matches".to_string(),
+            passed: false,
+            detail: format!(
+                "digest mismatch: manifest has {}, computed {}",
+                manifest_digest_hex, computed_hash
+            ),
+        };
+    }
+
+    CheckResult {
+        name: "SHA256 checksum matches".to_string(),
+        passed: true,
+        detail: format!("sha256:{}", computed_hash),
+    }
+}
+
+/// Check 6: file size on disk matches manifest.image.size_bytes.
+fn check_file_size(tarball_size: u64, manifest: &BundleManifest) -> CheckResult {
+    if tarball_size != manifest.image.size_bytes {
+        CheckResult {
+            name: "File size matches manifest".to_string(),
+            passed: false,
+            detail: format!(
+                "size mismatch: manifest says {} bytes, actual {} bytes",
+                manifest.image.size_bytes, tarball_size
+            ),
+        }
+    } else {
+        CheckResult {
+            name: "File size matches manifest".to_string(),
+            passed: true,
+            detail: format!("{} bytes", tarball_size),
+        }
+    }
+}
+
+// ── Orchestrator ────────────────────────────────────────────────────────────
+
+/// Run all bundle integrity checks against the given directory.
 ///
 /// Returns `Err(BundleError)` when the bundle directory itself cannot be
 /// accessed (maps to exit code 2 in main.rs).  For logical verification
-/// failures the function returns `Ok(VerifyResult { valid: false, … })`,
+/// failures the function returns `Ok(VerifyResult { valid: false, ... })`,
 /// which main.rs maps to exit code 1.
 pub fn run_verify(bundle_dir: &Path) -> Result<VerifyResult, BundleError> {
-    // Guard: directory must exist and be readable.
     if !bundle_dir.exists() {
         return Err(BundleError::ManifestNotFound(
             bundle_dir.display().to_string(),
@@ -46,226 +240,81 @@ pub fn run_verify(bundle_dir: &Path) -> Result<VerifyResult, BundleError> {
     }
 
     let mut checks: Vec<CheckResult> = Vec::new();
-    // ── Check 1: manifest.json exists and parses ────────────────────────────
-    let manifest_path = bundle_dir.join("manifest.json");
-    let manifest = if !manifest_path.exists() {
-        checks.push(CheckResult {
-            name: "manifest.json schema valid".to_string(),
-            passed: false,
-            detail: BundleError::ManifestNotFound(bundle_dir.display().to_string()).to_string(),
-        });
-        return Ok(VerifyResult {
-            valid: false,
-            checks,
-            manifest: None,
-        });
-    } else {
-        let content = fs::read_to_string(&manifest_path)
-            .map_err(|e| BundleError::ManifestInvalid(e.to_string()))?;
-        match serde_json::from_str::<BundleManifest>(&content) {
-            Ok(m) => {
-                checks.push(CheckResult {
-                    name: "manifest.json schema valid".to_string(),
-                    passed: true,
-                    detail: format!("schema_version {}", m.schema_version),
-                });
-                m
-            }
-            Err(e) => {
-                checks.push(CheckResult {
-                    name: "manifest.json schema valid".to_string(),
-                    passed: false,
-                    detail: e.to_string(),
-                });
-                return Ok(VerifyResult {
-                    valid: false,
-                    checks,
-                    manifest: None,
-                });
-            }
-        }
-    };
-    let manifest_opt = Some(manifest.clone());
 
-    // ── Check 2: schema_version == "1.0" ───────────────────────────────────
-    if manifest.schema_version == "1.0" {
-        checks.push(CheckResult {
-            name: "schema_version is supported".to_string(),
-            passed: true,
-            detail: "1.0".to_string(),
-        });
-    } else {
-        checks.push(CheckResult {
-            name: "schema_version is supported".to_string(),
-            passed: false,
-            detail: format!("unsupported version: {}", manifest.schema_version),
-        });
-        return Ok(VerifyResult {
-            valid: false,
-            checks,
-            manifest: manifest_opt,
-        });
+    // Check 1: manifest.json
+    let (c1, manifest_opt) = check_manifest(bundle_dir)?;
+    let passed = c1.passed;
+    checks.push(c1);
+    let manifest = match manifest_opt {
+        Some(m) if passed => m,
+        _ => return Ok(VerifyResult { valid: false, checks, manifest: None }),
+    };
+
+    // Check 2: schema_version
+    let c2 = check_schema_version(&manifest);
+    let passed = c2.passed;
+    checks.push(c2);
+    if !passed {
+        return Ok(VerifyResult { valid: false, checks, manifest: Some(manifest) });
     }
 
-    // ── Check 3: checksums.sha256 exists and is well-formed ────────────────
-    let checksums_path = bundle_dir.join("checksums.sha256");
-    let checksum_entry = if !checksums_path.exists() {
+    // Check 3: checksums.sha256
+    let (c3, cs_opt) = check_checksums_file(bundle_dir)?;
+    let passed = c3.passed;
+    checks.push(c3);
+    let cs_line = match cs_opt {
+        Some(cs) if passed => cs,
+        _ => return Ok(VerifyResult { valid: false, checks, manifest: Some(manifest) }),
+    };
+
+    // CKSM-03: cross-reference filename in checksums.sha256 against manifest
+    if cs_line.file != manifest.image.file {
         checks.push(CheckResult {
             name: "checksums.sha256 well-formed".to_string(),
             passed: false,
-            detail: "checksums.sha256 not found".to_string(),
-        });
-        return Ok(VerifyResult {
-            valid: false,
-            checks,
-            manifest: manifest_opt,
-        });
-    } else {
-        let raw = fs::read_to_string(&checksums_path).map_err(BundleError::Io)?;
-        // Expect at least one line: "<64-hex>  <filename>"
-        let line = raw.lines().next().unwrap_or("").to_string();
-        // Validate: 64-char hex, two spaces, filename
-        let parts: Vec<&str> = line.splitn(2, "  ").collect();
-        if parts.len() != 2
-            || parts[0].len() != 64
-            || !parts[0].chars().all(|c| c.is_ascii_hexdigit())
-        {
-            checks.push(CheckResult {
-                name: "checksums.sha256 well-formed".to_string(),
-                passed: false,
-                detail: format!("malformed checksums.sha256: {:?}", line),
-            });
-            return Ok(VerifyResult {
-                valid: false,
-                checks,
-                manifest: manifest_opt,
-            });
-        }
-        checks.push(CheckResult {
-            name: "checksums.sha256 well-formed".to_string(),
-            passed: true,
             detail: format!(
-                "{} file(s) listed",
-                raw.lines().filter(|l| !l.is_empty()).count()
+                "filename mismatch: checksums.sha256 lists '{}', manifest expects '{}'",
+                cs_line.file, manifest.image.file
             ),
         });
-        (parts[0].to_string(), parts[1].to_string()) // (expected_hash, filename)
-    };
-
-    let (checksum_hash, _checksum_filename) = checksum_entry;
-
-    // ── Check 4: OCI tarball file exists ───────────────────────────────────
-    let tarball_path = bundle_dir.join(&manifest.image.file);
-    if !tarball_path.exists() {
-        checks.push(CheckResult {
-            name: format!("{} exists", manifest.image.file),
-            passed: false,
-            detail: format!("file not found: {}", manifest.image.file),
-        });
-        return Ok(VerifyResult {
-            valid: false,
-            checks,
-            manifest: manifest_opt,
-        });
+        return Ok(VerifyResult { valid: false, checks, manifest: Some(manifest) });
     }
 
-    let tarball_size = fs::metadata(&tarball_path)?.len();
-    checks.push(CheckResult {
-        name: format!("{} exists", manifest.image.file),
-        passed: true,
-        detail: format_bytes(tarball_size).to_string(),
-    });
-
-    // ── Check 5: SHA256 matches checksums.sha256 AND manifest.image.digest ─
-    let computed_hash = match compute_sha256(&tarball_path) {
-        Ok(h) => h,
-        Err(e) => {
-            checks.push(CheckResult {
-                name: "SHA256 checksum matches".to_string(),
-                passed: false,
-                detail: format!("failed to compute hash: {}", e),
-            });
-            return Ok(VerifyResult {
-                valid: false,
-                checks,
-                manifest: manifest_opt,
-            });
-        }
+    // Check 4: tarball exists
+    let (c4, size_opt) = check_tarball_exists(bundle_dir, &manifest)?;
+    let passed = c4.passed;
+    checks.push(c4);
+    let tarball_size = match size_opt {
+        Some(s) if passed => s,
+        _ => return Ok(VerifyResult { valid: false, checks, manifest: Some(manifest) }),
     };
 
-    // Strip "sha256:" prefix from manifest digest if present.
+    // Check 5: SHA256
     let manifest_digest_hex = manifest
         .image
         .digest
         .strip_prefix("sha256:")
         .unwrap_or(&manifest.image.digest);
-
-    if computed_hash != checksum_hash {
-        checks.push(CheckResult {
-            name: "SHA256 checksum matches".to_string(),
-            passed: false,
-            detail: format!(
-                "checksum mismatch: checksums.sha256 has {}, computed {}",
-                checksum_hash, computed_hash
-            ),
-        });
-        return Ok(VerifyResult {
-            valid: false,
-            checks,
-            manifest: manifest_opt,
-        });
+    let c5 = check_sha256(
+        &bundle_dir.join(&manifest.image.file),
+        &cs_line.hex,
+        manifest_digest_hex,
+    );
+    let passed = c5.passed;
+    checks.push(c5);
+    if !passed {
+        return Ok(VerifyResult { valid: false, checks, manifest: Some(manifest) });
     }
 
-    if computed_hash != manifest_digest_hex {
-        checks.push(CheckResult {
-            name: "SHA256 checksum matches".to_string(),
-            passed: false,
-            detail: format!(
-                "digest mismatch: manifest has {}, computed {}",
-                manifest_digest_hex, computed_hash
-            ),
-        });
-        return Ok(VerifyResult {
-            valid: false,
-            checks,
-            manifest: manifest_opt,
-        });
+    // Check 6: file size
+    let c6 = check_file_size(tarball_size, &manifest);
+    let passed = c6.passed;
+    checks.push(c6);
+    if !passed {
+        return Ok(VerifyResult { valid: false, checks, manifest: Some(manifest) });
     }
 
-    checks.push(CheckResult {
-        name: "SHA256 checksum matches".to_string(),
-        passed: true,
-        detail: format!("sha256:{}", computed_hash),
-    });
-
-    // ── Check 6: File size matches manifest.image.size_bytes ───────────────
-    if tarball_size != manifest.image.size_bytes {
-        checks.push(CheckResult {
-            name: "File size matches manifest".to_string(),
-            passed: false,
-            detail: format!(
-                "size mismatch: manifest says {} bytes, actual {} bytes",
-                manifest.image.size_bytes, tarball_size
-            ),
-        });
-        return Ok(VerifyResult {
-            valid: false,
-            checks,
-            manifest: manifest_opt,
-        });
-    }
-
-    checks.push(CheckResult {
-        name: "File size matches manifest".to_string(),
-        passed: true,
-        detail: format!("{} bytes", tarball_size),
-    });
-
-    Ok(VerifyResult {
-        valid: true,
-        checks,
-        manifest: manifest_opt,
-    })
+    Ok(VerifyResult { valid: true, checks, manifest: Some(manifest) })
 }
 
 /// Format verify result as human-readable text matching the design doc §3.2.
