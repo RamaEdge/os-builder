@@ -157,7 +157,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CI-03 | Phase 7 | Complete |
 | CI-04 | Phase 7 | Complete |
 
-### v1.2 (Pending)
+### v1.2 (Complete)
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|

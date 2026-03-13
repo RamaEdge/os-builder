@@ -4,7 +4,7 @@
 
 - ✅ **v1.0 MicroShift Migration** — Phases 1-3 (shipped 2026-03-01)
 - ✅ **v1.1 Bundle CLI** — Phases 4-7 (shipped 2026-03-01)
-- 🚧 **v1.2 Tech Debt** — Phases 8-10 (in progress)
+- ✅ **v1.2 Tech Debt** — Phases 8-10 (shipped 2026-03-13)
 
 ## Phases
 
@@ -84,7 +84,7 @@ See: `.planning/milestones/v1.0-ROADMAP.md` for full details.
 
 </details>
 
-### v1.2 Tech Debt (In Progress)
+### ✅ v1.2 Tech Debt (Phases 8-10) — SHIPPED 2026-03-13
 
 **Milestone Goal:** Eliminate code duplication, harden input validation, and decompose fragile monolithic functions in the bundle CLI to improve maintainability and extensibility.
 
@@ -133,7 +133,7 @@ Plans:
   4. All existing tests pass; at least one integration test asserts numeric exit codes on known-bad input
 **Plans**: 1 plan
 Plans:
-- [ ] 10-01-PLAN.md — Add JsonSerialize error variant, replace all unwrap fallbacks, add exit code tests
+- [x] 10-01-PLAN.md — Add JsonSerialize error variant, replace all unwrap fallbacks, add exit code tests (2026-03-13)
 
 ## Progress
 
