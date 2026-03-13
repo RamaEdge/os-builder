@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Tech Debt
 status: completed
-stopped_at: Completed 09-02-PLAN.md
-last_updated: "2026-03-13T09:52:03.599Z"
-last_activity: 2026-03-13 — Completed 09-02 verify decomposition with CKSM-03
+stopped_at: Completed 10-01-PLAN.md
+last_updated: "2026-03-13T09:56:40.891Z"
+last_activity: 2026-03-13 — Completed 10-01 error hardening with ERR-01, ERR-02
 progress:
   total_phases: 7
-  completed_phases: 6
+  completed_phases: 7
   total_plans: 12
-  completed_plans: 11
-  percent: 92
+  completed_plans: 12
+  percent: 100
 ---
 
 # Project State
@@ -21,29 +21,30 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-13)
 
 **Core value:** Edge devices boot fully functional with all MicroShift system pods and edgeworks application pods running — without any network connectivity.
-**Current focus:** Phase 9 — Caller Switchover + Verify Decomposition (v1.2 Tech Debt)
+**Current focus:** Phase 10 — Error Hardening (v1.2 Tech Debt) -- COMPLETE
 
 ## Current Position
 
-Phase: 9 of 10 (Caller Switchover + Verify Decomposition)
-Plan: 2 of 2 complete
-Status: Phase 9 complete
-Last activity: 2026-03-13 — Completed 09-02 verify decomposition with CKSM-03
+Phase: 10 of 10 (Error Hardening)
+Plan: 1 of 1 complete
+Status: Phase 10 complete -- v1.2 milestone complete
+Last activity: 2026-03-13 — Completed 10-01 error hardening with ERR-01, ERR-02
 
-Progress: [█████████░] 92% (v1.2 milestone)
+Progress: [██████████] 100% (v1.2 milestone)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 3 (v1.2)
-- Average duration: 10min
-- Total execution time: 31min
+- Total plans completed: 4 (v1.2)
+- Average duration: 8min
+- Total execution time: 33min
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
 | 08    | 01   | 14min    | 3     | 8     |
 | 09    | 01   | 2min     | 2     | 0     |
 | 09    | 02   | 15min    | 2     | 1     |
+| 10    | 01   | 2min     | 2     | 6     |
 
 *Updated after each plan completion*
 
@@ -66,6 +67,8 @@ v1.1 design authority: `docs/bundle-cli-design.md`.
 - [Phase 09]: No code changes needed for 09-01 -- Phase 8 proactively switched create.rs and inspect.rs to shared format_bytes
 - [Phase 09]: ChecksumLine.file field (not filename) used for CKSM-03 cross-reference
 - [Phase 09]: check_sha256 returns CheckResult directly (IO errors become failed checks, not BundleError)
+- [Phase 10]: create.rs Err arm uses .expect() not ? for infallible json! literal
+- [Phase 10]: JSON format errors use exit(1) not exit(2) -- exit(2) reserved for path-not-found
 
 ### Pending Todos
 
@@ -77,6 +80,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-13T08:55:29Z
-Stopped at: Completed 09-02-PLAN.md
+Last session: 2026-03-13T09:56:40.888Z
+Stopped at: Completed 10-01-PLAN.md
 Resume file: None

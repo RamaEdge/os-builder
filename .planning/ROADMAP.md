@@ -90,7 +90,7 @@ See: `.planning/milestones/v1.0-ROADMAP.md` for full details.
 
 - [x] **Phase 8: Shared Utilities** - Extract format.rs, ChecksumLine, and ImageRef as standalone, tested modules; wire format.rs into callers (completed 2026-03-13)
 - [x] **Phase 9: Caller Switchover + Verify Decomposition** - Wire new modules into all callers and decompose run_verify() into composable check functions (completed 2026-03-13)
-- [ ] **Phase 10: Error Hardening** - Replace silent JSON serialization fallbacks with proper error propagation
+- [x] **Phase 10: Error Hardening** - Replace silent JSON serialization fallbacks with proper error propagation (completed 2026-03-13)
 
 ## Phase Details
 
@@ -150,4 +150,4 @@ Plans:
 | 7. CI/CD Integration | v1.1 | 2/2 | Complete | 2026-03-01 |
 | 8. Shared Utilities | v1.2 | 1/1 | Complete | 2026-03-13 |
 | 9. Caller Switchover + Verify Decomposition | v1.2 | Complete    | 2026-03-13 | - |
-| 10. Error Hardening | v1.2 | 0/1 | Not started | - |
+| 10. Error Hardening | 1/1 | Complete   | 2026-03-13 | - |

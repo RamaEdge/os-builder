@@ -64,8 +64,8 @@ Requirements for tech debt elimination in bundle CLI. Each maps to roadmap phase
 
 ### Error Handling
 
-- [ ] **ERR-01**: JSON serialization failures propagate as `BundleError::JsonSerialize` instead of returning empty `{}`
-- [ ] **ERR-02**: All `unwrap_or_else(|_| "{}".to_string())` patterns removed from create.rs, verify.rs, and inspect.rs
+- [x] **ERR-01**: JSON serialization failures propagate as `BundleError::JsonSerialize` instead of returning empty `{}`
+- [x] **ERR-02**: All `unwrap_or_else(|_| "{}".to_string())` patterns removed from create.rs, verify.rs, and inspect.rs
 
 ### Input Validation
 
@@ -173,8 +173,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | VRFY-02 | Phase 9 | Complete |
 | VRFY-03 | Phase 9 | Complete |
 | CKSM-03 | Phase 9 | Complete |
-| ERR-01 | Phase 10 | Pending |
-| ERR-02 | Phase 10 | Pending |
+| ERR-01 | Phase 10 | Complete |
+| ERR-02 | Phase 10 | Complete |
 
 **Coverage:**
 - v1.1 requirements: 22 total (all complete)
