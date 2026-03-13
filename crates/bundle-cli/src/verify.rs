@@ -588,6 +588,57 @@ mod tests {
     }
 
     #[test]
+    fn test_verify_check_names() {
+        let (dir, _tarball, _hex, _size) = make_valid_bundle();
+        let result = run_verify(dir.path()).unwrap();
+        let check_names: Vec<&str> = result.checks.iter().map(|c| c.name.as_str()).collect();
+        assert!(
+            check_names.iter().any(|n| n.contains("manifest.json schema valid")),
+            "missing manifest check"
+        );
+        assert!(
+            check_names.iter().any(|n| n.contains("schema_version is supported")),
+            "missing schema_version check"
+        );
+        assert!(
+            check_names.iter().any(|n| n.contains("checksums.sha256 well-formed")),
+            "missing checksums check"
+        );
+        assert!(
+            check_names.iter().any(|n| n.contains("exists")),
+            "missing tarball-exists check"
+        );
+        assert!(
+            check_names.iter().any(|n| n.contains("SHA256 checksum matches")),
+            "missing sha256 check"
+        );
+        assert!(
+            check_names.iter().any(|n| n.contains("File size matches manifest")),
+            "missing size check"
+        );
+    }
+
+    #[test]
+    fn test_verify_checksum_filename_mismatch() {
+        let (dir, _tarball_name, hex, _size) = make_valid_bundle();
+        // Overwrite checksums.sha256 with the correct hash but a WRONG filename.
+        let bad_checksum = format!("{}  wrong-filename.oci.tar\n", hex);
+        fs::write(dir.path().join("checksums.sha256"), bad_checksum).unwrap();
+
+        let result = run_verify(dir.path()).unwrap();
+        assert!(
+            !result.valid,
+            "Expected invalid bundle due to checksum filename mismatch"
+        );
+        let failed: Vec<_> = result.checks.iter().filter(|c| !c.passed).collect();
+        assert!(
+            failed.iter().any(|c| c.name.contains("checksums")),
+            "Expected checksums-related check to fail, got: {:?}",
+            failed
+        );
+    }
+
+    #[test]
     fn test_format_verify_json_failed() {
         let (dir, _tarball, _hex, _size) = make_valid_bundle();
         fs::remove_file(dir.path().join("checksums.sha256")).unwrap();
