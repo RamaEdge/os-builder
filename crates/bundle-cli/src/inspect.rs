@@ -2,6 +2,7 @@ use std::fs;
 use std::path::Path;
 
 use crate::error::BundleError;
+use crate::format::format_bytes;
 use crate::manifest::BundleManifest;
 
 /// Load the bundle manifest from the given bundle directory.
@@ -30,26 +31,6 @@ pub fn run_inspect(bundle_dir: &Path) -> Result<BundleManifest, BundleError> {
 
     serde_json::from_str::<BundleManifest>(&content)
         .map_err(|e| BundleError::ManifestInvalid(e.to_string()))
-}
-
-/// Format a byte count as human-readable (e.g. "2.0 GiB").
-pub fn format_size(bytes: u64) -> String {
-    const TIB: u64 = 1024 * 1024 * 1024 * 1024;
-    const GIB: u64 = 1024 * 1024 * 1024;
-    const MIB: u64 = 1024 * 1024;
-    const KIB: u64 = 1024;
-
-    if bytes >= TIB {
-        format!("{:.1} TiB", bytes as f64 / TIB as f64)
-    } else if bytes >= GIB {
-        format!("{:.1} GiB", bytes as f64 / GIB as f64)
-    } else if bytes >= MIB {
-        format!("{:.1} MiB", bytes as f64 / MIB as f64)
-    } else if bytes >= KIB {
-        format!("{:.1} KiB", bytes as f64 / KIB as f64)
-    } else {
-        format!("{} B", bytes)
-    }
 }
 
 /// Format a manifest as human-readable text matching the design doc §3.3.
@@ -81,7 +62,7 @@ pub fn format_inspect_human(manifest: &BundleManifest, bundle_dir: &Path) -> Str
         manifest.created_by,
         manifest.image.reference,
         manifest.image.version,
-        format_size(manifest.image.size_bytes),
+        format_bytes(manifest.image.size_bytes),
         manifest.image.digest,
         manifest.target_device,
         notes,
@@ -226,18 +207,6 @@ mod tests {
             BundleError::ManifestNotFound(_) => {}
             other => panic!("Expected ManifestNotFound, got {:?}", other),
         }
-    }
-
-    #[test]
-    fn test_format_size() {
-        assert_eq!(format_size(0), "0 B");
-        assert_eq!(format_size(512), "512 B");
-        assert_eq!(format_size(1023), "1023 B");
-        assert_eq!(format_size(1024), "1.0 KiB");
-        assert_eq!(format_size(1048576), "1.0 MiB");
-        assert_eq!(format_size(1073741824), "1.0 GiB");
-        assert_eq!(format_size(2147483648), "2.0 GiB");
-        assert_eq!(format_size(1024u64 * 1024 * 1024 * 1024), "1.0 TiB");
     }
 
     #[test]

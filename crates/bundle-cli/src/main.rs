@@ -3,6 +3,7 @@ use std::path::PathBuf;
 
 mod create;
 mod error;
+mod format;
 mod inspect;
 mod manifest;
 mod verify;

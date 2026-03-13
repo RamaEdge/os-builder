@@ -4,6 +4,7 @@ use std::path::Path;
 use sha2::{Digest, Sha256};
 
 use crate::error::BundleError;
+use crate::format::format_bytes;
 use crate::manifest::BundleManifest;
 
 /// Result of a single integrity check.
@@ -28,23 +29,6 @@ fn compute_sha256(path: &Path) -> Result<String, BundleError> {
     let mut hasher = Sha256::new();
     std::io::copy(&mut file, &mut hasher)?;
     Ok(format!("{:x}", hasher.finalize()))
-}
-
-/// Format a byte count as a human-readable string (e.g. "2.0 GiB").
-fn format_bytes(bytes: u64) -> String {
-    const GIB: u64 = 1024 * 1024 * 1024;
-    const MIB: u64 = 1024 * 1024;
-    const KIB: u64 = 1024;
-
-    if bytes >= GIB {
-        format!("{:.1} GiB", bytes as f64 / GIB as f64)
-    } else if bytes >= MIB {
-        format!("{:.1} MiB", bytes as f64 / MIB as f64)
-    } else if bytes >= KIB {
-        format!("{:.1} KiB", bytes as f64 / KIB as f64)
-    } else {
-        format!("{} B", bytes)
-    }
 }
 
 /// Run all 6 bundle integrity checks against the given directory.

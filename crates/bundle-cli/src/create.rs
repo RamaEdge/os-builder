@@ -9,6 +9,7 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 
 use crate::error::BundleError;
+use crate::format::format_bytes;
 use crate::manifest::{BundleImage, BundleManifest};
 
 /// Machine-readable JSON output for a successful bundle creation (design doc §3.1).
@@ -21,23 +22,6 @@ pub struct CreateOutput {
     pub digest: String,
     pub size_bytes: u64,
     pub files: Vec<String>,
-}
-
-/// Format a byte count as a human-readable string (e.g., "2.0 GiB").
-fn format_bytes(bytes: u64) -> String {
-    const GIB: u64 = 1024 * 1024 * 1024;
-    const MIB: u64 = 1024 * 1024;
-    const KIB: u64 = 1024;
-
-    if bytes >= GIB {
-        format!("{:.1} GiB", bytes as f64 / GIB as f64)
-    } else if bytes >= MIB {
-        format!("{:.1} MiB", bytes as f64 / MIB as f64)
-    } else if bytes >= KIB {
-        format!("{:.1} KiB", bytes as f64 / KIB as f64)
-    } else {
-        format!("{} B", bytes)
-    }
 }
 
 /// Internal result of the bundle creation pipeline.
