@@ -75,15 +75,15 @@ Requirements for tech debt elimination in bundle CLI. Each maps to roadmap phase
 
 ### Verify Refactor
 
-- [ ] **VRFY-01**: `run_verify()` decomposed into individual check functions each returning `CheckResult`
-- [ ] **VRFY-02**: Coordinator function composes checks in a loop (~30 lines, down from 230)
-- [ ] **VRFY-03**: All 9 existing verify tests pass without modification
+- [x] **VRFY-01**: `run_verify()` decomposed into individual check functions each returning `CheckResult`
+- [x] **VRFY-02**: Coordinator function composes checks in a loop (~30 lines, down from 230)
+- [x] **VRFY-03**: All 9 existing verify tests pass without modification
 
 ### Checksum Parsing
 
 - [x] **CKSM-01**: `ChecksumLine` struct encapsulates parsing of `checksums.sha256` lines
 - [x] **CKSM-02**: Two-space delimiter contract preserved (not `split_whitespace`)
-- [ ] **CKSM-03**: Checksum filename cross-referenced against `manifest.image.file`
+- [x] **CKSM-03**: Checksum filename cross-referenced against `manifest.image.file`
 
 ## Future Requirements
 
@@ -169,10 +169,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | VALID-03 | Phase 8 | Complete |
 | CKSM-01 | Phase 8 | Complete |
 | CKSM-02 | Phase 8 | Complete |
-| VRFY-01 | Phase 9 | Pending |
-| VRFY-02 | Phase 9 | Pending |
-| VRFY-03 | Phase 9 | Pending |
-| CKSM-03 | Phase 9 | Pending |
+| VRFY-01 | Phase 9 | Complete |
+| VRFY-02 | Phase 9 | Complete |
+| VRFY-03 | Phase 9 | Complete |
+| CKSM-03 | Phase 9 | Complete |
 | ERR-01 | Phase 10 | Pending |
 | ERR-02 | Phase 10 | Pending |
 
