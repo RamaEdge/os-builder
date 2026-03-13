@@ -88,14 +88,14 @@ See: `.planning/milestones/v1.0-ROADMAP.md` for full details.
 
 **Milestone Goal:** Eliminate code duplication, harden input validation, and decompose fragile monolithic functions in the bundle CLI to improve maintainability and extensibility.
 
-- [ ] **Phase 8: Shared Utilities** - Extract format.rs, ChecksumLine, and ImageRef as standalone, tested modules
+- [ ] **Phase 8: Shared Utilities** - Extract format.rs, ChecksumLine, and ImageRef as standalone, tested modules; wire format.rs into callers
 - [ ] **Phase 9: Caller Switchover + Verify Decomposition** - Wire new modules into all callers and decompose run_verify() into composable check functions
 - [ ] **Phase 10: Error Hardening** - Replace silent JSON serialization fallbacks with proper error propagation
 
 ## Phase Details
 
 ### Phase 8: Shared Utilities
-**Goal**: Three new utility modules exist with full test coverage — no existing code has been modified yet
+**Goal**: Three new utility modules exist with full test coverage and format.rs is wired into all callers, replacing duplicate implementations
 **Depends on**: Phase 7 (v1.1 complete)
 **Requirements**: DEDUP-01, DEDUP-02, DEDUP-03, VALID-01, VALID-02, VALID-03, CKSM-01, CKSM-02
 **Success Criteria** (what must be TRUE):
@@ -103,7 +103,10 @@ See: `.planning/milestones/v1.0-ROADMAP.md` for full details.
   2. `crates/bundle-cli/src/checksum.rs` provides `ChecksumLine::parse()` that accepts double-space GNU sha256sum format and rejects single-space input (explicit failing test exists)
   3. `crates/bundle-cli/src/image_ref.rs` provides `ImageRef::parse()` that rejects shell metacharacters, accepts port-containing registry hosts (`registry:5000/repo:tag`), and requires a non-empty tag
   4. `cargo test` passes with all new unit tests (no existing tests broken)
-**Plans**: TBD
+  5. No local `format_bytes` or `format_size` functions remain in create.rs, verify.rs, or inspect.rs
+**Plans**: 1 plan
+Plans:
+- [ ] 08-01-PLAN.md — Create format.rs, checksum.rs, image_ref.rs modules with tests; wire format.rs into all callers
 
 ### Phase 9: Caller Switchover + Verify Decomposition
 **Goal**: All three command modules use the shared utilities exclusively and run_verify() is a short orchestrator over named check functions
@@ -145,6 +148,6 @@ Plans:
 | 5. Create Command | v1.1 | 2/2 | Complete | 2026-03-01 |
 | 6. Verify + Inspect | v1.1 | 2/2 | Complete | 2026-03-01 |
 | 7. CI/CD Integration | v1.1 | 2/2 | Complete | 2026-03-01 |
-| 8. Shared Utilities | v1.2 | 0/TBD | Not started | - |
+| 8. Shared Utilities | v1.2 | 0/1 | Not started | - |
 | 9. Caller Switchover + Verify Decomposition | v1.2 | 0/2 | Not started | - |
 | 10. Error Hardening | v1.2 | 0/1 | Not started | - |
