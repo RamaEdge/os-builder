@@ -12,6 +12,9 @@ pub enum BundleError {
     #[error("output directory already contains a bundle")]
     OutputExists,
 
+    #[error("invalid image reference: {0}")]
+    InvalidImageRef(String),
+
     #[error("manifest.json not found in {0}")]
     ManifestNotFound(String),
 
@@ -49,6 +52,10 @@ mod tests {
             (
                 BundleError::OutputExists,
                 "output directory already contains",
+            ),
+            (
+                BundleError::InvalidImageRef("bad ref".into()),
+                "invalid image reference: bad ref",
             ),
             (
                 BundleError::ManifestNotFound("/tmp".into()),

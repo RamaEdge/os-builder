@@ -5,6 +5,7 @@ mod checksum;
 mod create;
 mod error;
 mod format;
+mod image_ref;
 mod inspect;
 mod manifest;
 mod verify;
