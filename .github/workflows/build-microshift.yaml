@@ -37,7 +37,7 @@ jobs:
       security-events: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Load version configuration
         id: versions
@@ -107,7 +107,7 @@ jobs:
     if: github.event.inputs.build_iso == 'true' || (github.event_name == 'schedule')
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Authenticate with Harbor
         uses: ./.github/actions/harbor-auth
